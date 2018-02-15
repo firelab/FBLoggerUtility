@@ -81,8 +81,8 @@ public:
     {
         double columnMin[9];
         double columnMax[9];
-        bool columnPassedSanityCheckRaw[9];
-        bool columnPassedSanityCheckFinal[9];
+        bool columnFailedSanityCheckRaw[9];
+        bool columnFailedSanityCheckFinal[9];
         bool isFailedSanityCheckRaw;
         bool isFailedSanityCheckFinal;
         string fileName;
@@ -133,8 +133,14 @@ public:
 
     struct SanityChecks
     {
-        const double IGNORE_MIN = -9999999;
-        const double IGNORE_MAX = 9999999;
+        enum SanityCheckTypeEnum
+        {
+            RAW = 0,
+            FINAL = 1
+        };
+
+        const double IGNORE_MIN = DBL_MIN;
+        const double IGNORE_MAX = DBL_MAX;
 
         double FIDVoltageMin = 0.0;
         double FIDVoltageMax = 2.5;
@@ -193,6 +199,13 @@ public:
     bool IsConfigFileValid();
 
 private:
+    static inline bool double_equals(double a, double b, double epsilon = 0.000001)
+    {
+        return std::abs(a - b) < epsilon;
+    }
+
+    static const unsigned int NUM_SENSOR_READINGS = 9;
+
     void FillSensorValuesWithTestVoltages(); // Debug use only!
 
     double CalculateHeatFlux(double rawVoltage);
@@ -203,8 +216,7 @@ private:
     
     void PerformNeededDataConversions();
 
-    bool PerformSanityCheckOnRawValue();
-    bool PerformSanityCheckOnFinalValue();
+    void PerformSanityChecksOnValues(SanityChecks::SanityCheckTypeEnum sanityCheckType);
 
     // Private methods
     void ReadConfig();
@@ -238,7 +250,7 @@ private:
     void SetConfigDependentValues();
    
     void PrintStatsFileHeader();
-    void PrintMaxMinDataValuesForSingleFile(string currentFileName);
+    void PrintStatsDataValuesForSingleFile(string currentFileName);
 
     void ReportSuccessToLog();
 

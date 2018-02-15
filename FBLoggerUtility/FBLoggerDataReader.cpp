@@ -35,10 +35,10 @@ FBLoggerDataReader::FBLoggerDataReader()
     // Initialize H Config Sanity Checks
     for (int i = 0; i < 9; i++)
     {
-        sanityChecks_.FRawMin[i] = sanityChecks_.NAMin;
-        sanityChecks_.FRawMax[i] = sanityChecks_.NAMax;
-        sanityChecks_.FFinalMin[i] = sanityChecks_.NAMin;
-        sanityChecks_.FFinalMax[i] = sanityChecks_.NAMax;
+        sanityChecks_.HRawMin[i] = sanityChecks_.NAMin;
+        sanityChecks_.HRawMax[i] = sanityChecks_.NAMax;
+        sanityChecks_.HFinalMin[i] = sanityChecks_.NAMin;
+        sanityChecks_.HFinalMax[i] = sanityChecks_.NAMax;
     }
 
     // H Config Raw Sanity Checks
@@ -56,8 +56,8 @@ FBLoggerDataReader::FBLoggerDataReader()
     sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_U] = sanityChecks_.pressureVoltageMax;
     sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_V] = sanityChecks_.pressureVoltageMax;
     sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_W] = sanityChecks_.pressureVoltageMax;
-    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = sanityChecks_.heatFluxVoltageMin;
-    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = sanityChecks_.heatFluxVoltageMin;
+    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = sanityChecks_.heatFluxVoltageMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = sanityChecks_.heatFluxVoltageMax;
     sanityChecks_.HRawMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
 
     // Final H Config Sanity Checks
@@ -74,13 +74,13 @@ FBLoggerDataReader::FBLoggerDataReader()
     sanityChecks_.HFinalMax[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMax;
     sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_U] = sanityChecks_.velocityMax;
     sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_V] = sanityChecks_.velocityMax;
-    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_W] = sanityChecks_.velocityMin;
+    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_W] = sanityChecks_.velocityMax;
     sanityChecks_.HFinalMax[HeatFluxIndex::HEAT_FLUX] = sanityChecks_.heatFluxMax;
     sanityChecks_.HFinalMax[HeatFluxIndex::HEAT_FLUX_TEMPERATURE] = sanityChecks_.heatFluxTemperatureMax;
     sanityChecks_.HFinalMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
 
     // Initialize F Config Sanity Checks
-    for (int i = 0; i < 9; i++)
+    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
         sanityChecks_.FRawMin[i] = sanityChecks_.NAMin;
         sanityChecks_.FRawMax[i] = sanityChecks_.NAMax;
@@ -111,13 +111,13 @@ FBLoggerDataReader::FBLoggerDataReader()
     sanityChecks_.FFinalMax[FIDPackageIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
 
     // T Config Sanity Checks
-    for (int i = 0; i < 9; i++)
+    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
         sanityChecks_.TMin[i] = sanityChecks_.temperatureMin;
         sanityChecks_.TMax[i] = sanityChecks_.temperatureMax;
     }
 
-    int test = 1;
+    ResetCurrentFileStats();
 }
 
 FBLoggerDataReader::~FBLoggerDataReader()
@@ -151,6 +151,204 @@ void FBLoggerDataReader::FillSensorValuesWithTestVoltages()
         status_.sensorReadingValue[7] = 0.00; // NA
         status_.sensorReadingValue[8] = 16.2; // Panel Temp
     }
+}
+
+void FBLoggerDataReader::ProcessAllDataFiles()
+{
+    int codepage = CP_UTF8;
+    std::wstring extensionW;
+    string extension;
+
+    numFilesProcessed_ = 0;
+    numInvalidInputFiles_ = 0;
+    numInvalidOutputFiles_ = 0;
+    numErrors_ = 0;
+
+    inputFilesNameList_.clear();
+    invalidInputFileList_.clear();
+    invalidInputFileErrorType_.clear();
+    configMap_.clear();
+
+    string logFileNoExtension = dataPath_ + "log_file";
+    logFilePath_ = logFileNoExtension + ".txt";
+    ofstream logFile(logFilePath_, std::ios::out);
+
+    // Check for output file's existence
+    if (!logFile || logFile.fail())
+    {
+        logFile.close();
+        logFile.clear();
+        SYSTEMTIME systemTime;
+        GetLocalTime(&systemTime);
+
+        string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+            "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
+            MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
+
+        logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
+        logFilePath_ = logFileNoExtension + "_" + dateTimeString + ".txt";
+
+        ofstream logFile(logFilePath_, std::ios::out);
+    }
+    if (logFile.good())
+    {
+        pLogFile_ = &logFile;
+        PrintLogFileLine();
+        ReadConfig();
+
+        if (isConfigFileValid_)
+        {
+            ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
+            CheckConfigForAllFiles();
+            PrintLogFileLine();
+
+            if (numInvalidInputFiles_ == 0)
+            {
+                statsFilePath_ = dataPath_ + "sensor_stats.csv";
+
+                ofstream outStatsFile(statsFilePath_, std::ios::out);
+
+                if (outStatsFile.good() && logFile.good())
+                {
+                    pOutSensorStatsFile_ = &outStatsFile;
+                    PrintStatsFileHeader();
+
+                    for (unsigned int i = 0; i < inputFilesNameList_.size(); i++)
+                    {
+                        extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
+                        extension = Utf8_encode(extensionW);
+                        if (extension == ".DAT" || extension == ".dat")
+                        {
+                            ProcessSingleDataFile(inputFilesNameList_[i]);
+                            if (!status_.isGoodOutput)
+                            {
+                                numInvalidOutputFiles_++;
+                                numErrors_++;
+                            }
+                            numFilesProcessed_++;
+                        }
+                    }
+
+                    pOutSensorStatsFile_->close();
+                    pOutSensorStatsFile_ = NULL;
+                }
+            }
+        }
+        if (numErrors_ == 0)
+        {
+            ReportSuccessToLog();
+        }
+        pLogFile_->close();
+        pLogFile_ = NULL;
+    }
+}
+
+void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
+{
+    inDataFilePath_ = dataPath_ + infileName;
+
+    std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
+    pInFile_ = &inFile;
+
+    outputLine_ = "";
+    configurationType_ = "";
+    status_.isGoodOutput = true;
+
+    ResetCurrentFileStats();
+
+    // Check for input file's existence
+    if (pInFile_ == NULL)
+    {
+        pInFile_->close();
+        pInFile_ = NULL;
+        pOutLoggerDataFile_ = NULL;
+        // Report error
+        logFileLine_ = "ERROR: Input file " + inDataFilePath_ + " does not exist\n";
+        PrintLogFileLine();
+    }
+    else
+    {
+        // Get the size of the data file in bytes
+        const char* cStringFilePath = inDataFilePath_.c_str();
+        struct stat results;
+        if (stat(cStringFilePath, &results) == 0)
+        {
+            fileSizeInBytes_ = results.st_size;
+
+            bool headerFound = GetFirstHeader();
+
+            if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
+            {
+                configurationType_ = configMap_.find(atoi(headerData_.serialNumberString.c_str()))->second;
+            }
+
+            if ((headerFound) && (configurationType_ != ""))
+            {
+                SetLoggerDataOutFilePath(infileName);
+
+                ofstream outDataFile(outLoggerDataFilePath_, std::ios::out);
+                pOutLoggerDataFile_ = &outDataFile;
+
+                // Check for output file's existence and is not open by another process
+                if (pOutLoggerDataFile_ == NULL || outDataFile.fail())
+                {
+                    pInFile_->close();
+                    pOutLoggerDataFile_->close();
+                    // Report error
+                    logFileLine_ = "ERROR: Unable to open " + outLoggerDataFilePath_ + "\n";
+                    PrintLogFileLine();
+                    status_.isGoodOutput = false;
+                }
+                // We can read the input file
+                else
+                {
+                    status_.isGoodOutput = true;
+                    SetConfigDependentValues();
+                    PrintHeader();
+
+                    while (status_.pos < (fileSizeInBytes_ - BYTES_READ_PER_ITERATION))
+                    {
+                        ReadNextHeaderOrNumber();
+                        UpdateSensorMaxAndMin();
+                        if (status_.sensorReadingCounter < 8)
+                        {
+                            // increment sensor reading for next iteration
+                            status_.sensorReadingCounter++;
+                        }
+                        else // An entire row of sensor data has been read in
+                        {
+                            PerformSanityChecksOnValues(SanityChecks::RAW);
+                            PerformNeededDataConversions();
+                            PerformSanityChecksOnValues(SanityChecks::FINAL);
+                            PrintSensorDataOutput();
+                            // Reset sensor reading counter 
+                            status_.sensorReadingCounter = 0;
+                            // Reset all sensor reading values
+                            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+                            {
+                                status_.sensorReadingValue[i] = 0.0;
+                            }
+                            // Update time for next set of sensor readings
+                            UpdateTime();
+                        }
+                    }
+                }
+
+                // Close the file streamd
+                pInFile_->close();
+                pInFile_ = NULL;
+                pOutLoggerDataFile_->close();
+                pOutLoggerDataFile_ = NULL;
+            }
+        }
+        else
+        {
+            inFile.close();
+            pInFile_ = NULL;
+            // An error occurred
+        }
+    }
+    PrintLogFileLine();
 }
 
 double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)
@@ -208,18 +406,12 @@ int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureO
 
 double FBLoggerDataReader::CalculateFIDPackagePressure(double rawVoltage)
 {
-    //Pressure(Pa) = 249.09* (logger volts - 1.550) * 0.8065
     double pressure = 249.09 * (rawVoltage - 1.550) * 0.8065;
     return pressure;
 }
 
 void FBLoggerDataReader::PerformNeededDataConversions()
-{
-#ifdef _DEBUG
-    // The following method is for debug purposes only!
-    FillSensorValuesWithTestVoltages();
-#endif
-   
+{  
     if (configurationType_ == "F")
     {
         double FIDPackagePressure = CalculateFIDPackagePressure(status_.sensorReadingValue[2]);
@@ -250,32 +442,87 @@ void FBLoggerDataReader::PerformNeededDataConversions()
     }
 }
 
-bool FBLoggerDataReader::PerformSanityCheckOnRawValue()
+void FBLoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTypeEnum sanityCheckType)
 {
-    if (configurationType_ == "F")
-    {
-        unsigned int currentIndex = status_.sensorReadingCounter;
-        double currentValue = status_.sensorReadingValue[currentIndex];
-        double minForSanityCheck = sanityChecks_.FRawMin[currentIndex];
-        double maxForSanityCheck = sanityChecks_.FRawMax[currentIndex];
+    double minForSanityCheck = 0.0;
+    double maxForSanityCheck = 0.0;
+    //unsigned int currentIndex = status_.sensorReadingCounter;
+   
+#ifdef _DEBUG
+    // The following method is for debug purposes only!
+    FillSensorValuesWithTestVoltages();
+#endif
 
-        if (minForSanityCheck != sanityChecks_.IGNORE_MIN && (currentValue < minForSanityCheck))
+    for (unsigned int currentIndex = 0; currentIndex < NUM_SENSOR_READINGS; currentIndex++)
+    {
+        double currentValue = status_.sensorReadingValue[currentIndex];
+        if (configurationType_ == "F")
         {
-            currentFileStats_.columnPassedSanityCheckRaw[currentIndex] = false;
-            currentFileStats_.isFailedSanityCheckRaw = true;
+            if (sanityCheckType == SanityChecks::RAW)
+            {
+                minForSanityCheck = sanityChecks_.FRawMin[currentIndex];
+                maxForSanityCheck = sanityChecks_.FRawMax[currentIndex];
+            }
+            else if (sanityCheckType == SanityChecks::FINAL)
+            {
+                minForSanityCheck = sanityChecks_.FFinalMin[currentIndex];
+                maxForSanityCheck = sanityChecks_.FFinalMax[currentIndex];
+            }
         }
-        else if (maxForSanityCheck != sanityChecks_.IGNORE_MAX && (currentValue > maxForSanityCheck))
+        else if (configurationType_ == "H")
         {
-            currentFileStats_.columnPassedSanityCheckRaw[currentIndex] = false;
-            currentFileStats_.isFailedSanityCheckRaw = true;
+            if (sanityCheckType == SanityChecks::RAW)
+            {
+                minForSanityCheck = sanityChecks_.HRawMin[currentIndex];
+                maxForSanityCheck = sanityChecks_.HRawMax[currentIndex];
+            }
+            else if (sanityCheckType == SanityChecks::FINAL)
+            {
+                minForSanityCheck = sanityChecks_.HFinalMin[currentIndex];
+                maxForSanityCheck = sanityChecks_.HFinalMax[currentIndex];
+            }
+        }
+        else if (configurationType_ == "T")
+        {
+            if (sanityCheckType == SanityChecks::RAW)
+            {
+                minForSanityCheck = sanityChecks_.TMin[currentIndex];
+                maxForSanityCheck = sanityChecks_.TMax[currentIndex];
+            }
+            else if (sanityCheckType == SanityChecks::FINAL)
+            {
+                minForSanityCheck = sanityChecks_.TMin[currentIndex];
+                maxForSanityCheck = sanityChecks_.TMax[currentIndex];
+            }
+        }
+
+        if (sanityCheckType == SanityChecks::RAW)
+        {
+            if (!(double_equals(minForSanityCheck,sanityChecks_.IGNORE_MIN)) && (currentValue < minForSanityCheck))
+            {
+                currentFileStats_.columnFailedSanityCheckRaw[currentIndex] = true;
+                currentFileStats_.isFailedSanityCheckRaw = true;
+            }
+            else if (!(double_equals(maxForSanityCheck, sanityChecks_.IGNORE_MAX)) && (currentValue > maxForSanityCheck))
+            {
+                currentFileStats_.columnFailedSanityCheckRaw[currentIndex] = true;
+                currentFileStats_.isFailedSanityCheckRaw = true;
+            }
+        }
+        else if (sanityCheckType == SanityChecks::FINAL)
+        {
+            if (!(double_equals(minForSanityCheck, sanityChecks_.IGNORE_MIN)) && (currentValue < minForSanityCheck))
+            {
+                currentFileStats_.columnFailedSanityCheckFinal[currentIndex] = true;
+                currentFileStats_.isFailedSanityCheckFinal = true;
+            }
+            else if (!(double_equals(maxForSanityCheck, sanityChecks_.IGNORE_MAX)) && (currentValue > maxForSanityCheck))
+            {
+                currentFileStats_.columnFailedSanityCheckFinal[currentIndex] = true;
+                currentFileStats_.isFailedSanityCheckFinal = true;
+            }
         }
     }
-    return false;
-}
-
-bool FBLoggerDataReader::PerformSanityCheckOnFinalValue()
-{
-    return false;
 }
 
 void FBLoggerDataReader::ReadConfig()
@@ -592,7 +839,7 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
 
     numInvalidInputFiles_ = 0;
  
-    for (int i = 0; i < inputFilesNameList_.size(); i++)
+    for (unsigned int i = 0; i < inputFilesNameList_.size(); i++)
     {
         inDataFilePath_ = dataPath_ + inputFilesNameList_[i];
         extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
@@ -647,218 +894,6 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
     }
 }
 
-void FBLoggerDataReader::ProcessAllDataFiles()
-{
-    int codepage = CP_UTF8;
-    std::wstring extensionW;
-    string extension;
-
-    numFilesProcessed_ = 0;
-    numInvalidInputFiles_ = 0;
-    numInvalidOutputFiles_ = 0;
-    numErrors_ = 0;
-
-    inputFilesNameList_.clear();
-    invalidInputFileList_.clear();
-    invalidInputFileErrorType_.clear();
-    configMap_.clear();
-
-    string logFileNoExtension = dataPath_ + "log_file";
-    logFilePath_ = logFileNoExtension + ".txt";
-    ofstream logFile(logFilePath_, std::ios::out);
-
-    // Check for output file's existence
-    if (!logFile || logFile.fail())
-    {
-        logFile.close();
-        logFile.clear();
-        SYSTEMTIME systemTime;
-        GetLocalTime(&systemTime);
-
-        string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
-            "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
-            MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
-
-        logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
-        logFilePath_ = logFileNoExtension + "_" + dateTimeString + ".txt";
-
-        ofstream logFile(logFilePath_, std::ios::out);
-    }
-    if (logFile.good())
-    {
-        pLogFile_ = &logFile;
-        PrintLogFileLine();
-        ReadConfig();
-
-        if (isConfigFileValid_)
-        {
-            ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
-            CheckConfigForAllFiles();
-            PrintLogFileLine();
-
-            if (numInvalidInputFiles_ == 0)
-            {
-                //SYSTEMTIME systemTime;
-                //GetLocalTime(&systemTime);
-
-                //string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
-                //    "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "h" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "m" +
-                //    MakeStringWidthTwoFromInt(systemTime.wSecond) + "s";
-
-                //statsFilePath_ = dataPath_ + "sensor_stats" + dateTimeString + ".csv";
-                statsFilePath_ = dataPath_ + "sensor_stats.csv";
-
-                ofstream outStatsFile(statsFilePath_, std::ios::out);
-
-                if (outStatsFile.good() && logFile.good())
-                {
-                    pOutSensorStatsFile_ = &outStatsFile;
-                    PrintStatsFileHeader();
-
-                    for (int i = 0; i < inputFilesNameList_.size(); i++)
-                    {
-                        extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
-                        extension = Utf8_encode(extensionW);
-                        if (extension == ".DAT" || extension == ".dat")
-                        {
-                            ProcessSingleDataFile(inputFilesNameList_[i]);
-                            PrintLogFileLine();
-                            if (status_.isGoodOutput)
-                            {
-                                PrintMaxMinDataValuesForSingleFile(inputFilesNameList_[i]);
-                            }
-                            else
-                            {
-                                numInvalidOutputFiles_++;
-                                numErrors_++;
-                            }
-                            numFilesProcessed_++;
-                        }
-                    }
-
-                    pOutSensorStatsFile_->close();
-                    pOutSensorStatsFile_ = NULL;
-                }
-            }
-        }
-        if (numErrors_ == 0)
-        {
-            ReportSuccessToLog();
-        }
-        pLogFile_->close();
-        pLogFile_ = NULL;
-    }
-}
-
-void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
-{
-    inDataFilePath_ = dataPath_ + infileName;
-
-    std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
-    pInFile_ = &inFile;
-
-    outputLine_ = "";
-    configurationType_ = "";
-    status_.isGoodOutput = true;
-    ResetCurrentFileStats();
-
-    for (int i = 0; i < 9; i++)
-    {
-        currentFileStats_.columnPassedSanityCheckRaw[i] = true;
-        currentFileStats_.columnPassedSanityCheckFinal[i] = true;
-    }
-    // Check for input file's existence
-    if (pInFile_ == NULL)
-    {
-        pInFile_->close();
-        pInFile_ = NULL;
-        pOutLoggerDataFile_ = NULL;
-        // Report error
-        logFileLine_ =  "ERROR: Input file " + inDataFilePath_ + " does not exist\n";
-        PrintLogFileLine();
-    }
-    else 
-    {
-        // Get the size of the data file in bytes
-        const char* cStringFilePath = inDataFilePath_.c_str();
-        struct stat results;
-        if (stat(cStringFilePath, &results) == 0)
-        {
-            fileSizeInBytes_ = results.st_size;
-   
-            bool headerFound = GetFirstHeader();
-        
-            if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
-            {
-                configurationType_ = configMap_.find(atoi(headerData_.serialNumberString.c_str()))->second;
-            }
-
-            if ((headerFound) && (configurationType_ != ""))
-            {
-                SetLoggerDataOutFilePath(infileName);
-
-                ofstream outDataFile(outLoggerDataFilePath_, std::ios::out);
-                pOutLoggerDataFile_ = &outDataFile;
-
-                // Check for output file's existence and is not open by another process
-                if (pOutLoggerDataFile_ == NULL || outDataFile.fail())
-                {
-                    pInFile_->close();
-                    pOutLoggerDataFile_->close();
-                    // Report error
-                    logFileLine_ = "ERROR: Unable to open " + outLoggerDataFilePath_ + "\n";
-                    PrintLogFileLine();
-                    status_.isGoodOutput = false;
-                }
-                // We can read the input file
-                else
-                {
-                    status_.isGoodOutput = true;
-                    SetConfigDependentValues();
-                    PrintHeader();
-
-                    while (status_.pos < (fileSizeInBytes_ - BYTES_READ_PER_ITERATION))
-                    {
-                        ReadNextHeaderOrNumber();
-                        UpdateSensorMaxAndMin();
-                        if (status_.sensorReadingCounter < 8)
-                        {
-                            // increment sensor reading for next iteration
-                            status_.sensorReadingCounter++;
-                        }
-                        else // An entire row of sensor data has been read in
-                        {
-                            PerformNeededDataConversions();
-                            PrintSensorDataOutput();
-                            // Reset sensor reading counter 
-                            status_.sensorReadingCounter = 0;
-                            // Reset all sensor reading values
-                            for (int i = 0; i < 9; i++)
-                            {
-                                status_.sensorReadingValue[i] = 0.0;
-                            }
-                            // Update time for next set of sensor readings
-                            UpdateTime();
-                        }
-                    } 
-                }
-
-                // Close the file streamd
-                pInFile_->close();
-                pInFile_ = NULL;
-                pOutLoggerDataFile_->close();
-                pOutLoggerDataFile_ = NULL;
-            }
-        }
-        else
-        {
-            inFile.close();
-            pInFile_ = NULL;
-            // An error occurred
-        }
-    }
-}
-
 void FBLoggerDataReader::ResetHeaderData()
 {
     headerData_.rawHeader = "0000";
@@ -892,11 +927,11 @@ void FBLoggerDataReader::ResetInFileReadingStatus()
     status_.recordNumber = 0;
     status_.configColumnTextLine;
 
-    for (int i = 0; i < 9; i++)
+    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
         status_.columnRawType[i] = "";
-        status_.columnMin[i] = 99999999999.0;
-        status_.columnMax[i] = -99999999999.0;
+        status_.columnMin[i] = DBL_MAX;
+        status_.columnMax[i] = -DBL_MAX;
         status_.sensorReadingValue[i] = 0.0;
     }
     status_.headerFound = false;
@@ -904,10 +939,15 @@ void FBLoggerDataReader::ResetInFileReadingStatus()
 
 void FBLoggerDataReader::ResetCurrentFileStats()
 {
-    for (int i = 0; i < 9; i++)
+    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
-        //currentFileStats_.
+        currentFileStats_.columnFailedSanityCheckRaw[i] = false;
+        currentFileStats_.columnFailedSanityCheckFinal[i] = false;
+        currentFileStats_.columnMin[i] = 0.0;
+        currentFileStats_.columnMax[i] = 0.0;
     }
+    currentFileStats_.isFailedSanityCheckFinal = false;
+    currentFileStats_.isFailedSanityCheckRaw = false;
 }
 
 void FBLoggerDataReader::SetConfigDependentValues()
@@ -967,13 +1007,13 @@ void FBLoggerDataReader::PrintStatsFileHeader()
     *pOutSensorStatsFile_ << outputLine;
 }
 
-void FBLoggerDataReader::PrintMaxMinDataValuesForSingleFile(string currentFileName)
+void FBLoggerDataReader::PrintStatsDataValuesForSingleFile(string currentFileName)
 {
     string outputLine = "";
 
     outputLine += currentFileName + ",";
 
-    for (int i = 0; i < 9; i++)
+    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
         outputLine += std::to_string(status_.columnMin[i]) + "," + std::to_string(status_.columnMax[i]) + "," + status_.columnRawType[i];
         if (i < 8)
@@ -1108,26 +1148,6 @@ void FBLoggerDataReader::ReadNextHeaderOrNumber()
         parsedNumericData_.intFromBytes = GetIntFromByteArray(parsedNumericData_.rawHexNumber);
         parsedNumericData_.parsedIEEENumber = static_cast<double>(UnsignedIntToIEEEFloat(parsedNumericData_.intFromBytes));
         status_.sensorReadingValue[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
-        //UpdateSensorMaxAndMin();
-        //if (status_.sensorReadingCounter < 8)
-        //{
-        //    // increment sensor reading for next iteration
-        //    status_.sensorReadingCounter++;
-        //}
-        //else // An entire row of sensor data has been read in
-        //{
-        //    PerformNeededDataConversions();
-        //    PrintSensorDataOutput();
-        //    // Reset sensor reading counter 
-        //    status_.sensorReadingCounter = 0;
-        //    // Reset all sensor reading values
-        //    for (int i = 0; i < 9; i++)
-        //    {
-        //        status_.sensorReadingValue[i] = 0.0;
-        //    }
-        //    // Update time for next set of sensor readings
-        //    UpdateTime();
-        //}
     }
     else // header is found
     {
@@ -1370,7 +1390,7 @@ void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
 
 void FBLoggerDataReader::PrintConfigErrorsToLog()
 {
-    for (int i = 0; i < invalidInputFileList_.size(); i++)
+    for (unsigned int i = 0; i < invalidInputFileList_.size(); i++)
     {
         logFileLine_ += "Error: File " + invalidInputFileList_[i];
         if (invalidInputFileErrorType_[i] == InvalidInputFileErrorType::CANNOT_OPEN_FILE)
@@ -1485,7 +1505,7 @@ void FBLoggerDataReader::PrintSensorDataOutput()
 
     outputLine_ = "";
 
-    for (int i = 0; i < 9; i++)
+    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
         if (i == 0)
         {
