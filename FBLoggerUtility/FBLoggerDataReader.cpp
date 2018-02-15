@@ -1,0 +1,1534 @@
+#include "stdafx.h"
+#include "FBLoggerDataReader.h"
+#include "StringUtility.h"
+#include "DirectoryReaderUtility.h"
+#include "FileNameUtility.h"
+
+#include "stdafx.h"
+#include <algorithm>
+#include <limits.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string>
+#include <math.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+FBLoggerDataReader::FBLoggerDataReader()
+{
+    numFilesProcessed_ = 0;
+    numInvalidInputFiles_ = 0;
+    numInvalidOutputFiles_ = 0;
+    serialNumber_ = -1;
+    pLogFile_ = NULL;
+    pOutLoggerDataFile_ = NULL;
+    pInFile_ = NULL;
+    outputLine_ = "";
+    dataPath_ = "";
+    appPath_ = "";
+    numErrors_ = 0;
+    configFilePath_ = "";
+    isConfigFileValid_ = false;
+    lineStream_.str("");
+    lineStream_.clear();
+
+    // Initialize H Config Sanity Checks
+    for (int i = 0; i < 9; i++)
+    {
+        sanityChecks_.FRawMin[i] = sanityChecks_.NAMin;
+        sanityChecks_.FRawMax[i] = sanityChecks_.NAMax;
+        sanityChecks_.FFinalMin[i] = sanityChecks_.NAMin;
+        sanityChecks_.FFinalMax[i] = sanityChecks_.NAMax;
+    }
+
+    // H Config Raw Sanity Checks
+    sanityChecks_.HRawMin[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::PRESSURE_SENSOR_U] = sanityChecks_.pressureVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::PRESSURE_SENSOR_V] = sanityChecks_.pressureVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::PRESSURE_SENSOR_W] = sanityChecks_.pressureVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = sanityChecks_.heatFluxVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = sanityChecks_.heatFluxVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMin;
+
+    sanityChecks_.HRawMax[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_U] = sanityChecks_.pressureVoltageMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_V] = sanityChecks_.pressureVoltageMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_W] = sanityChecks_.pressureVoltageMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = sanityChecks_.heatFluxVoltageMin;
+    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = sanityChecks_.heatFluxVoltageMin;
+    sanityChecks_.HRawMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
+
+    // Final H Config Sanity Checks
+    sanityChecks_.HFinalMin[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::VELOCITY_U] = sanityChecks_.velocityMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::VELOCITY_V] = sanityChecks_.velocityMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::VELOCITY_W] = sanityChecks_.velocityMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::HEAT_FLUX] = sanityChecks_.heatFluxMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::HEAT_FLUX_TEMPERATURE] = sanityChecks_.heatFluxTemperatureMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMin;
+
+    sanityChecks_.HFinalMax[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_U] = sanityChecks_.velocityMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_V] = sanityChecks_.velocityMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_W] = sanityChecks_.velocityMin;
+    sanityChecks_.HFinalMax[HeatFluxIndex::HEAT_FLUX] = sanityChecks_.heatFluxMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::HEAT_FLUX_TEMPERATURE] = sanityChecks_.heatFluxTemperatureMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
+
+    // Initialize F Config Sanity Checks
+    for (int i = 0; i < 9; i++)
+    {
+        sanityChecks_.FRawMin[i] = sanityChecks_.NAMin;
+        sanityChecks_.FRawMax[i] = sanityChecks_.NAMax;
+        sanityChecks_.FFinalMin[i] = sanityChecks_.NAMin;
+        sanityChecks_.FFinalMax[i] = sanityChecks_.NAMax;
+    }
+
+    // Raw F Config Sanity Checks
+    sanityChecks_.FRawMin[FIDPackageIndex::TEMPERATURE] = sanityChecks_.temperatureMin;
+    sanityChecks_.FRawMin[FIDPackageIndex::FID_VOLTAGE] = sanityChecks_.FIDVoltageMin;
+    sanityChecks_.FRawMin[FIDPackageIndex::PRESSURE_VOLTAGE] = sanityChecks_.pressureVoltageMin;
+    sanityChecks_.FRawMin[FIDPackageIndex::PANEL_TEMP] = sanityChecks_.temperatureMin;
+  
+    sanityChecks_.FRawMax[FIDPackageIndex::TEMPERATURE] = sanityChecks_.temperatureMax;
+    sanityChecks_.FRawMax[FIDPackageIndex::FID_VOLTAGE] = sanityChecks_.FIDVoltageMax;
+    sanityChecks_.FRawMax[FIDPackageIndex::PRESSURE_VOLTAGE] = sanityChecks_.pressureVoltageMax;
+    sanityChecks_.FRawMax[FIDPackageIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
+
+    // Final F Config Sanity Checks
+    sanityChecks_.FFinalMin[FIDPackageIndex::TEMPERATURE] = sanityChecks_.temperatureMin;
+    sanityChecks_.FFinalMin[FIDPackageIndex::FID_VOLTAGE] = sanityChecks_.FIDVoltageMin;
+    sanityChecks_.FFinalMin[FIDPackageIndex::PRESSURE] = sanityChecks_.pressureMin;
+    sanityChecks_.FFinalMin[FIDPackageIndex::PANEL_TEMP] = sanityChecks_.temperatureMin;
+
+    sanityChecks_.FFinalMax[FIDPackageIndex::TEMPERATURE] = sanityChecks_.temperatureMax;
+    sanityChecks_.FFinalMax[FIDPackageIndex::FID_VOLTAGE] = sanityChecks_.FIDVoltageMax;
+    sanityChecks_.FFinalMax[FIDPackageIndex::PRESSURE] = sanityChecks_.pressureMax;
+    sanityChecks_.FFinalMax[FIDPackageIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
+
+    // T Config Sanity Checks
+    for (int i = 0; i < 9; i++)
+    {
+        sanityChecks_.TMin[i] = sanityChecks_.temperatureMin;
+        sanityChecks_.TMax[i] = sanityChecks_.temperatureMax;
+    }
+
+    int test = 1;
+}
+
+FBLoggerDataReader::~FBLoggerDataReader()
+{
+
+}
+
+void FBLoggerDataReader::FillSensorValuesWithTestVoltages()
+{
+    if (configurationType_ == "F")
+    {
+        status_.sensorReadingValue[0] = 18.05; // This is temperature
+        status_.sensorReadingValue[1] = 1.43; // FID(V)
+        status_.sensorReadingValue[2] = 2.4; // This is the voltage used for pressure
+        status_.sensorReadingValue[3] = 0.0; // NA
+        status_.sensorReadingValue[4] = 0.0; // NA
+        status_.sensorReadingValue[5] = 0.0; // NA
+        status_.sensorReadingValue[6] = 0.0; // NA
+        status_.sensorReadingValue[7] = 0.0; // NA
+        status_.sensorReadingValue[8] = 17.1; // Panel Temp
+    }
+    else if (configurationType_ == "H")
+    {
+        status_.sensorReadingValue[0] = 20.05; // This is temperature
+        status_.sensorReadingValue[1] = 19.43; // This is temperature
+        status_.sensorReadingValue[2] = 1.21; // P(V)
+        status_.sensorReadingValue[3] = 1.16; // P(V)
+        status_.sensorReadingValue[4] = 1.01; // P(V)
+        status_.sensorReadingValue[5] = 1.23; // HF(V)
+        status_.sensorReadingValue[6] = 0.50; // HFT(V)
+        status_.sensorReadingValue[7] = 0.00; // NA
+        status_.sensorReadingValue[8] = 16.2; // Panel Temp
+    }
+}
+
+double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)
+{
+    //kW/m^2 = 56.60 * Volts^1.129
+    double kiloWattsPerSquareMeter = 56.60 * pow(rawVoltage, 1.129);
+    return kiloWattsPerSquareMeter;
+}
+
+double FBLoggerDataReader::CalculateHeatFluxTemperature(double rawVoltage)
+{
+    double thermalResistance = 10000.0 / ((1.25 / rawVoltage) - 1.0);
+    double heatFluxTemperature = (1.0 / (0.003356 - (log(30000.0 / thermalResistance) / 3962.0))) - 273.15;
+    return heatFluxTemperature;
+}
+
+int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureOne, double temperatureTwo,
+    double pressureVoltageU, double pressureVoltageV, double pressureVoltageW, double sensorBearing)
+{
+    bool tempOneGood = (temperatureOne <= sanityChecks_.temperatureMax) && (temperatureTwo >= sanityChecks_.temperatureMin);
+    bool tempTwoGood = (temperatureTwo <= sanityChecks_.temperatureMax) && (temperatureTwo >= sanityChecks_.temperatureMin);
+    double temperature = 0.0;
+
+    // Calcuate average if both temps are good, or use the only good value
+    if (tempOneGood && tempTwoGood)
+    {
+        temperature = (temperatureOne + temperatureTwo) / 2.0;
+    }
+    else if (tempOneGood)
+    {
+        temperature = temperatureOne;
+    }
+    else if (tempTwoGood)
+    {
+        temperature = temperatureOne;
+    }
+    else
+    {
+        // Error
+        return -1;
+    }
+
+    if (convertVelocity_.convert(temperature, pressureVoltageU, pressureVoltageV, pressureVoltageW, sensorBearing) == true)
+    {
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U] = convertVelocity_.u;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V] = convertVelocity_.v;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_W] = convertVelocity_.w;
+    }
+    else
+    {
+        return -1;
+    }
+    return 0; // success
+}
+
+double FBLoggerDataReader::CalculateFIDPackagePressure(double rawVoltage)
+{
+    //Pressure(Pa) = 249.09* (logger volts - 1.550) * 0.8065
+    double pressure = 249.09 * (rawVoltage - 1.550) * 0.8065;
+    return pressure;
+}
+
+void FBLoggerDataReader::PerformNeededDataConversions()
+{
+#ifdef _DEBUG
+    // The following method is for debug purposes only!
+    FillSensorValuesWithTestVoltages();
+#endif
+   
+    if (configurationType_ == "F")
+    {
+        double FIDPackagePressure = CalculateFIDPackagePressure(status_.sensorReadingValue[2]);
+        bool FIDPackagePressureGood = (FIDPackagePressure <= sanityChecks_.pressureMax) && (FIDPackagePressure >= sanityChecks_.pressureMin);
+        if (FIDPackagePressureGood)
+        {
+            status_.sensorReadingValue[FIDPackageIndex::PRESSURE_VOLTAGE] = FIDPackagePressure;
+        }
+        else
+        {
+            status_.sensorReadingValue[FIDPackageIndex::PRESSURE_VOLTAGE] = -99999999999.0;
+        }
+    }
+    else if (configurationType_ == "H")
+    {
+        double heatFlux = CalculateHeatFlux(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE]);
+        double heatFluxTemperature = CalculateHeatFluxTemperature(status_.sensorReadingValue[6]);
+        
+        double bearing = sensorBearingMap_.find(serialNumber_)->second;
+        status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = heatFlux;
+        status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = heatFluxTemperature;
+        CalculateHeatFluxComponentVelocities(status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_ONE],
+            status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_TWO],
+            status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U],
+            status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V],
+            status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_W],
+            bearing);
+    }
+}
+
+bool FBLoggerDataReader::PerformSanityCheckOnRawValue()
+{
+    if (configurationType_ == "F")
+    {
+        unsigned int currentIndex = status_.sensorReadingCounter;
+        double currentValue = status_.sensorReadingValue[currentIndex];
+        double minForSanityCheck = sanityChecks_.FRawMin[currentIndex];
+        double maxForSanityCheck = sanityChecks_.FRawMax[currentIndex];
+
+        if (minForSanityCheck != sanityChecks_.IGNORE_MIN && (currentValue < minForSanityCheck))
+        {
+            currentFileStats_.columnPassedSanityCheckRaw[currentIndex] = false;
+            currentFileStats_.isFailedSanityCheckRaw = true;
+        }
+        else if (maxForSanityCheck != sanityChecks_.IGNORE_MAX && (currentValue > maxForSanityCheck))
+        {
+            currentFileStats_.columnPassedSanityCheckRaw[currentIndex] = false;
+            currentFileStats_.isFailedSanityCheckRaw = true;
+        }
+    }
+    return false;
+}
+
+bool FBLoggerDataReader::PerformSanityCheckOnFinalValue()
+{
+    return false;
+}
+
+void FBLoggerDataReader::ReadConfig()
+{
+    // Check for config file's existence
+    std::ifstream configFile(configFilePath_, std::ios::in | std::ios::binary);
+   
+    string line = "";
+    numErrors_ = 0;
+
+    status_.configFileLineNumber = 0;
+
+    if (!configFile)
+    {
+        configFile.close();
+        logFileLine_ = "Error: config file not found or cannot be opened at path " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+    }
+    else
+    {
+        if (CheckConfigFileFormatIsValid(configFile))
+        {
+            while (getline(configFile, line))
+            {
+                ParseTokensFromLineOfConfigFile(line);
+                ProcessErrorsInLineOfConfigFile();
+            }
+        }
+    }
+  
+    PrintLogFileLine();
+
+    if (numErrors_ == 0)
+    {
+        isConfigFileValid_ = true;
+    }
+}
+
+void FBLoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
+{
+    enum
+    {
+        SERIAL_NUMBER = 0,
+        CONFIGURATION = 1,
+        SENSOR_NUMBER = 2,
+        SENSOR_BEARING = 3
+    };
+
+    int tokenCounter = 0;
+
+    string token;
+
+    status_.configFileLineNumber++;
+ 
+    lineStream_.str("");
+    lineStream_.clear();
+
+    token = "";
+    configFileLine_.serialNumberString = "";
+    configFileLine_.conifgurationString = "";
+    configFileLine_.sensorNumberString = "";
+    configFileLine_.sensorBearingString = "";
+
+    status_.isSerialNumberValid = false;
+    status_.isConfigurationTypeValid = false;
+    status_.isSensorNumberValid = false;
+    status_.isSensorBearingValid = false;
+
+    lineStream_ << line;
+
+    while (getline(lineStream_, token, ','))
+    {
+        // remove any whitespace or control chars from token
+        token.erase(std::remove(token.begin(), token.end(), ' '), token.end());
+        token.erase(std::remove(token.begin(), token.end(), '\n'), token.end());
+        token.erase(std::remove(token.begin(), token.end(), '\r'), token.end());
+        token.erase(std::remove(token.begin(), token.end(), '\r\n'), token.end());
+        token.erase(std::remove(token.begin(), token.end(), '\t'), token.end());
+
+        int testSerial = atoi(token.c_str());
+
+        switch (tokenCounter)
+        {
+            case SERIAL_NUMBER:
+            {
+                configFileLine_.serialNumberString = token;
+                if (IsOnlyDigits(configFileLine_.serialNumberString))
+                {
+                    status_.isSerialNumberValid = true;
+                }
+                else
+                {
+                    status_.isSerialNumberValid = false;
+                    isConfigFileValid_ = false;
+                }
+                break;
+            }
+            case CONFIGURATION:
+            {
+                configFileLine_.conifgurationString = token;
+                if (configFileLine_.conifgurationString == "F" ||
+                    configFileLine_.conifgurationString == "H" ||
+                    configFileLine_.conifgurationString == "T" ||
+                    configFileLine_.conifgurationString == "")
+                {
+                    status_.isConfigurationTypeValid = true;
+                }
+                else
+                {
+                    status_.isConfigurationTypeValid = false;
+                    isConfigFileValid_ = false;
+                }
+                break;
+            }
+            case SENSOR_NUMBER:
+            {
+                configFileLine_.sensorNumberString = token;
+                if (IsOnlyDigits(configFileLine_.sensorNumberString))
+                {
+                    status_.isSensorNumberValid = true;
+                }
+                else if (configFileLine_.conifgurationString == "T" &&
+                    configFileLine_.sensorNumberString == "")
+                {
+                    status_.isSensorNumberValid = true;
+                }
+                else if (configFileLine_.conifgurationString == "" && 
+                    configFileLine_.sensorNumberString == "")
+                {
+                    status_.isSensorNumberValid = true;
+                }
+                else
+                {
+                    status_.isSensorNumberValid = false;
+                    isConfigFileValid_ = false;
+                }
+                break;
+            }
+            case SENSOR_BEARING:
+            {
+                configFileLine_.sensorBearingString = token;
+
+                char* end;
+                errno = 0;
+                configFileLine_.sensorBearingValue = std::strtod(token.c_str(), &end);
+                if (configFileLine_.conifgurationString == "H")
+                {
+                    if (*end != '\0' ||  // error, we didn't consume the entire string
+                        errno != 0)   // error, overflow or underflow
+                    {
+                        status_.isSensorBearingValid = false;
+                    }
+                    else if (configFileLine_.sensorBearingValue < 0 || configFileLine_.sensorBearingValue > 360)
+                    {
+                        status_.isSensorBearingValid = false;
+                    }
+                    else
+                    {
+                        status_.isSensorBearingValid = true;
+                    }
+                }
+                else
+                {
+                    status_.isSensorBearingValid = true;
+                }
+                break;
+            }
+        }
+        tokenCounter++;
+    }
+
+    if (tokenCounter < 4)
+    {
+        logFileLine_ = "Error: The entry in config file at " + configFilePath_ + " has less than the required 4 columns with first invalid entry at line " + std::to_string(status_.configFileLineNumber) + " " + GetMyLocalDateTimeString() + "\n";
+        numErrors_++;
+        isConfigFileValid_ = false;
+    }
+    if (tokenCounter > 4)
+    {
+        logFileLine_ = "Error: The entry in in config file at " + configFilePath_ + " has more than the required 4 columns with first invalid entry at line " + std::to_string(status_.configFileLineNumber) + " " + GetMyLocalDateTimeString() + "\n";
+        isConfigFileValid_ = false;
+        numErrors_++;
+    }
+}
+
+bool FBLoggerDataReader::CheckConfigFileFormatIsValid(ifstream& configFile)
+{
+    // Check if file is valid
+    string token = "";
+    string line;
+    getline(configFile, line);
+    lineStream_.str("");
+    lineStream_.clear();
+    lineStream_ << line;
+    getline(lineStream_, token, ' ');
+    status_.configFileLineNumber++;
+    if (token != "First")
+    {
+        logFileLine_ = "Error: Config file at " + configFilePath_ + " is improperly formatted " + GetMyLocalDateTimeString() + "\n";
+        isConfigFileValid_ = false;
+        numErrors_++;
+    }
+    else
+    {
+        isConfigFileValid_ = true;
+    }
+
+    return isConfigFileValid_;
+}
+
+void FBLoggerDataReader::ProcessErrorsInLineOfConfigFile()
+{
+    if (status_.isSerialNumberValid && status_.isConfigurationTypeValid)
+    {
+        int serialNumber = atoi(configFileLine_.serialNumberString.c_str());
+        int testCount = (int)configMap_.count(serialNumber);
+        if (configMap_.count(serialNumber) > 0)
+        {
+            logFileLine_ += "Error: More than one entry exists for logger id " + configFileLine_.serialNumberString +
+                " with first repeated entry in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+            isConfigFileValid_ = false;
+            numErrors_++;
+        }
+        else
+        {
+            if (configFileLine_.conifgurationString == "")
+            {
+                if (configFileLine_.sensorNumberString != "")
+                {
+                    if (status_.isSerialNumberValid)
+                    {
+                        logFileLine_ += "Error: " + configFileLine_.conifgurationString + " is an invalid configuration for logger id " + configFileLine_.serialNumberString + " in line number " + std::to_string(status_.configFileLineNumber) +
+                            " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+                        isConfigFileValid_ = false;
+                        numErrors_++;
+                    }
+                    else
+                    {
+                        logFileLine_ += "Error: Invalid configuration (second column) in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+                        isConfigFileValid_ = false;
+                        numErrors_++;
+                    }
+                }
+            }
+            if (status_.isSerialNumberValid && status_.isConfigurationTypeValid && status_.isSensorNumberValid && status_.isSensorBearingValid)
+            {
+                configMap_.insert(pair<int, string>(serialNumber, configFileLine_.conifgurationString));
+                if (configFileLine_.conifgurationString == "H")
+                {
+                    sensorBearingMap_.insert(pair<int, double>(serialNumber, configFileLine_.sensorBearingValue));
+                }
+            }
+            else if (!status_.isSensorNumberValid)
+            {
+                logFileLine_ += "Error: Entry " + configFileLine_.sensorNumberString + " is invalid for sensor number (third column) for logger id " + configFileLine_.serialNumberString +
+                    " in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+                isConfigFileValid_ = false;
+                numErrors_++;
+            }
+            else if (configFileLine_.conifgurationString == "H" && !status_.isSensorBearingValid)
+            {
+                logFileLine_ += "Error: " + configFileLine_.sensorBearingString + " is an invalid entry for bearing (fourth column) for logger id " + configFileLine_.serialNumberString + " in line number " + std::to_string(status_.configFileLineNumber) +
+                    " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+                isConfigFileValid_ = false;
+                numErrors_++;
+            }
+            else
+            {
+                logFileLine_ += "Error: Entry for logger id " + configFileLine_.serialNumberString +
+                    " is missing sensor number data (third column) " + " in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+                isConfigFileValid_ = false;
+                numErrors_++;
+            }
+        }
+    }
+    else if (!status_.isSerialNumberValid)
+    {
+        if (configFileLine_.serialNumberString != "")
+        {
+            logFileLine_ += "Error: " + configFileLine_.serialNumberString + " is an invalid serial number (first column) entry in line " + std::to_string(status_.configFileLineNumber) + " in config file at " +
+                configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+        }
+        else
+        {
+            logFileLine_ += "Error: No entry for serial number (first column) in line number " + std::to_string(status_.configFileLineNumber) + " in config file at " +
+                configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+        }
+        isConfigFileValid_ = false;
+        numErrors_++;
+    }
+    else if (!status_.isConfigurationTypeValid)
+    {
+        logFileLine_ += "Error: " + configFileLine_.conifgurationString + " is an invalid configuration(second column) for logger id " + configFileLine_.serialNumberString + " in line number " + std::to_string(status_.configFileLineNumber) +
+            " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+        isConfigFileValid_ = false;
+        numErrors_++;
+    }
+    else if (configFileLine_.conifgurationString == "H" && !status_.isSensorBearingValid)
+    {
+        logFileLine_ += "Error: " + configFileLine_.sensorBearingString + " is an invalid entry for bearing (fourth column) for logger id " + configFileLine_.serialNumberString + " in line number " + std::to_string(status_.configFileLineNumber) +
+            " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+        isConfigFileValid_ = false;
+        numErrors_++;
+    }
+
+    int a = 1;
+}
+
+void FBLoggerDataReader::CheckConfigForAllFiles()
+{
+    int codepage = CP_UTF8;
+    struct stat results;
+    std::wstring extensionW;
+    string extension;
+
+    numInvalidInputFiles_ = 0;
+ 
+    for (int i = 0; i < inputFilesNameList_.size(); i++)
+    {
+        inDataFilePath_ = dataPath_ + inputFilesNameList_[i];
+        extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
+        extension = Utf8_encode(extensionW);
+        if (extension == ".DAT" || extension == ".dat")
+        {
+            std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
+            pInFile_ = &inFile;
+
+            // Check for input file's existence
+            if (pInFile_ == NULL)
+            {
+                // Cannot open file
+                numInvalidInputFiles_++;
+                invalidInputFileList_.push_back(inDataFilePath_);
+                invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::CANNOT_OPEN_FILE);
+                pInFile_->close();
+                pInFile_ = NULL;
+            }
+            else
+            {
+                // Get the size of the data file in bytes             
+                const char* cStringFileName = inDataFilePath_.c_str();
+                if (stat(cStringFileName, &results) == 0)
+                {
+                    // The size of the file in bytes
+                    fileSizeInBytes_ = results.st_size;
+
+                    bool headerFound = GetFirstHeader();
+                    int serialNumber = atoi(headerData_.serialNumberString.c_str());
+                    if ((headerFound) && (configMap_.find(serialNumber) == configMap_.end()) || configMap_.find(serialNumber)->second == "")
+                    {
+                        // Config missing for file
+                        numInvalidInputFiles_++;
+                        invalidInputFileList_.push_back(inDataFilePath_);
+                        invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_CONFIG);
+                        pInFile_->close();
+                        pInFile_ = NULL;
+                    }
+                    else if(!headerFound)
+                    {
+                        // No header found in file
+                        numInvalidInputFiles_++;
+                        invalidInputFileList_.push_back(inDataFilePath_);
+                        invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_HEADER);
+                        pInFile_->close();
+                        pInFile_ = NULL;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void FBLoggerDataReader::ProcessAllDataFiles()
+{
+    int codepage = CP_UTF8;
+    std::wstring extensionW;
+    string extension;
+
+    numFilesProcessed_ = 0;
+    numInvalidInputFiles_ = 0;
+    numInvalidOutputFiles_ = 0;
+    numErrors_ = 0;
+
+    inputFilesNameList_.clear();
+    invalidInputFileList_.clear();
+    invalidInputFileErrorType_.clear();
+    configMap_.clear();
+
+    string logFileNoExtension = dataPath_ + "log_file";
+    logFilePath_ = logFileNoExtension + ".txt";
+    ofstream logFile(logFilePath_, std::ios::out);
+
+    // Check for output file's existence
+    if (!logFile || logFile.fail())
+    {
+        logFile.close();
+        logFile.clear();
+        SYSTEMTIME systemTime;
+        GetLocalTime(&systemTime);
+
+        string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+            "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
+            MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
+
+        logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
+        logFilePath_ = logFileNoExtension + "_" + dateTimeString + ".txt";
+
+        ofstream logFile(logFilePath_, std::ios::out);
+    }
+    if (logFile.good())
+    {
+        pLogFile_ = &logFile;
+        PrintLogFileLine();
+        ReadConfig();
+
+        if (isConfigFileValid_)
+        {
+            ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
+            CheckConfigForAllFiles();
+            PrintLogFileLine();
+
+            if (numInvalidInputFiles_ == 0)
+            {
+                //SYSTEMTIME systemTime;
+                //GetLocalTime(&systemTime);
+
+                //string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+                //    "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "h" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "m" +
+                //    MakeStringWidthTwoFromInt(systemTime.wSecond) + "s";
+
+                //statsFilePath_ = dataPath_ + "sensor_stats" + dateTimeString + ".csv";
+                statsFilePath_ = dataPath_ + "sensor_stats.csv";
+
+                ofstream outStatsFile(statsFilePath_, std::ios::out);
+
+                if (outStatsFile.good() && logFile.good())
+                {
+                    pOutSensorStatsFile_ = &outStatsFile;
+                    PrintStatsFileHeader();
+
+                    for (int i = 0; i < inputFilesNameList_.size(); i++)
+                    {
+                        extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
+                        extension = Utf8_encode(extensionW);
+                        if (extension == ".DAT" || extension == ".dat")
+                        {
+                            ProcessSingleDataFile(inputFilesNameList_[i]);
+                            PrintLogFileLine();
+                            if (status_.isGoodOutput)
+                            {
+                                PrintMaxMinDataValuesForSingleFile(inputFilesNameList_[i]);
+                            }
+                            else
+                            {
+                                numInvalidOutputFiles_++;
+                                numErrors_++;
+                            }
+                            numFilesProcessed_++;
+                        }
+                    }
+
+                    pOutSensorStatsFile_->close();
+                    pOutSensorStatsFile_ = NULL;
+                }
+            }
+        }
+        if (numErrors_ == 0)
+        {
+            ReportSuccessToLog();
+        }
+        pLogFile_->close();
+        pLogFile_ = NULL;
+    }
+}
+
+void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
+{
+    inDataFilePath_ = dataPath_ + infileName;
+
+    std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
+    pInFile_ = &inFile;
+
+    outputLine_ = "";
+    configurationType_ = "";
+    status_.isGoodOutput = true;
+    ResetCurrentFileStats();
+
+    for (int i = 0; i < 9; i++)
+    {
+        currentFileStats_.columnPassedSanityCheckRaw[i] = true;
+        currentFileStats_.columnPassedSanityCheckFinal[i] = true;
+    }
+    // Check for input file's existence
+    if (pInFile_ == NULL)
+    {
+        pInFile_->close();
+        pInFile_ = NULL;
+        pOutLoggerDataFile_ = NULL;
+        // Report error
+        logFileLine_ =  "ERROR: Input file " + inDataFilePath_ + " does not exist\n";
+        PrintLogFileLine();
+    }
+    else 
+    {
+        // Get the size of the data file in bytes
+        const char* cStringFilePath = inDataFilePath_.c_str();
+        struct stat results;
+        if (stat(cStringFilePath, &results) == 0)
+        {
+            fileSizeInBytes_ = results.st_size;
+   
+            bool headerFound = GetFirstHeader();
+        
+            if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
+            {
+                configurationType_ = configMap_.find(atoi(headerData_.serialNumberString.c_str()))->second;
+            }
+
+            if ((headerFound) && (configurationType_ != ""))
+            {
+                SetLoggerDataOutFilePath(infileName);
+
+                ofstream outDataFile(outLoggerDataFilePath_, std::ios::out);
+                pOutLoggerDataFile_ = &outDataFile;
+
+                // Check for output file's existence and is not open by another process
+                if (pOutLoggerDataFile_ == NULL || outDataFile.fail())
+                {
+                    pInFile_->close();
+                    pOutLoggerDataFile_->close();
+                    // Report error
+                    logFileLine_ = "ERROR: Unable to open " + outLoggerDataFilePath_ + "\n";
+                    PrintLogFileLine();
+                    status_.isGoodOutput = false;
+                }
+                // We can read the input file
+                else
+                {
+                    status_.isGoodOutput = true;
+                    SetConfigDependentValues();
+                    PrintHeader();
+
+                    while (status_.pos < (fileSizeInBytes_ - BYTES_READ_PER_ITERATION))
+                    {
+                        ReadNextHeaderOrNumber();
+                        UpdateSensorMaxAndMin();
+                        if (status_.sensorReadingCounter < 8)
+                        {
+                            // increment sensor reading for next iteration
+                            status_.sensorReadingCounter++;
+                        }
+                        else // An entire row of sensor data has been read in
+                        {
+                            PerformNeededDataConversions();
+                            PrintSensorDataOutput();
+                            // Reset sensor reading counter 
+                            status_.sensorReadingCounter = 0;
+                            // Reset all sensor reading values
+                            for (int i = 0; i < 9; i++)
+                            {
+                                status_.sensorReadingValue[i] = 0.0;
+                            }
+                            // Update time for next set of sensor readings
+                            UpdateTime();
+                        }
+                    } 
+                }
+
+                // Close the file streamd
+                pInFile_->close();
+                pInFile_ = NULL;
+                pOutLoggerDataFile_->close();
+                pOutLoggerDataFile_ = NULL;
+            }
+        }
+        else
+        {
+            inFile.close();
+            pInFile_ = NULL;
+            // An error occurred
+        }
+    }
+}
+
+void FBLoggerDataReader::ResetHeaderData()
+{
+    headerData_.rawHeader = "0000";
+    headerData_.serialNumberString = "00000";
+    headerData_.latitudeDegreesString = "00";
+    headerData_.latitudeDecimalMinutesString = "00000000";
+    headerData_.longitudeDegreesString = "000";
+    headerData_.longitudeDecimalMinutesString = "00000000";
+    headerData_.dayString = "00";
+    headerData_.monthString = "00";
+    headerData_.yearString = "2000";
+    headerData_.hourString = "00";
+    headerData_.minuteString = "00";
+    headerData_.secondString = "00";
+    headerData_.millisecondString = "000";
+    headerData_.sampleIntervalString = "0000";
+    headerData_.year = 0;
+    headerData_.month = 0;
+    headerData_.day = 0;
+    headerData_.hours = 0;
+    headerData_.minutes = 0;
+    headerData_.seconds = 0;
+    headerData_.milliseconds = 0;
+    headerData_.sampleInterval = 0;
+}
+
+void FBLoggerDataReader::ResetInFileReadingStatus()
+{
+    status_.sensorReadingCounter = 0;
+    status_.pos = 0;
+    status_.recordNumber = 0;
+    status_.configColumnTextLine;
+
+    for (int i = 0; i < 9; i++)
+    {
+        status_.columnRawType[i] = "";
+        status_.columnMin[i] = 99999999999.0;
+        status_.columnMax[i] = -99999999999.0;
+        status_.sensorReadingValue[i] = 0.0;
+    }
+    status_.headerFound = false;
+}
+
+void FBLoggerDataReader::ResetCurrentFileStats()
+{
+    for (int i = 0; i < 9; i++)
+    {
+        //currentFileStats_.
+    }
+}
+
+void FBLoggerDataReader::SetConfigDependentValues()
+{
+    if (configurationType_ == "F")
+    {
+        //status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"FID(V)\",\"P(V)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (°C)\"\n";
+        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"FID(V)\",\"P(Pa)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (°C)\"\n";
+        status_.columnRawType[0] = "°C";
+        status_.columnRawType[1] = "FID(V)";
+        status_.columnRawType[2] = "P(V)";
+        for (int i = 3; i < 8; i++)
+        {
+            status_.columnRawType[i] = "NA";
+        }
+    }
+    else if (configurationType_ == "H")
+    {
+        //status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"P(V)\",\"P(V)\",\"P(V)\",\"HF(V)\",\"HFT(V)\",\"NA\",\"Panel Temp (°C)\"\n";
+        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"u(m/s)\",\"v(m/s)\",\"w(m/s)\",\"HF(kW/m^2)\",\"HFT(V)\",\"NA\",\"Panel Temp (°C)\"\n";
+        for (int i = 0; i < 2; i++)
+        {
+            status_.columnRawType[i] = "°C";
+        }
+        for (int i = 2; i < 5; i++)
+        {
+            status_.columnRawType[i] = "P(V)";
+        }
+        status_.columnRawType[5] = "HF(V)";
+        status_.columnRawType[6] = "HFT(V)";
+        status_.columnRawType[7] = "NA";
+    }
+    else if (configurationType_ == "T")
+    {
+        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"Panel Temp (°C)\"\n";
+        for (int i = 0; i < 8; i++)
+        {
+            status_.columnRawType[i] = "°C";
+        }
+    }
+    // Common among all configurations
+    status_.columnRawType[8] = "Panel Temp (°C)";
+}
+
+void FBLoggerDataReader::PrintStatsFileHeader()
+{
+    string outputLine = "File Name,Col 1 Min,Col 1 Max,Col 1 Type,";
+    outputLine += "Col 2 Min,Col 2 Max,Col 2 Type,";
+    outputLine += "Col 3 Min,Col 3 Max,Col 3 Type,";
+    outputLine += "Col 3 Min,Col 4 Max,Col 4 Type,";
+    outputLine += "Col 3 Min,Col 5 Max,Col 5 Type,";
+    outputLine += "Col 6 Min,Col 6 Max,Col 6 Type,";
+    outputLine += "Col 7 Min,Col 7 Max,Col 7 Type,";
+    outputLine += "Col 8 Min,Col 8 Max,Col 8 Type,";
+    outputLine += "Panel Temp Min,Panel Temp Max,Panel Temp Type\n";
+
+    *pOutSensorStatsFile_ << outputLine;
+}
+
+void FBLoggerDataReader::PrintMaxMinDataValuesForSingleFile(string currentFileName)
+{
+    string outputLine = "";
+
+    outputLine += currentFileName + ",";
+
+    for (int i = 0; i < 9; i++)
+    {
+        outputLine += std::to_string(status_.columnMin[i]) + "," + std::to_string(status_.columnMax[i]) + "," + status_.columnRawType[i];
+        if (i < 8)
+        {
+            outputLine += ",";
+        }
+        else
+        {
+            outputLine += "\n";
+        }
+    }
+
+    *pOutSensorStatsFile_ << outputLine;
+}
+
+void FBLoggerDataReader::ReportSuccessToLog()
+{
+    string dataPathOutput = dataPath_.substr(0, dataPath_.size() - 1);
+    if (pLogFile_->good() && logFileLine_ == "" && invalidInputFileList_.empty() && numErrors_ == 0)
+    {
+        if (numFilesProcessed_)
+        {
+            logFileLine_ = "Successfully processed " + std::to_string(numFilesProcessed_) + " DAT files in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
+        }
+        else
+        {
+            logFileLine_ = "No DAT files found in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
+        }
+        *pLogFile_ << logFileLine_;
+    }
+}
+
+void FBLoggerDataReader::SetDataPath(string dataPath)
+{
+    if (dataPath.length() > 0)
+    {
+        char lastChar = dataPath[dataPath.length() - 1];
+        char testChar('\\');
+
+        if (lastChar != testChar)
+        {
+            dataPath += '\\';
+        }
+
+        dataPath_ = dataPath;
+    }
+    else
+    {
+        dataPath_ = "";
+    }
+}
+
+void FBLoggerDataReader::SetAppPath(string appPath)
+{
+    appPath_ = appPath;
+}
+
+void FBLoggerDataReader::SetConfigFile(string configFileFullPath)
+{
+    configFilePath_ = configFileFullPath;
+}
+
+string FBLoggerDataReader::GetDataPath()
+{
+    return dataPath_;
+}
+
+string FBLoggerDataReader::GetLogFilePath()
+{
+    return logFilePath_;
+}
+
+string FBLoggerDataReader::GetStatsFilePath()
+{
+    return statsFilePath_;
+}
+
+unsigned int FBLoggerDataReader::GetNumFilesProcessed()
+{
+    return numFilesProcessed_;
+}
+
+unsigned int FBLoggerDataReader::GetNumInvalidFiles()
+{
+    return numInvalidInputFiles_ + numInvalidOutputFiles_;
+}
+
+bool FBLoggerDataReader::IsConfigFileValid()
+{
+    return isConfigFileValid_;
+}
+
+bool FBLoggerDataReader::GetFirstHeader()
+{
+    ResetInFileReadingStatus();
+    ResetHeaderData();
+
+    status_.pos = (int)pInFile_->tellg();
+    uint32_t filePositionLimit = fileSizeInBytes_ - BYTES_READ_PER_ITERATION;
+
+    // Keep grabbing bytes until header is found or end of file is reached
+    while (!status_.headerFound && (status_.pos < filePositionLimit))
+    {
+        GetRawNumber();
+
+        // Update file reading position
+        status_.pos = (int)pInFile_->tellg();
+    }
+    if (status_.headerFound)
+    {
+        // Reset record and sensor reading count
+        status_.recordNumber = 0;
+        status_.sensorReadingCounter = 0;
+        // Get header data and print it to file
+        GetHeader();
+        ParseHeader();
+        // Update file reading position
+        status_.pos = (int)pInFile_->tellg();
+    }
+
+    return status_.headerFound;
+}
+
+void FBLoggerDataReader::ReadNextHeaderOrNumber()
+{
+    status_.headerFound = false;
+    status_.pos = (int)pInFile_->tellg();
+
+    GetRawNumber();
+    if (!status_.headerFound)
+    {
+        parsedNumericData_.intFromBytes = GetIntFromByteArray(parsedNumericData_.rawHexNumber);
+        parsedNumericData_.parsedIEEENumber = static_cast<double>(UnsignedIntToIEEEFloat(parsedNumericData_.intFromBytes));
+        status_.sensorReadingValue[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
+        //UpdateSensorMaxAndMin();
+        //if (status_.sensorReadingCounter < 8)
+        //{
+        //    // increment sensor reading for next iteration
+        //    status_.sensorReadingCounter++;
+        //}
+        //else // An entire row of sensor data has been read in
+        //{
+        //    PerformNeededDataConversions();
+        //    PrintSensorDataOutput();
+        //    // Reset sensor reading counter 
+        //    status_.sensorReadingCounter = 0;
+        //    // Reset all sensor reading values
+        //    for (int i = 0; i < 9; i++)
+        //    {
+        //        status_.sensorReadingValue[i] = 0.0;
+        //    }
+        //    // Update time for next set of sensor readings
+        //    UpdateTime();
+        //}
+    }
+    else // header is found
+    {
+        // Reset record and sensor reading count
+        status_.recordNumber = 0;
+        status_.sensorReadingCounter = 0;
+        // Get header data and print it to file
+        GetHeader();
+        ParseHeader();
+        PrintHeader();
+    }
+}
+
+uint32_t FBLoggerDataReader::GetIntFromByteArray(uint8_t byteArray[4])
+{
+    uint32_t integerValue = int(
+        byteArray[0] << 24 | // Set high byte (bits 24 to 31)
+        byteArray[1] << 16 | // Set bits 16 to 23
+        byteArray[2] << 8 | // Set bits 8 to 15
+        byteArray[3]); // Set low byte (bits 0 to 7)
+
+    return integerValue;
+}
+
+void FBLoggerDataReader::GetRawNumber()
+{
+    uint8_t byte;
+    char rawByte[2];
+    uint8_t *pRawByte;
+    int index = 0;
+    status_.headerFound = false;
+
+    for (int i = 0; i < 4; i++)
+    {
+        pInFile_->read(rawByte, 1);
+        pRawByte = (uint8_t *)(&rawByte);
+        byte = *pRawByte;
+
+        index = 3 - i;
+        parsedNumericData_.rawHexNumber[index] = byte;
+    }
+    // Check for header
+    if ((parsedNumericData_.rawHexNumber[3] == 'S') && (parsedNumericData_.rawHexNumber[2] == 'N') && (parsedNumericData_.rawHexNumber[1] == '0')
+        && (parsedNumericData_.rawHexNumber[0] == '0' || parsedNumericData_.rawHexNumber[0] == '1' || parsedNumericData_.rawHexNumber[0] == '2' ||
+            parsedNumericData_.rawHexNumber[0] == '3' || parsedNumericData_.rawHexNumber[0] == '4' || parsedNumericData_.rawHexNumber[0] == '5' ||
+            parsedNumericData_.rawHexNumber[0] == '6' || parsedNumericData_.rawHexNumber[0] == '7' || parsedNumericData_.rawHexNumber[0] == '8' ||
+            parsedNumericData_.rawHexNumber[0] == '9'))
+    {
+        status_.headerFound = true;
+    }
+    if (!status_.headerFound)
+    {
+        pInFile_->read(rawByte, 1);
+        pRawByte = (uint8_t *)(&rawByte);
+        parsedNumericData_.channelNumber = *pRawByte;
+    }
+}
+
+void FBLoggerDataReader::UpdateTime()
+{
+    // Zero is in first entry so index is calendar year month
+    static const unsigned int monthLength[] = { 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+    headerData_.milliseconds += headerData_.sampleInterval;
+    if (headerData_.milliseconds >= 1000)
+    {
+        headerData_.milliseconds -= 1000;
+        headerData_.seconds++;
+        if (headerData_.seconds >= 60)
+        {
+            headerData_.seconds -= 60;
+            headerData_.minutes++;
+            if (headerData_.minutes >= 60)
+            {
+                headerData_.minutes -= 60;
+                headerData_.hours++;
+                if (headerData_.hours >= 24)
+                {
+                    headerData_.hours -= 24;
+                    headerData_.day++;
+                    // Handling leap years
+                    bool leap = (headerData_.year % 4 == 0) && (headerData_.year % 100 != 0 || headerData_.year % 400 == 0);
+                    if (headerData_.day > monthLength[headerData_.month])
+                    {
+                        if (!(leap && (headerData_.month == 2)))
+                        {
+                            // If it's not both february and a leap year
+                            // Then move on to the next month
+                            headerData_.day = 1;
+                            headerData_.month++;
+                        }
+                        else if (leap && (headerData_.month == 2) && (headerData_.day > 29))
+                        {
+                            // Else if it's a leap year and yesterday was February 29
+                            // Then move on to the next month
+                            headerData_.day = 1;
+                            headerData_.month++;
+                        }
+                    }
+                    if (headerData_.month > 12)
+                    {
+                        headerData_.year++;
+                        headerData_.month = 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+string FBLoggerDataReader::GetMyLocalDateTimeString()
+{
+    SYSTEMTIME systemTime;
+    GetLocalTime(&systemTime);
+
+    return MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+        " " + MakeStringWidthTwoFromInt(systemTime.wHour) + ":" + MakeStringWidthTwoFromInt(systemTime.wMinute) + ":" +
+        MakeStringWidthTwoFromInt(systemTime.wSecond) + ":" + MakeStringWidthThreeFromInt(systemTime.wMilliseconds);
+}
+
+void FBLoggerDataReader::GetHeader()
+{
+    uint8_t byte = 0;
+    ResetHeaderData();
+
+    for (int i = 0; i < 4; i++)
+    {
+        headerData_.rawHeader[3 - i] = parsedNumericData_.rawHexNumber[i];
+    }
+    for (unsigned int i = 4; i < 48; i++)
+    {
+        if (pInFile_)
+        {
+            *pInFile_ >> byte;
+            headerData_.rawHeader += byte;
+        }
+    }
+}
+
+void FBLoggerDataReader::ParseHeader()
+{
+    string temp;
+    // Get the serial number
+    for (int i = 2; i < 7; i++)
+    {
+        headerData_.serialNumberString[i - 2] = headerData_.rawHeader[i];
+    }
+    // Get the latitude
+    for (int i = 7; i < 9; i++)
+    {
+        headerData_.latitudeDegreesString[i - 7] = headerData_.rawHeader[i];
+    }
+    headerData_.latitudeDegreesString += "°";
+    for (int i = 9; i < 17; i++)
+    {
+        headerData_.latitudeDecimalMinutesString[i - 9] = headerData_.rawHeader[i];
+    }
+    temp = headerData_.latitudeDecimalMinutesString[7];
+    headerData_.latitudeDecimalMinutesString[7] = '\'';
+    headerData_.latitudeDecimalMinutesString += " " + temp;
+    //Get the longitude
+    for (int i = 17; i < 20; i++)
+    {
+        headerData_.longitudeDegreesString[i - 17] = headerData_.rawHeader[i];
+    }
+    headerData_.longitudeDegreesString += "°";
+    for (int i = 20; i < 28; i++)
+    {
+        headerData_.longitudeDecimalMinutesString[i - 20] = headerData_.rawHeader[i];
+    }
+    temp = headerData_.longitudeDecimalMinutesString[7];
+    headerData_.longitudeDecimalMinutesString[7] = '\'';
+    headerData_.longitudeDecimalMinutesString += " " + temp;
+    for (int i = 28; i < 30; i++)
+    {
+        headerData_.dayString[i - 28] = headerData_.rawHeader[i];
+    }
+    headerData_.day = std::stoi(headerData_.dayString);
+    for (int i = 30; i < 32; i++)
+    {
+        headerData_.monthString[i - 30] = headerData_.rawHeader[i];
+    }
+    headerData_.month = std::stoi(headerData_.monthString);
+    for (int i = 32; i < 34; i++)
+    {
+        headerData_.yearString[i - 30] = headerData_.rawHeader[i];
+    }
+    headerData_.year = std::stoi(headerData_.yearString);
+    for (int i = 34; i < 36; i++)
+    {
+        headerData_.hourString[i - 34] = headerData_.rawHeader[i];
+    }
+    headerData_.hours = std::stoi(headerData_.hourString);
+    for (int i = 36; i < 38; i++)
+    {
+        headerData_.minuteString[i - 36] = headerData_.rawHeader[i];
+    }
+    headerData_.minutes = std::stoi(headerData_.minuteString);
+    for (int i = 38; i < 40; i++)
+    {
+        headerData_.secondString[i - 38] = headerData_.rawHeader[i];
+    }
+    headerData_.seconds = std::stoi(headerData_.secondString);
+    for (int i = 41; i < 44; i++)
+    {
+        headerData_.millisecondString[i - 41] = headerData_.rawHeader[i];
+    }
+    headerData_.milliseconds = std::stoi(headerData_.millisecondString);
+    for (int i = 44; i < 48; i++)
+    {
+        headerData_.sampleIntervalString[i - 44] = headerData_.rawHeader[i];
+    }
+    headerData_.sampleInterval = std::stoi(headerData_.sampleIntervalString);
+}
+
+void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
+{
+    string firstDateString;
+    string firstTimeString;
+  
+    firstDateString = headerData_.dayString + "-" + headerData_.monthString + "-" + headerData_.yearString.at(2) + headerData_.yearString.at(3);
+    firstTimeString = headerData_.hourString + headerData_.minuteString;
+
+    infileName = RemoveFileExtension(infileName);
+
+    int infileIntValue = atoi(infileName.c_str());
+    serialNumber_ = atoi(headerData_.serialNumberString.c_str());
+
+    if (infileIntValue == serialNumber_ && IsOnlyDigits(infileName))
+    {
+        outLoggerDataFilePath_ = dataPath_ + +"SN" + headerData_.serialNumberString.c_str();
+    }
+    else
+    {
+        outLoggerDataFilePath_ = dataPath_ + infileName + "_" + +"SN" + headerData_.serialNumberString.c_str();
+    }
+   
+    outLoggerDataFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString + ".csv";
+}
+
+void FBLoggerDataReader::PrintConfigErrorsToLog()
+{
+    for (int i = 0; i < invalidInputFileList_.size(); i++)
+    {
+        logFileLine_ += "Error: File " + invalidInputFileList_[i];
+        if (invalidInputFileErrorType_[i] == InvalidInputFileErrorType::CANNOT_OPEN_FILE)
+        {
+            logFileLine_ += " cannot be opened " + GetMyLocalDateTimeString() + "\n";
+        }
+        else if (invalidInputFileErrorType_[i] == InvalidInputFileErrorType::MISSING_HEADER)
+        {
+            logFileLine_ += " has no valid header " + GetMyLocalDateTimeString() + "\n";
+        }
+        else if (invalidInputFileErrorType_[i] == InvalidInputFileErrorType::MISSING_CONFIG)
+        {
+            logFileLine_ += " has no valid configuration " + GetMyLocalDateTimeString() + "\n";
+        }
+        else if (invalidInputFileErrorType_[i] == InvalidInputFileErrorType::ALREADY_OPEN)
+        {
+            logFileLine_ += "ERROR: The file " + outLoggerDataFilePath_ + " may be already opened by another process\n";
+        }
+        *pLogFile_ << logFileLine_;
+    }
+    logFileLine_ = "";
+}
+
+void FBLoggerDataReader::PrintLogFileLine()
+{
+    if (pLogFile_->good() && logFileLine_ != "")
+    {
+        *pLogFile_ << logFileLine_;
+    }
+    logFileLine_ = "";
+}
+
+void FBLoggerDataReader::PrintHeader()
+{  
+    outputLine_ += "\"SN" + headerData_.serialNumberString + "\"," + "\"" + headerData_.latitudeDegreesString + " " +
+        headerData_.latitudeDecimalMinutesString + "\",\"" + headerData_.longitudeDegreesString + " " +
+        headerData_.longitudeDecimalMinutesString + "\", " + headerData_.sampleIntervalString + "\n";
+
+    // Print header data to file
+    if (pOutLoggerDataFile_)
+    {
+        *pOutLoggerDataFile_ << outputLine_;
+        // Print column header data to file
+        
+        outputLine_ = status_.configColumnTextLine;
+        *pOutLoggerDataFile_ << outputLine_;
+   
+        // Clear out output buffer for next function call
+        outputLine_ = "";
+    }
+}
+
+string FBLoggerDataReader::MakeStringWidthTwoFromInt(int headerData)
+{
+    string formattedString;
+    if (headerData > 9)
+    {
+        formattedString = std::to_string(headerData);
+    }
+    else
+    {
+        formattedString = "0" + std::to_string(headerData);
+    }
+    return formattedString;
+}
+
+string FBLoggerDataReader::MakeStringWidthThreeFromInt(int headerData)
+{
+    string formattedString;
+    if (headerData > 99)
+    {
+        formattedString = std::to_string(headerData);
+    }
+    else if(headerData > 9)
+    {
+        formattedString = "0" + std::to_string(headerData);
+    }
+    else
+    {
+        formattedString = "00" + std::to_string(headerData);
+    }
+    return formattedString;
+}
+
+void FBLoggerDataReader::UpdateSensorMaxAndMin()
+{
+    // Update max and min
+    if (parsedNumericData_.parsedIEEENumber < status_.columnMin[status_.sensorReadingCounter])
+    {
+        status_.columnMin[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
+        currentFileStats_.columnMin[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
+    }
+    if (parsedNumericData_.parsedIEEENumber > status_.columnMax[status_.sensorReadingCounter])
+    {
+        status_.columnMax[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
+        currentFileStats_.columnMax[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
+    }
+}
+
+void FBLoggerDataReader::PrintSensorDataOutput()
+{
+    const unsigned int miliSecondWidth = 3;
+
+    string dayString;
+    string monthString;
+    string yearString;
+    string hourString;
+    string minuteString;
+    string secondString;
+    string millisecondsString;
+    string recordString;
+
+    outputLine_ = "";
+
+    for (int i = 0; i < 9; i++)
+    {
+        if (i == 0)
+        {
+            status_.recordNumber++;
+            yearString = MakeStringWidthTwoFromInt(headerData_.year);
+            monthString = MakeStringWidthTwoFromInt(headerData_.month);
+            dayString = MakeStringWidthTwoFromInt(headerData_.day);
+            hourString = MakeStringWidthTwoFromInt(headerData_.hours);
+            minuteString = MakeStringWidthTwoFromInt(headerData_.minutes);
+            secondString = MakeStringWidthTwoFromInt(headerData_.seconds);
+            millisecondsString = MakeStringWidthThreeFromInt(headerData_.milliseconds);
+            recordString = MakeStringWidthThreeFromInt(status_.recordNumber);
+            // Print out time information parsed from the header
+            outputLine_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
+                hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString +
+                "\"," + recordString + ",";
+            outputLine_ += std::to_string(status_.sensorReadingValue[i]) + ",";
+        }
+        else if (i < 8)
+        {
+            outputLine_ += std::to_string(status_.sensorReadingValue[i]) + ",";
+        }
+        else
+        {
+            outputLine_ += std::to_string(status_.sensorReadingValue[i]) + "\n";
+
+            // Print to file
+            if (pOutLoggerDataFile_)
+            {
+                *pOutLoggerDataFile_ << outputLine_;
+                // Clear out output buffer for next function call
+                outputLine_ = "";
+            }
+        }
+    }
+}
+
+float FBLoggerDataReader::UnsignedIntToIEEEFloat(uint32_t binaryNumber)
+{
+    // Cast the unsigned 32 bit int as a float
+    float *pFloat;
+    pFloat = (float *)(&binaryNumber);
+    float value = *pFloat;
+
+    return value;
+}
