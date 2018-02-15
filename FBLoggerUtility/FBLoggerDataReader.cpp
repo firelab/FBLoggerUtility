@@ -322,7 +322,7 @@ void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
                         {
 #ifdef _DEBUG
                             // The following method is for debug purposes only!
-                            FillSensorValuesWithTestVoltages();
+                            //FillSensorValuesWithTestVoltages();
 #endif
                             PerformSanityChecksOnValues(SanityChecks::RAW);
                             PerformNeededDataConversions();
