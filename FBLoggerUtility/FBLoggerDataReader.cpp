@@ -229,6 +229,8 @@ void FBLoggerDataReader::ProcessAllDataFiles()
                         }
                     }
 
+                    PrintStatsFile();
+
                     pOutSensorStatsFile_->close();
                     pOutSensorStatsFile_ = NULL;
                 }
@@ -284,6 +286,7 @@ void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
 
             if ((headerFound) && (configurationType_ != ""))
             {
+                currentFileStats_.fileName = infileName;
                 SetLoggerDataOutFilePath(infileName);
 
                 ofstream outDataFile(outLoggerDataFilePath_, std::ios::out);
@@ -324,6 +327,7 @@ void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
                             PerformSanityChecksOnValues(SanityChecks::RAW);
                             PerformNeededDataConversions();
                             PerformSanityChecksOnValues(SanityChecks::FINAL);
+                            UpdateStatsFileMap();
                             PrintSensorDataOutput();
                             // Reset sensor reading counter 
                             status_.sensorReadingCounter = 0;
@@ -1020,6 +1024,33 @@ void FBLoggerDataReader::PrintStatsDataValuesForSingleFile(string currentFileNam
     *pOutSensorStatsFile_ << outputLine;
 }
 
+void FBLoggerDataReader::PrintStatsFile()
+{
+    string outputLine = "";
+
+    for (auto it = statsFileMap_.begin(); it != statsFileMap_.end(); it++)
+    {
+        string currentFileName = it->second.fileName;
+
+        outputLine += currentFileName + ",";
+
+        for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+        {
+            outputLine += std::to_string(it->second.columnMin[i]) + "," + std::to_string(it->second.columnMax[i]) + "," + status_.columnRawType[i];
+            if (i < 8)
+            {
+                outputLine += ",";
+            }
+            else
+            {
+                outputLine += "\n";
+            }
+        }
+
+        *pOutSensorStatsFile_ << outputLine;
+    }
+}
+
 void FBLoggerDataReader::ReportSuccessToLog()
 {
     string dataPathOutput = dataPath_.substr(0, dataPath_.size() - 1);
@@ -1035,6 +1066,11 @@ void FBLoggerDataReader::ReportSuccessToLog()
         }
         *pLogFile_ << logFileLine_;
     }
+}
+
+void FBLoggerDataReader::UpdateStatsFileMap()
+{
+    statsFileMap_.insert(pair<int, StatsFileData>(serialNumber_, currentFileStats_));
 }
 
 void FBLoggerDataReader::SetDataPath(string dataPath)

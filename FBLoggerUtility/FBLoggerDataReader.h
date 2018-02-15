@@ -251,8 +251,11 @@ private:
    
     void PrintStatsFileHeader();
     void PrintStatsDataValuesForSingleFile(string currentFileName);
+    void PrintStatsFile();
 
     void ReportSuccessToLog();
+
+    void UpdateStatsFileMap();
 
     // Private data members
     const uint8_t BYTES_READ_PER_ITERATION = 5;
