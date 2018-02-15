@@ -317,17 +317,16 @@ void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
                         }
                         else // An entire row of sensor data has been read in
                         {
+#ifdef _DEBUG
+                            // The following method is for debug purposes only!
+                            FillSensorValuesWithTestVoltages();
+#endif
                             PerformSanityChecksOnValues(SanityChecks::RAW);
                             PerformNeededDataConversions();
                             PerformSanityChecksOnValues(SanityChecks::FINAL);
                             PrintSensorDataOutput();
                             // Reset sensor reading counter 
                             status_.sensorReadingCounter = 0;
-                            // Reset all sensor reading values
-                            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
-                            {
-                                status_.sensorReadingValue[i] = 0.0;
-                            }
                             // Update time for next set of sensor readings
                             UpdateTime();
                         }
@@ -353,9 +352,7 @@ void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
 
 double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)
 {
-    //kW/m^2 = 56.60 * Volts^1.129
-    double kiloWattsPerSquareMeter = 56.60 * pow(rawVoltage, 1.129);
-    return kiloWattsPerSquareMeter;
+    return 56.60 * pow(rawVoltage, 1.129);
 }
 
 double FBLoggerDataReader::CalculateHeatFluxTemperature(double rawVoltage)
@@ -406,15 +403,14 @@ int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureO
 
 double FBLoggerDataReader::CalculateFIDPackagePressure(double rawVoltage)
 {
-    double pressure = 249.09 * (rawVoltage - 1.550) * 0.8065;
-    return pressure;
+    return 249.09 * (rawVoltage - 1.550) * 0.8065;
 }
 
 void FBLoggerDataReader::PerformNeededDataConversions()
 {  
     if (configurationType_ == "F")
     {
-        double FIDPackagePressure = CalculateFIDPackagePressure(status_.sensorReadingValue[2]);
+        double FIDPackagePressure = CalculateFIDPackagePressure(status_.sensorReadingValue[FIDPackageIndex::PRESSURE_VOLTAGE]);
         bool FIDPackagePressureGood = (FIDPackagePressure <= sanityChecks_.pressureMax) && (FIDPackagePressure >= sanityChecks_.pressureMin);
         if (FIDPackagePressureGood)
         {
@@ -448,11 +444,6 @@ void FBLoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTy
     double maxForSanityCheck = 0.0;
     //unsigned int currentIndex = status_.sensorReadingCounter;
    
-#ifdef _DEBUG
-    // The following method is for debug purposes only!
-    FillSensorValuesWithTestVoltages();
-#endif
-
     for (unsigned int currentIndex = 0; currentIndex < NUM_SENSOR_READINGS; currentIndex++)
     {
         double currentValue = status_.sensorReadingValue[currentIndex];
