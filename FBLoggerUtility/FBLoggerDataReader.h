@@ -69,6 +69,7 @@ public:
         double columnMin[9];
         double columnMax[9];
         bool headerFound = false;
+        bool firstSensorReadingFound = false;
         bool isSerialNumberValid = false;
         bool isConfigurationTypeValid = false;
         bool isSensorNumberValid = false;
@@ -230,6 +231,7 @@ private:
     uint32_t GetIntFromByteArray(uint8_t arr[4]);
     void GetRawNumber();
 	void CheckForHeader();
+    void CheckForFirstSensorReading();
     void UpdateTime();
     string GetMyLocalDateTimeString();
     void GetHeader();
