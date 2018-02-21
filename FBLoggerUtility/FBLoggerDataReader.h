@@ -54,7 +54,7 @@ public:
     {
         uint8_t rawHexNumber[4];
         uint8_t channelNumber = 0;
-        double parsedIEEENumber = 0;
+        float parsedIEEENumber = 0;
         unsigned int intFromBytes = 0;
     };
 
@@ -219,7 +219,7 @@ private:
     void PerformSanityChecksOnValues(SanityChecks::SanityCheckTypeEnum sanityCheckType);
 
     // Private methods
-    void ReadConfig();
+	void ReadConfig();
     void ProcessSingleDataFile(string fileName);
     void ParseTokensFromLineOfConfigFile(string& line);
     bool CheckConfigFileFormatIsValid(ifstream& configFile);
@@ -229,6 +229,7 @@ private:
     void ReadNextHeaderOrNumber();
     uint32_t GetIntFromByteArray(uint8_t arr[4]);
     void GetRawNumber();
+	void CheckForHeader();
     void UpdateTime();
     string GetMyLocalDateTimeString();
     void GetHeader();
@@ -258,7 +259,7 @@ private:
     void UpdateStatsFileMap();
 
     // Private data members
-    const uint8_t BYTES_READ_PER_ITERATION = 5;
+    const uint8_t BYTES_READ_PER_ITERATION = 5; // 5 total: 4 byte sensor reading, 1 byte channel number
 
     vector<string> inputFilesNameList_;
     vector<string> invalidInputFileList_;

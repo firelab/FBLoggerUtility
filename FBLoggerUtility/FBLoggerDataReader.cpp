@@ -947,44 +947,44 @@ void FBLoggerDataReader::ResetCurrentFileStats()
 
 void FBLoggerDataReader::SetConfigDependentValues()
 {
-    if (configurationType_ == "F")
-    {
-        //status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"FID(V)\",\"P(V)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (°C)\"\n";
-        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"FID(V)\",\"P(Pa)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (°C)\"\n";
-        status_.columnRawType[0] = "°C";
-        status_.columnRawType[1] = "FID(V)";
-        status_.columnRawType[2] = "P(V)";
-        for (int i = 3; i < 8; i++)
-        {
-            status_.columnRawType[i] = "NA";
-        }
-    }
-    else if (configurationType_ == "H")
-    {
-        //status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"P(V)\",\"P(V)\",\"P(V)\",\"HF(V)\",\"HFT(V)\",\"NA\",\"Panel Temp (°C)\"\n";
-        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"u(m/s)\",\"v(m/s)\",\"w(m/s)\",\"HF(kW/m^2)\",\"HFT(V)\",\"NA\",\"Panel Temp (°C)\"\n";
-        for (int i = 0; i < 2; i++)
-        {
-            status_.columnRawType[i] = "°C";
-        }
-        for (int i = 2; i < 5; i++)
-        {
-            status_.columnRawType[i] = "P(V)";
-        }
-        status_.columnRawType[5] = "HF(V)";
-        status_.columnRawType[6] = "HFT(V)";
-        status_.columnRawType[7] = "NA";
-    }
-    else if (configurationType_ == "T")
-    {
-        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"Panel Temp (°C)\"\n";
-        for (int i = 0; i < 8; i++)
-        {
-            status_.columnRawType[i] = "°C";
-        }
-    }
-    // Common among all configurations
-    status_.columnRawType[8] = "Panel Temp (°C)";
+	if (configurationType_ == "F")
+	{
+		//status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"FID(V)\",\"P(V)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (°C)\"\n";
+		status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"FID(V)\",\"P(Pa)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (°C)\"\n";
+		status_.columnRawType[0] = "°C";
+		status_.columnRawType[1] = "FID(V)";
+		status_.columnRawType[2] = "P(V)";
+		for (int i = 3; i < 8; i++)
+		{
+			status_.columnRawType[i] = "NA";
+		}
+	}
+	else if (configurationType_ == "H")
+	{
+		//status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"P(V)\",\"P(V)\",\"P(V)\",\"HF(V)\",\"HFT(V)\",\"NA\",\"Panel Temp (°C)\"\n";
+		status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"u(m/s)\",\"v(m/s)\",\"w(m/s)\",\"HF(kW/m^2)\",\"HFT(C)\",\"NA\",\"Panel Temp (°C)\"\n";
+		for (int i = 0; i < 2; i++)
+		{
+			status_.columnRawType[i] = "°C";
+		}
+		for (int i = 2; i < 5; i++)
+		{
+			status_.columnRawType[i] = "P(V)";
+		}
+		status_.columnRawType[5] = "HF(V)";
+		status_.columnRawType[6] = "HFT(V)";
+		status_.columnRawType[7] = "NA";
+	}
+	else if (configurationType_ == "T")
+	{
+		status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"Panel Temp (°C)\"\n";
+		for (int i = 0; i < 8; i++)
+		{
+			status_.columnRawType[i] = "°C";
+		}
+	}
+	// Common among all configurations
+	status_.columnRawType[8] = "Panel Temp (°C)";
 }
 
 void FBLoggerDataReader::PrintStatsFileHeader()
@@ -1173,7 +1173,7 @@ void FBLoggerDataReader::ReadNextHeaderOrNumber()
     if (!status_.headerFound)
     {
         parsedNumericData_.intFromBytes = GetIntFromByteArray(parsedNumericData_.rawHexNumber);
-        parsedNumericData_.parsedIEEENumber = static_cast<double>(UnsignedIntToIEEEFloat(parsedNumericData_.intFromBytes));
+        parsedNumericData_.parsedIEEENumber = UnsignedIntToIEEEFloat(parsedNumericData_.intFromBytes);
         status_.sensorReadingValue[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
     }
     else // header is found
@@ -1190,13 +1190,13 @@ void FBLoggerDataReader::ReadNextHeaderOrNumber()
 
 uint32_t FBLoggerDataReader::GetIntFromByteArray(uint8_t byteArray[4])
 {
-    uint32_t integerValue = int(
-        byteArray[0] << 24 | // Set high byte (bits 24 to 31)
-        byteArray[1] << 16 | // Set bits 16 to 23
-        byteArray[2] << 8 | // Set bits 8 to 15
-        byteArray[3]); // Set low byte (bits 0 to 7)
+	uint32_t integerValue = int(
+		byteArray[3] << 24 | // Set high byte (bits 24 to 31)
+		byteArray[2] << 16 | // Set bits 16 to 23
+		byteArray[1] << 8 | // Set bits 8 to 15
+		byteArray[0]); // Set low byte (bits 0 to 7)
 
-    return integerValue;
+	return integerValue;
 }
 
 void FBLoggerDataReader::GetRawNumber()
@@ -1207,30 +1207,35 @@ void FBLoggerDataReader::GetRawNumber()
     int index = 0;
     status_.headerFound = false;
 
-    for (int i = 0; i < 4; i++)
-    {
-        pInFile_->read(rawByte, 1);
-        pRawByte = (uint8_t *)(&rawByte);
-        byte = *pRawByte;
+	// Always read in 4 bytes, then check if those 4 bytes contain the header signature
+	for (int i = 0; i < 4; i++)
+	{
+		pInFile_->read(rawByte, 1);
+		pRawByte = (uint8_t *)(&rawByte);
+		byte = *pRawByte;
+		parsedNumericData_.rawHexNumber[i] = byte;
+	}
+	CheckForHeader();
+	// If it is not a header, read in 1 more byte for channel number
+	if (!status_.headerFound)
+	{
+		pInFile_->read(rawByte, 1);
+		pRawByte = (uint8_t *)(&rawByte);
+		parsedNumericData_.channelNumber = *pRawByte;
+	}
+}
 
-        index = 3 - i;
-        parsedNumericData_.rawHexNumber[index] = byte;
-    }
-    // Check for header
-    if ((parsedNumericData_.rawHexNumber[3] == 'S') && (parsedNumericData_.rawHexNumber[2] == 'N') && (parsedNumericData_.rawHexNumber[1] == '0')
-        && (parsedNumericData_.rawHexNumber[0] == '0' || parsedNumericData_.rawHexNumber[0] == '1' || parsedNumericData_.rawHexNumber[0] == '2' ||
-            parsedNumericData_.rawHexNumber[0] == '3' || parsedNumericData_.rawHexNumber[0] == '4' || parsedNumericData_.rawHexNumber[0] == '5' ||
-            parsedNumericData_.rawHexNumber[0] == '6' || parsedNumericData_.rawHexNumber[0] == '7' || parsedNumericData_.rawHexNumber[0] == '8' ||
-            parsedNumericData_.rawHexNumber[0] == '9'))
-    {
-        status_.headerFound = true;
-    }
-    if (!status_.headerFound)
-    {
-        pInFile_->read(rawByte, 1);
-        pRawByte = (uint8_t *)(&rawByte);
-        parsedNumericData_.channelNumber = *pRawByte;
-    }
+void FBLoggerDataReader::CheckForHeader()
+{
+	// Check for header signature "SNXX" where X is 0-9
+	if ((parsedNumericData_.rawHexNumber[0] == 'S') && (parsedNumericData_.rawHexNumber[1] == 'N') && (parsedNumericData_.rawHexNumber[2] == '0')
+		&& (parsedNumericData_.rawHexNumber[3] == '0' || parsedNumericData_.rawHexNumber[3] == '1' || parsedNumericData_.rawHexNumber[3] == '2' ||
+			parsedNumericData_.rawHexNumber[3] == '3' || parsedNumericData_.rawHexNumber[3] == '4' || parsedNumericData_.rawHexNumber[3] == '5' ||
+			parsedNumericData_.rawHexNumber[3] == '6' || parsedNumericData_.rawHexNumber[3] == '7' || parsedNumericData_.rawHexNumber[3] == '8' ||
+			parsedNumericData_.rawHexNumber[3] == '9'))
+	{
+		status_.headerFound = true;
+	}
 }
 
 void FBLoggerDataReader::UpdateTime()
@@ -1297,21 +1302,21 @@ string FBLoggerDataReader::GetMyLocalDateTimeString()
 
 void FBLoggerDataReader::GetHeader()
 {
-    uint8_t byte = 0;
-    ResetHeaderData();
+	uint8_t byte = 0;
+	ResetHeaderData();
 
-    for (int i = 0; i < 4; i++)
-    {
-        headerData_.rawHeader[3 - i] = parsedNumericData_.rawHexNumber[i];
-    }
-    for (unsigned int i = 4; i < 48; i++)
-    {
-        if (pInFile_)
-        {
-            *pInFile_ >> byte;
-            headerData_.rawHeader += byte;
-        }
-    }
+	for (int i = 0; i < 4; i++)
+	{
+		headerData_.rawHeader[i] = parsedNumericData_.rawHexNumber[i];
+	}
+	for (unsigned int i = 4; i < 48; i++)
+	{
+		if (pInFile_)
+		{
+			*pInFile_ >> byte;
+			headerData_.rawHeader += byte;
+		}
+	}
 }
 
 void FBLoggerDataReader::ParseHeader()
