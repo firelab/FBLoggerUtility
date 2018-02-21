@@ -600,90 +600,90 @@ void FBLoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
 
         switch (tokenCounter)
         {
-        case SERIAL_NUMBER:
-        {
-            configFileLine_.serialNumberString = token;
-            if (IsOnlyDigits(configFileLine_.serialNumberString))
+            case SERIAL_NUMBER:
             {
-                status_.isSerialNumberValid = true;
-            }
-            else
-            {
-                status_.isSerialNumberValid = false;
-                isConfigFileValid_ = false;
-            }
-            break;
-        }
-        case CONFIGURATION:
-        {
-            configFileLine_.conifgurationString = token;
-            if (configFileLine_.conifgurationString == "F" ||
-                configFileLine_.conifgurationString == "H" ||
-                configFileLine_.conifgurationString == "T" ||
-                configFileLine_.conifgurationString == "")
-            {
-                status_.isConfigurationTypeValid = true;
-            }
-            else
-            {
-                status_.isConfigurationTypeValid = false;
-                isConfigFileValid_ = false;
-            }
-            break;
-        }
-        case SENSOR_NUMBER:
-        {
-            configFileLine_.sensorNumberString = token;
-            if (IsOnlyDigits(configFileLine_.sensorNumberString))
-            {
-                status_.isSensorNumberValid = true;
-            }
-            else if (configFileLine_.conifgurationString == "T" &&
-                configFileLine_.sensorNumberString == "")
-            {
-                status_.isSensorNumberValid = true;
-            }
-            else if (configFileLine_.conifgurationString == "" &&
-                configFileLine_.sensorNumberString == "")
-            {
-                status_.isSensorNumberValid = true;
-            }
-            else
-            {
-                status_.isSensorNumberValid = false;
-                isConfigFileValid_ = false;
-            }
-            break;
-        }
-        case SENSOR_BEARING:
-        {
-            configFileLine_.sensorBearingString = token;
-
-            char* end;
-            errno = 0;
-            configFileLine_.sensorBearingValue = std::strtod(token.c_str(), &end);
-            if (configFileLine_.conifgurationString == "H")
-            {
-                if (*end != '\0' ||  // error, we didn't consume the entire string
-                    errno != 0)   // error, overflow or underflow
+                configFileLine_.serialNumberString = token;
+                if (IsOnlyDigits(configFileLine_.serialNumberString))
                 {
-                    status_.isSensorBearingValid = false;
+                    status_.isSerialNumberValid = true;
                 }
-                else if (configFileLine_.sensorBearingValue < 0 || configFileLine_.sensorBearingValue > 360)
+                else
                 {
-                    status_.isSensorBearingValid = false;
+                    status_.isSerialNumberValid = false;
+                    isConfigFileValid_ = false;
+                }
+                break;
+            }
+            case CONFIGURATION:
+            {
+                configFileLine_.conifgurationString = token;
+                if (configFileLine_.conifgurationString == "F" ||
+                    configFileLine_.conifgurationString == "H" ||
+                    configFileLine_.conifgurationString == "T" ||
+                    configFileLine_.conifgurationString == "")
+                {
+                    status_.isConfigurationTypeValid = true;
+                }
+                else
+                {
+                    status_.isConfigurationTypeValid = false;
+                    isConfigFileValid_ = false;
+                }
+                break;
+            }
+            case SENSOR_NUMBER:
+            {
+                configFileLine_.sensorNumberString = token;
+                if (IsOnlyDigits(configFileLine_.sensorNumberString))
+                {
+                    status_.isSensorNumberValid = true;
+                }
+                else if (configFileLine_.conifgurationString == "T" &&
+                    configFileLine_.sensorNumberString == "")
+                {
+                    status_.isSensorNumberValid = true;
+                }
+                else if (configFileLine_.conifgurationString == "" &&
+                    configFileLine_.sensorNumberString == "")
+                {
+                    status_.isSensorNumberValid = true;
+                }
+                else
+                {
+                    status_.isSensorNumberValid = false;
+                    isConfigFileValid_ = false;
+                }
+                break;
+            }
+            case SENSOR_BEARING:
+            {
+                configFileLine_.sensorBearingString = token;
+
+                char* end;
+                errno = 0;
+                configFileLine_.sensorBearingValue = std::strtod(token.c_str(), &end);
+                if (configFileLine_.conifgurationString == "H")
+                {
+                    if (*end != '\0' ||  // error, we didn't consume the entire string
+                        errno != 0)   // error, overflow or underflow
+                    {
+                        status_.isSensorBearingValid = false;
+                    }
+                    else if (configFileLine_.sensorBearingValue < 0 || configFileLine_.sensorBearingValue > 360)
+                    {
+                        status_.isSensorBearingValid = false;
+                    }
+                    else
+                    {
+                        status_.isSensorBearingValid = true;
+                    }
                 }
                 else
                 {
                     status_.isSensorBearingValid = true;
                 }
+                break;
             }
-            else
-            {
-                status_.isSensorBearingValid = true;
-            }
-            break;
-        }
         }
         tokenCounter++;
     }
