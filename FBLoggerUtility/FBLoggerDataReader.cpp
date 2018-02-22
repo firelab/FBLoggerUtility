@@ -204,9 +204,28 @@ void FBLoggerDataReader::ProcessAllDataFiles()
 
             if (numInvalidInputFiles_ == 0)
             {
+               
                 statsFilePath_ = dataPath_ + "sensor_stats.csv";
 
                 ofstream outStatsFile(statsFilePath_, std::ios::out);
+
+                // Check for sensor stats file's existence
+                if (!outStatsFile || outStatsFile.fail())
+                {
+                    outStatsFile.close();
+                    outStatsFile.clear();
+                    SYSTEMTIME systemTime;
+                    GetLocalTime(&systemTime);
+
+                    string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+                        "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
+                        MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
+                    string statsFileNoExtension = dataPath_ + "sensor_stats";
+                    logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
+                    statsFilePath_ = statsFileNoExtension + "_" + dateTimeString + ".csv";
+
+                    ofstream logFile(statsFilePath_, std::ios::out);
+                }
 
                 if (outStatsFile.good() && logFile.good())
                 {
