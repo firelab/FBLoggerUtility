@@ -1581,15 +1581,42 @@ void FBLoggerDataReader::PrintSensorDataOutput()
             outputLine_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
                 hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString +
                 "\"," + recordString + ",";
-            outputLine_ += std::to_string(status_.sensorReadingValue[i]) + ",";
         }
-        else if (i < 8)
+
+        if (configurationType_ == "F")
         {
-            outputLine_ += std::to_string(status_.sensorReadingValue[i]) + ",";
+            if ((sanityChecks_.FFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.FFinalMax[i] != sanityChecks_.NAMax))
+            {
+                outputLine_ += std::to_string(status_.sensorReadingValue[i]);
+            }
+            else
+            {
+                outputLine_ += std::to_string(0.0);
+            }
+        }
+        else if (configurationType_ == "H")
+        {
+            if ((sanityChecks_.HFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.HFinalMax[i] != sanityChecks_.NAMax))
+            {
+                outputLine_ += std::to_string(status_.sensorReadingValue[i]);
+            }
+            else
+            {
+                outputLine_ += std::to_string(0.0);
+            }
         }
         else
         {
-            outputLine_ += std::to_string(status_.sensorReadingValue[i]) + "\n";
+            outputLine_ += std::to_string(status_.sensorReadingValue[i]);
+        }
+
+        if (i < 8)
+        {
+            outputLine_ += ",";
+        }
+        else
+        {
+            outputLine_ += "\n";
 
             // Print to file
             if (pOutLoggerDataFile_)
