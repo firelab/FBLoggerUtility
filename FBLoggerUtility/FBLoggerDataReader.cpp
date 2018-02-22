@@ -443,7 +443,7 @@ void FBLoggerDataReader::PerformNeededDataConversions()
     else if (configurationType_ == "H")
     {
         double heatFlux = CalculateHeatFlux(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE]);
-        double heatFluxTemperature = CalculateHeatFluxTemperature(status_.sensorReadingValue[6]);
+        double heatFluxTemperature = CalculateHeatFluxTemperature(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE]);
 
         double bearing = sensorBearingMap_.find(serialNumber_)->second;
         status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = heatFlux;
