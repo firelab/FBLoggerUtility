@@ -217,7 +217,8 @@ void FBLoggerDataReader::ProcessAllDataFiles()
                     {
                         extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
                         extension = Utf8_encode(extensionW);
-                        if (extension == ".DAT" || extension == ".dat")
+                        std::transform(extension.begin(), extension.end(), extension.begin(), toupper);
+                        if (extension == ".DAT")
                         {
                             ProcessSingleDataFile(inputFilesNameList_[i]);
                             if (!status_.isGoodOutput)
@@ -308,7 +309,6 @@ void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
                     status_.isGoodOutput = true;
                     SetConfigDependentValues();
                     PrintHeader();
-                    status_.firstSensorReadingFound = false;
                     while (status_.pos < (fileSizeInBytes_ - BYTES_READ_PER_ITERATION))
                     {
                         ReadNextHeaderOrNumber();
@@ -926,7 +926,6 @@ void FBLoggerDataReader::ResetInFileReadingStatus()
         status_.sensorReadingValue[i] = 0.0;
     }
     status_.headerFound = false;
-    status_.firstSensorReadingFound = false;
 }
 
 void FBLoggerDataReader::ResetCurrentFileStats()
@@ -1170,15 +1169,11 @@ void FBLoggerDataReader::ReadNextHeaderOrNumber()
     CheckForHeader();
     if (!status_.headerFound)
     {
-        if (!status_.firstSensorReadingFound)
-        {
-            CheckForFirstSensorReading();
-        }
-        if (status_.firstSensorReadingFound)
+        if (parsedNumericData_.channelNumber != 0) // Prevents array out of bounds while reading a header 
         {
             parsedNumericData_.intFromBytes = GetIntFromByteArray(parsedNumericData_.rawHexNumber);
             parsedNumericData_.parsedIEEENumber = UnsignedIntToIEEEFloat(parsedNumericData_.intFromBytes);
-            status_.sensorReadingValue[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
+            status_.sensorReadingValue[parsedNumericData_.channelNumber - 1] = parsedNumericData_.parsedIEEENumber;
             // increment sensor reading for next iteration
             status_.sensorReadingCounter++;
         }
@@ -1186,7 +1181,6 @@ void FBLoggerDataReader::ReadNextHeaderOrNumber()
     else if (status_.headerFound)
     {
         // Reset record and sensor reading count
-        status_.firstSensorReadingFound = false;
         status_.recordNumber = 0;
         status_.sensorReadingCounter = 0;
         // Get header data and print it to file
@@ -1231,6 +1225,11 @@ void FBLoggerDataReader::GetRawNumber()
         pInFile_->read(rawByte, 1);
         pRawByte = (uint8_t *)(&rawByte);
         parsedNumericData_.channelNumber = *pRawByte;
+        if (parsedNumericData_.channelNumber == 0) 
+        {
+            // Make panel temp's channel number 9, as it is printed last
+            parsedNumericData_.channelNumber = 9;
+        }
     }
 }
 
@@ -1244,15 +1243,6 @@ void FBLoggerDataReader::CheckForHeader()
             parsedNumericData_.rawHexNumber[3] == '9'))
     {
         status_.headerFound = true;
-    }
-}
-
-void FBLoggerDataReader::CheckForFirstSensorReading()
-{
-    if (parsedNumericData_.channelNumber == 1)
-    {
-        status_.sensorReadingCounter = 0;
-        status_.firstSensorReadingFound = true;
     }
 }
 
