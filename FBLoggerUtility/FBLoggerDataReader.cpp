@@ -230,7 +230,6 @@ void FBLoggerDataReader::ProcessAllDataFiles()
                 if (outStatsFile.good() && logFile.good())
                 {
                     pOutSensorStatsFile_ = &outStatsFile;
-                    PrintStatsFileHeader();
 
                     for (unsigned int i = 0; i < inputFilesNameList_.size(); i++)
                     {
@@ -508,7 +507,12 @@ void FBLoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTy
 
         if (sanityCheckType == SanityChecks::RAW)
         {
-            if (!(double_equals(minForSanityCheck, sanityChecks_.IGNORE_MIN)) && (currentValue < minForSanityCheck))
+            if (isnan(currentValue))
+            {
+                currentFileStats_.columnFailedSanityCheckRaw[currentIndex] = true;
+                currentFileStats_.isFailedSanityCheckRaw = true;
+            }
+            else if (!(double_equals(minForSanityCheck, sanityChecks_.IGNORE_MIN)) && (currentValue < minForSanityCheck))
             {
                 currentFileStats_.columnFailedSanityCheckRaw[currentIndex] = true;
                 currentFileStats_.isFailedSanityCheckRaw = true;
@@ -521,6 +525,11 @@ void FBLoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTy
         }
         else if (sanityCheckType == SanityChecks::FINAL)
         {
+            if (isnan(currentValue))
+            {
+                currentFileStats_.columnFailedSanityCheckFinal[currentIndex] = true;
+                currentFileStats_.isFailedSanityCheckFinal = true;
+            }
             if (!(double_equals(minForSanityCheck, sanityChecks_.IGNORE_MIN)) && (currentValue < minForSanityCheck))
             {
                 currentFileStats_.columnFailedSanityCheckFinal[currentIndex] = true;
@@ -940,8 +949,6 @@ void FBLoggerDataReader::ResetInFileReadingStatus()
     for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
         status_.columnRawType[i] = "";
-        status_.columnMin[i] = DBL_MAX;
-        status_.columnMax[i] = -DBL_MAX;
         status_.sensorReadingValue[i] = 0.0;
     }
     status_.headerFound = false;
@@ -953,8 +960,8 @@ void FBLoggerDataReader::ResetCurrentFileStats()
     {
         currentFileStats_.columnFailedSanityCheckRaw[i] = false;
         currentFileStats_.columnFailedSanityCheckFinal[i] = false;
-        currentFileStats_.columnMin[i] = 0.0;
-        currentFileStats_.columnMax[i] = 0.0;
+        currentFileStats_.columnMin[i] = 99999.0;
+        currentFileStats_.columnMax[i] = -99999.0;
     }
     currentFileStats_.isFailedSanityCheckFinal = false;
     currentFileStats_.isFailedSanityCheckRaw = false;
@@ -1004,7 +1011,9 @@ void FBLoggerDataReader::SetConfigDependentValues()
 
 void FBLoggerDataReader::PrintStatsFileHeader()
 {
-    string outputLine = "File Name,Col 1 Min,Col 1 Max,Col 1 Type,";
+    string outputLine = "";
+    outputLine += "\nFull Sensor Min/Max Stats For All Files:\n";
+    outputLine += "File Name,Col 1 Min,Col 1 Max,Col 1 Type,";
     outputLine += "Col 2 Min,Col 2 Max,Col 2 Type,";
     outputLine += "Col 3 Min,Col 3 Max,Col 3 Type,";
     outputLine += "Col 3 Min,Col 4 Max,Col 4 Type,";
@@ -1017,37 +1026,86 @@ void FBLoggerDataReader::PrintStatsFileHeader()
     *pOutSensorStatsFile_ << outputLine;
 }
 
-void FBLoggerDataReader::PrintStatsDataValuesForSingleFile(string currentFileName)
-{
-    string outputLine = "";
-
-    outputLine += currentFileName + ",";
-
-    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
-    {
-        outputLine += std::to_string(status_.columnMin[i]) + "," + std::to_string(status_.columnMax[i]) + "," + status_.columnRawType[i];
-        if (i < 8)
-        {
-            outputLine += ",";
-        }
-        else
-        {
-            outputLine += "\n";
-        }
-    }
-
-    *pOutSensorStatsFile_ << outputLine;
-}
-
 void FBLoggerDataReader::PrintStatsFile()
 {
     string outputLine = "";
-
+    string fileName = "";
     for (auto it = statsFileMap_.begin(); it != statsFileMap_.end(); it++)
     {
-        string currentFileName = it->second.fileName;
+        if (it->second.isFailedSanityCheckRaw)
+        {
+            int numFailures = 0;
+            int lastFailure = 0;
+            fileName = it->second.fileName;
+            outputLine += fileName + ": Raw data has failed sanity check in column(s) ";
+            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+            {
+                if (it->second.columnFailedSanityCheckRaw[i])
+                {
+                    numFailures++;
+                    lastFailure = i;
+                }
+            }
+            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+            {
+                if (it->second.columnFailedSanityCheckRaw[i])
+                {
+                    if ((numFailures > 1) && (i < lastFailure))
+                    {
+                        outputLine += to_string(i + 1) + " ";
+                    }
+                    else if ((numFailures > 1) && (i == lastFailure))
+                    {
+                        outputLine += "and " + to_string(i + 1) + "\n";
+                    }
+                    else
+                    {
+                        outputLine += to_string(i + 1) + "\n";
+                    }
+                }
+            }
+        }
+        if (it->second.isFailedSanityCheckFinal)
+        {
+            int numFailures = 0;
+            int lastFailure = 0;
+            outputLine += "Converted data in file " + it->second.fileName + " has failed sanity check in column(s) ";
+            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+            {
+                if (it->second.columnFailedSanityCheckFinal[i])
+                {
+                    numFailures++;
+                    lastFailure = i;
+                }
+            }
+            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+            {
+                if (it->second.columnFailedSanityCheckFinal[i])
+                {
+                    if ((numFailures > 1) && (i < lastFailure))
+                    {
+                        outputLine += to_string(i + 1) + " ";
+                    }
+                    else if ((numFailures > 1) && (i == lastFailure))
+                    {
+                        outputLine += "and " + to_string(i + 1) + "\n";
+                    }
+                    else
+                    {
+                        outputLine += to_string(i + 1) + "\n";
+                    }
+                }
+            }
+        }
+    }
+    *pOutSensorStatsFile_ << outputLine;
 
-        outputLine += currentFileName + ",";
+    PrintStatsFileHeader();
+
+    outputLine = "";
+    for (auto it = statsFileMap_.begin(); it != statsFileMap_.end(); it++)
+    {
+        outputLine += it->second.fileName + ",";
 
         for (int i = 0; i < NUM_SENSOR_READINGS; i++)
         {
@@ -1537,15 +1595,14 @@ string FBLoggerDataReader::MakeStringWidthThreeFromInt(int headerData)
 void FBLoggerDataReader::UpdateSensorMaxAndMin()
 {
     // Update max and min
-    if (parsedNumericData_.parsedIEEENumber < status_.columnMin[status_.sensorReadingCounter])
+    int currentReadingIndex = parsedNumericData_.channelNumber - 1;
+    if (parsedNumericData_.parsedIEEENumber < currentFileStats_.columnMin[currentReadingIndex])
     {
-        status_.columnMin[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
-        currentFileStats_.columnMin[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
+        currentFileStats_.columnMin[currentReadingIndex] = parsedNumericData_.parsedIEEENumber;
     }
-    if (parsedNumericData_.parsedIEEENumber > status_.columnMax[status_.sensorReadingCounter])
+    if (parsedNumericData_.parsedIEEENumber > currentFileStats_.columnMax[currentReadingIndex])
     {
-        status_.columnMax[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
-        currentFileStats_.columnMax[status_.sensorReadingCounter] = parsedNumericData_.parsedIEEENumber;
+        currentFileStats_.columnMax[currentReadingIndex] = parsedNumericData_.parsedIEEENumber;
     }
 }
 

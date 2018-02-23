@@ -66,8 +66,6 @@ public:
         string configColumnTextLine;
         string columnRawType[9];
         double sensorReadingValue[9];
-        double columnMin[9];
-        double columnMax[9];
         bool headerFound = false;
         bool isSerialNumberValid = false;
         bool isConfigurationTypeValid = false;
@@ -139,8 +137,8 @@ public:
             FINAL = 1
         };
 
-        const double IGNORE_MIN = DBL_MIN;
-        const double IGNORE_MAX = DBL_MAX;
+        const double IGNORE_MIN = -999999.0;
+        const double IGNORE_MAX = 999999.0;
 
         const double FIDVoltageMin = 0.0;
         const double FIDVoltageMax = 2.5;
@@ -251,7 +249,6 @@ private:
     void SetConfigDependentValues();
    
     void PrintStatsFileHeader();
-    void PrintStatsDataValuesForSingleFile(string currentFileName);
     void PrintStatsFile();
 
     void ReportSuccessToLog();
