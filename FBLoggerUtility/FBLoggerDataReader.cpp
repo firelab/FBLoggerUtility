@@ -530,7 +530,7 @@ void FBLoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTy
                 currentFileStats_.columnFailedSanityCheckFinal[currentIndex] = true;
                 currentFileStats_.isFailedSanityCheckFinal = true;
             }
-            if (!(double_equals(minForSanityCheck, sanityChecks_.IGNORE_MIN)) && (currentValue < minForSanityCheck))
+            else if (!(double_equals(minForSanityCheck, sanityChecks_.IGNORE_MIN)) && (currentValue < minForSanityCheck))
             {
                 currentFileStats_.columnFailedSanityCheckFinal[currentIndex] = true;
                 currentFileStats_.isFailedSanityCheckFinal = true;
