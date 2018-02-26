@@ -1662,7 +1662,7 @@ void FBLoggerDataReader::PrintSensorDataOutput()
                 outputLine_ += std::to_string(0.0);
             }
         }
-        else
+        else if(configurationType_ == "T")
         {
             outputLine_ += std::to_string(status_.sensorReadingValue[i]);
         }
