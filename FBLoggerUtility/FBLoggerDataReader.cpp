@@ -1440,9 +1440,9 @@ void FBLoggerDataReader::ParseHeader()
     headerData_.longitudeDecimalMinutesString += " " + temp;
     for (int i = 28; i < 30; i++)
     {
-        headerData_.dayString[i - 28] = headerData_.rawHeader[i];
+        headerData_.yearString[i - 26] = headerData_.rawHeader[i];
     }
-    headerData_.day = std::stoi(headerData_.dayString);
+    headerData_.year = std::stoi(headerData_.yearString);
     for (int i = 30; i < 32; i++)
     {
         headerData_.monthString[i - 30] = headerData_.rawHeader[i];
@@ -1450,9 +1450,9 @@ void FBLoggerDataReader::ParseHeader()
     headerData_.month = std::stoi(headerData_.monthString);
     for (int i = 32; i < 34; i++)
     {
-        headerData_.yearString[i - 30] = headerData_.rawHeader[i];
+        headerData_.dayString[i - 32] = headerData_.rawHeader[i];
     }
-    headerData_.year = std::stoi(headerData_.yearString);
+    headerData_.day = std::stoi(headerData_.dayString);
     for (int i = 34; i < 36; i++)
     {
         headerData_.hourString[i - 34] = headerData_.rawHeader[i];
