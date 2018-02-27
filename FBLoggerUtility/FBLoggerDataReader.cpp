@@ -22,6 +22,7 @@ FBLoggerDataReader::FBLoggerDataReader()
     serialNumber_ = -1;
     pLogFile_ = NULL;
     pOutLoggerDataFile_ = NULL;
+    pOutSensorStatsFile_ = NULL;
     pInFile_ = NULL;
     outputLine_ = "";
     dataPath_ = "";
@@ -29,8 +30,11 @@ FBLoggerDataReader::FBLoggerDataReader()
     numErrors_ = 0;
     configFilePath_ = "";
     isConfigFileValid_ = false;
+    outputsAreGood_ = false;
     lineStream_.str("");
     lineStream_.clear();
+
+    currentFileIndex_ = 0;
 
     // Initialize F Config Sanity Checks
     for (int i = 0; i < NUM_SENSOR_READINGS; i++)
@@ -153,16 +157,14 @@ void FBLoggerDataReader::FillSensorValuesWithTestVoltages()
     }
 }
 
-void FBLoggerDataReader::ProcessAllDataFiles()
+void FBLoggerDataReader::PrepareToReadDataFiles()
 {
-    int codepage = CP_UTF8;
-    std::wstring extensionW;
-    string extension;
-
     numFilesProcessed_ = 0;
     numInvalidInputFiles_ = 0;
     numInvalidOutputFiles_ = 0;
     numErrors_ = 0;
+    currentFileIndex_ = 0;
+    outputsAreGood_ = false;
 
     inputFilesNameList_.clear();
     invalidInputFileList_.clear();
@@ -171,13 +173,13 @@ void FBLoggerDataReader::ProcessAllDataFiles()
 
     string logFileNoExtension = dataPath_ + "log_file";
     logFilePath_ = logFileNoExtension + ".txt";
-    ofstream logFile(logFilePath_, std::ios::out);
+    pLogFile_ = new ofstream(logFilePath_, std::ios::out);
 
     // Check for output file's existence
-    if (!logFile || logFile.fail())
+    if (!pLogFile_ || pLogFile_->fail())
     {
-        logFile.close();
-        logFile.clear();
+        pLogFile_->close();
+        pLogFile_->clear();
         SYSTEMTIME systemTime;
         GetLocalTime(&systemTime);
 
@@ -190,9 +192,8 @@ void FBLoggerDataReader::ProcessAllDataFiles()
 
         ofstream logFile(logFilePath_, std::ios::out);
     }
-    if (logFile.good())
+    if (pLogFile_->good())
     {
-        pLogFile_ = &logFile;
         PrintLogFileLine();
         ReadConfig();
 
@@ -201,171 +202,185 @@ void FBLoggerDataReader::ProcessAllDataFiles()
             ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
             CheckConfigForAllFiles();
             PrintLogFileLine();
-
-            if (numInvalidInputFiles_ == 0)
-            {
-               
-                statsFilePath_ = dataPath_ + "sensor_stats.csv";
-
-                ofstream outStatsFile(statsFilePath_, std::ios::out);
-
-                // Check for sensor stats file's existence
-                if (!outStatsFile || outStatsFile.fail())
-                {
-                    outStatsFile.close();
-                    outStatsFile.clear();
-                    SYSTEMTIME systemTime;
-                    GetLocalTime(&systemTime);
-
-                    string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
-                        "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
-                        MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
-                    string statsFileNoExtension = dataPath_ + "sensor_stats";
-                    logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
-                    statsFilePath_ = statsFileNoExtension + "_" + dateTimeString + ".csv";
-
-                    ofstream logFile(statsFilePath_, std::ios::out);
-                }
-
-                if (outStatsFile.good() && logFile.good())
-                {
-                    pOutSensorStatsFile_ = &outStatsFile;
-
-                    for (unsigned int i = 0; i < inputFilesNameList_.size(); i++)
-                    {
-                        extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
-                        extension = Utf8_encode(extensionW);
-                        std::transform(extension.begin(), extension.end(), extension.begin(), toupper);
-                        if (extension == ".DAT")
-                        {
-                            ProcessSingleDataFile(inputFilesNameList_[i]);
-                            if (!status_.isGoodOutput)
-                            {
-                                numInvalidOutputFiles_++;
-                                numErrors_++;
-                            }
-                            numFilesProcessed_++;
-                        }
-                    }
-
-                    PrintStatsFile();
-
-                    pOutSensorStatsFile_->close();
-                    pOutSensorStatsFile_ = NULL;
-                }
-            }
         }
-        if (numErrors_ == 0)
-        {
-            ReportSuccessToLog();
-        }
-        pLogFile_->close();
-        pLogFile_ = NULL;
     }
 }
 
-void FBLoggerDataReader::ProcessSingleDataFile(string infileName)
+void FBLoggerDataReader::ProcessSingleDataFile()
 {
-    inDataFilePath_ = dataPath_ + infileName;
+    int codepage = CP_UTF8;
+    //std::wstring extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
+    string infileName = inputFilesNameList_[currentFileIndex_];
+    std::wstring extensionW = PathFindExtension(Get_utf16(infileName, codepage).c_str());
+    string extension = Utf8_encode(extensionW);
 
-    std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
-    pInFile_ = &inFile;
-
-    outputLine_ = "";
-    configurationType_ = "";
-    status_.isGoodOutput = true;
-
-    ResetCurrentFileStats();
-
-    // Check for input file's existence
-    if (pInFile_ == NULL)
+    std::transform(extension.begin(), extension.end(), extension.begin(), toupper);
+    if (extension == ".DAT")
     {
-        pInFile_->close();
-        pInFile_ = NULL;
-        pOutLoggerDataFile_ = NULL;
-        // Report error
-        logFileLine_ = "ERROR: Input file " + inDataFilePath_ + " does not exist\n";
-        PrintLogFileLine();
-    }
-    else
-    {
-        // Get the size of the data file in bytes
-        const char* cStringFilePath = inDataFilePath_.c_str();
-        struct stat results;
-        if (stat(cStringFilePath, &results) == 0)
+        inDataFilePath_ = dataPath_ + infileName;
+
+        std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
+        pInFile_ = &inFile;
+
+        outputLine_ = "";
+        configurationType_ = "";
+        status_.isGoodOutput = true;
+
+        ResetCurrentFileStats();
+
+        // Check for input file's existence
+        if (pInFile_ == NULL)
         {
-            fileSizeInBytes_ = results.st_size;
-
-            bool headerFound = GetFirstHeader();
-
-            if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
-            {
-                configurationType_ = configMap_.find(atoi(headerData_.serialNumberString.c_str()))->second;
-            }
-
-            if ((headerFound) && (configurationType_ != ""))
-            {
-                currentFileStats_.fileName = infileName;
-                SetLoggerDataOutFilePath(infileName);
-
-                ofstream outDataFile(outLoggerDataFilePath_, std::ios::out);
-                pOutLoggerDataFile_ = &outDataFile;
-
-                // Check for output file's existence and is not open by another process
-                if (pOutLoggerDataFile_ == NULL || outDataFile.fail())
-                {
-                    pInFile_->close();
-                    pOutLoggerDataFile_->close();
-                    // Report error
-                    logFileLine_ = "ERROR: Unable to open " + outLoggerDataFilePath_ + "\n";
-                    PrintLogFileLine();
-                    status_.isGoodOutput = false;
-                }
-                // We can read the input file
-                else
-                {
-                    status_.isGoodOutput = true;
-                    SetConfigDependentValues();
-                    PrintHeader();
-                    while (status_.pos < (fileSizeInBytes_ - BYTES_READ_PER_ITERATION))
-                    {
-                        ReadNextHeaderOrNumber();
-                        UpdateSensorMaxAndMin();
-                        if (status_.sensorReadingCounter == 9)
-                        {
-                            // An entire row of sensor data has been read in
-#ifdef _DEBUG
-                            // The following method is for debug purposes only!
-                            //FillSensorValuesWithTestVoltages();
-#endif
-                            PerformSanityChecksOnValues(SanityChecks::RAW);
-                            PerformNeededDataConversions();
-                            PerformSanityChecksOnValues(SanityChecks::FINAL);
-                            UpdateStatsFileMap();
-                            PrintSensorDataOutput();
-                            // Reset sensor reading counter 
-                            status_.sensorReadingCounter = 0;
-                            // Update time for next set of sensor readings
-                            UpdateTime();
-                        }
-                    }
-                }
-
-                // Close the file streamd
-                pInFile_->close();
-                pInFile_ = NULL;
-                pOutLoggerDataFile_->close();
-                pOutLoggerDataFile_ = NULL;
-            }
+            pInFile_->close();
+            pInFile_ = NULL;
+            pOutLoggerDataFile_ = NULL;
+            // Report error
+            logFileLine_ = "ERROR: Input file " + inDataFilePath_ + " does not exist\n";
+            PrintLogFileLine();
         }
         else
         {
-            inFile.close();
-            pInFile_ = NULL;
-            // An error occurred
+            // Get the size of the data file in bytes
+            const char* cStringFilePath = inDataFilePath_.c_str();
+            struct stat results;
+            if (stat(cStringFilePath, &results) == 0)
+            {
+                fileSizeInBytes_ = results.st_size;
+
+                bool headerFound = GetFirstHeader();
+
+                if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
+                {
+                    configurationType_ = configMap_.find(atoi(headerData_.serialNumberString.c_str()))->second;
+                }
+
+                if ((headerFound) && (configurationType_ != ""))
+                {
+                    currentFileStats_.fileName = infileName;
+                    SetLoggerDataOutFilePath(infileName);
+
+                    ofstream outDataFile(outLoggerDataFilePath_, std::ios::out);
+                    pOutLoggerDataFile_ = &outDataFile;
+
+                    // Check for output file's existence and is not open by another process
+                    if (pOutLoggerDataFile_ == NULL || outDataFile.fail())
+                    {
+                        pInFile_->close();
+                        pOutLoggerDataFile_->close();
+                        // Report error
+                        logFileLine_ = "ERROR: Unable to open " + outLoggerDataFilePath_ + "\n";
+                        PrintLogFileLine();
+                        status_.isGoodOutput = false;
+                    }
+                    // We can read the input file
+                    else
+                    {
+                        status_.isGoodOutput = true;
+                        SetConfigDependentValues();
+                        PrintHeader();
+                        while (status_.pos < (fileSizeInBytes_ - BYTES_READ_PER_ITERATION))
+                        {
+                            ReadNextHeaderOrNumber();
+                            UpdateSensorMaxAndMin();
+                            if (status_.sensorReadingCounter == 9)
+                            {
+                                // An entire row of sensor data has been read in
+                                PerformSanityChecksOnValues(SanityChecks::RAW);
+                                PerformNeededDataConversions();
+                                PerformSanityChecksOnValues(SanityChecks::FINAL);
+                                UpdateStatsFileMap();
+                                PrintSensorDataOutput();
+                                // Reset sensor reading counter 
+                                status_.sensorReadingCounter = 0;
+                                // Update time for next set of sensor readings
+                                UpdateTime();
+                            }
+                        }
+                    }
+
+                    // Close the file streams
+                    pInFile_->close();
+                    pInFile_ = NULL;
+                    pOutLoggerDataFile_->close();
+                    pOutLoggerDataFile_ = NULL;
+                }
+            }
+            else
+            {
+                inFile.close();
+                pInFile_ = NULL;
+                // An error occurred
+            }
+        }
+
+        if (!status_.isGoodOutput)
+        {
+            numInvalidOutputFiles_++;
+            numErrors_++;
         }
     }
-    PrintLogFileLine();
+    else
+    {
+        numInvalidInputFiles_++;
+        numErrors_++;
+    }
+
+    if(pLogFile_->good())
+    {
+        PrintLogFileLine();
+    }
+
+    numFilesProcessed_++;
+    currentFileIndex_++;
+}
+
+void FBLoggerDataReader::EndReadingDataFiles()
+{
+    statsFilePath_ = dataPath_ + "sensor_stats.csv";
+    ofstream outStatsFile(statsFilePath_, std::ios::out);
+
+    // Check for sensor stats file's existence
+    if (!outStatsFile || outStatsFile.fail())
+    {
+        outStatsFile.close();
+        outStatsFile.clear();
+        SYSTEMTIME systemTime;
+        GetLocalTime(&systemTime);
+
+        string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+            "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
+            MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
+        string statsFileNoExtension = dataPath_ + "sensor_stats";
+        logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
+        statsFilePath_ = statsFileNoExtension + "_" + dateTimeString + ".csv";
+
+        ofstream outStatsFile(statsFilePath_, std::ios::out);
+    }
+
+    outputsAreGood_ = (numInvalidInputFiles_ == 0) && outStatsFile.good() && pLogFile_->good();
+
+    if (outStatsFile.good())
+    {
+        pOutSensorStatsFile_ = &outStatsFile;
+    }
+ 
+    if (outStatsFile.good())
+    {
+        PrintStatsFile();
+
+        pOutSensorStatsFile_->close();
+        pOutSensorStatsFile_ = NULL;
+    }
+
+    if (numErrors_ == 0)
+    {
+        ReportSuccessToLog();
+    }
+
+    pLogFile_->close();
+    // Deallocate dynamic memory
+    delete pLogFile_;
+    pLogFile_ = NULL;
 }
 
 double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)
@@ -911,6 +926,11 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
             }
         }
     }
+
+    if (numInvalidInputFiles_)
+    {
+        PrintConfigErrorsToLog();
+    }
 }
 
 void FBLoggerDataReader::ResetHeaderData()
@@ -1012,7 +1032,7 @@ void FBLoggerDataReader::SetConfigDependentValues()
 void FBLoggerDataReader::PrintStatsFileHeader()
 {
     string outputLine = "";
-    outputLine += "\nFull Sensor Min/Max Stats For All Files:\n";
+    outputLine += "Full Sensor Min/Max Stats For All Files:\n";
     outputLine += "File Name,Col 1 Min,Col 1 Max,Col 1 Type,";
     outputLine += "Col 2 Min,Col 2 Max,Col 2 Type,";
     outputLine += "Col 3 Min,Col 3 Max,Col 3 Type,";
@@ -1098,7 +1118,12 @@ void FBLoggerDataReader::PrintStatsFile()
             }
         }
     }
-    *pOutSensorStatsFile_ << outputLine;
+
+    if (outputLine != "")
+    {
+        outputLine += "\n";
+        *pOutSensorStatsFile_ << outputLine;
+    }
 
     PrintStatsFileHeader();
 
@@ -1204,6 +1229,21 @@ unsigned int FBLoggerDataReader::GetNumInvalidFiles()
 bool FBLoggerDataReader::IsConfigFileValid()
 {
     return isConfigFileValid_;
+}
+
+bool FBLoggerDataReader::IsLogFileGood()
+{
+    bool isGood = false;
+    if (!pLogFile_ == NULL)
+    {
+        isGood = pLogFile_->good();
+    }
+    return isGood;
+}
+
+bool FBLoggerDataReader::IsDoneReadingDataFiles()
+{
+    return(currentFileIndex_ >= inputFilesNameList_.size());
 }
 
 bool FBLoggerDataReader::GetFirstHeader()

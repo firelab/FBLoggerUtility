@@ -187,6 +187,7 @@
     <ClInclude Include="FBLoggerUtilityDlg.h" />
     <ClInclude Include="FileNameUtility.h" />
     <ClInclude Include="fluid.h" />
+    <ClInclude Include="ProgressBarDlg.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="StringUtility.h" />
@@ -199,6 +200,7 @@
     <ClCompile Include="FBLoggerUtility.cpp" />
     <ClCompile Include="FBLoggerUtilityDlg.cpp" />
     <ClCompile Include="fluid.cpp" />
+    <ClCompile Include="ProgressBarDlg.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

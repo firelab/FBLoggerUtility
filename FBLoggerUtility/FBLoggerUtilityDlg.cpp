@@ -443,7 +443,18 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
             outfile << strStd << "\n";
             outfile.close();
 
-            m_TCLoggerDataReader.ProcessAllDataFiles();
+            //m_TCLoggerDataReader.ProcessAllDataFiles();
+
+            m_TCLoggerDataReader.PrepareToReadDataFiles(); // Check config file and input files, create output files 
+            if (m_TCLoggerDataReader.IsLogFileGood())
+            {
+                while (!m_TCLoggerDataReader.IsDoneReadingDataFiles())
+                {
+                    m_TCLoggerDataReader.ProcessSingleDataFile();
+                }
+            }
+            m_TCLoggerDataReader.EndReadingDataFiles(); // Perform Cleanup
+
             CString numFilesConvertedCString;
             CString numInvalidFilesCString;
             int numFilesProcessed = m_TCLoggerDataReader.GetNumFilesProcessed();

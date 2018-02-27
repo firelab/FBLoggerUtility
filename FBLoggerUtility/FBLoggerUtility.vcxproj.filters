@@ -51,6 +51,9 @@
     <ClInclude Include="StringUtility.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ProgressBarDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FBLoggerUtility.cpp">
@@ -72,6 +75,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="convertVelocity.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ProgressBarDlg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

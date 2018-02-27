@@ -24,6 +24,11 @@ public:
     FBLoggerDataReader();
     ~FBLoggerDataReader();
 
+    struct LogFile
+    {
+        std::ofstream logFile;
+    };
+
     struct HeaderData
     {
         string rawHeader = "0000";
@@ -146,8 +151,8 @@ public:
         const double heatFluxMax = 150.0;
         const double heatFluxTemperatureMin = -40.0;
         const double heatFluxTemperatureMax = 1400.0;
-        const double heatFluxTemperatureVoltageMin = -1.249999999;
-        const double heatFluxTemperatureVoltageMax = -0.000000001;
+        const double heatFluxTemperatureVoltageMin = -1.2499999999;
+        const double heatFluxTemperatureVoltageMax = -0.0000000001;
         const double heatFluxVoltageMin = 0.0;
         const double heatFluxVoltageMax = 2.5;
         const double NAMin = IGNORE_MIN;
@@ -184,7 +189,10 @@ public:
 
     // Public interface
  
-    void ProcessAllDataFiles();
+    void PrepareToReadDataFiles();
+    void ProcessSingleDataFile();
+    void EndReadingDataFiles();
+
     void SetDataPath(string dataPath);
     void SetAppPath(string appPath);
     void SetConfigFile(string configFileFullPath);
@@ -195,6 +203,8 @@ public:
     unsigned int GetNumInvalidFiles();
   
     bool IsConfigFileValid();
+    bool IsLogFileGood();
+    bool IsDoneReadingDataFiles();
 
 private:
     static inline bool double_equals(double a, double b, double epsilon = 0.000001)
@@ -218,7 +228,7 @@ private:
 
     // Private methods
 	void ReadConfig();
-    void ProcessSingleDataFile(string fileName);
+ 
     void ParseTokensFromLineOfConfigFile(string& line);
     bool CheckConfigFileFormatIsValid(ifstream& configFile);
     void ProcessErrorsInLineOfConfigFile();
@@ -267,6 +277,7 @@ private:
     map<int, StatsFileData> statsFileMap_;
 
     bool isConfigFileValid_;
+    bool outputsAreGood_;
 
     string appPath_;
     string dataPath_;
@@ -293,6 +304,8 @@ private:
     stringstream lineStream_;
 
     int serialNumber_;
+
+    int currentFileIndex_;
 
     string logFileLine_;
 
