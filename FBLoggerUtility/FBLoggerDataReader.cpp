@@ -375,9 +375,7 @@ double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)
 
 double FBLoggerDataReader::CalculateHeatFluxTemperature(double rawVoltage)
 {
-	if (rawVoltage < 0.0)	//for some reason logger is outputting negative voltage, make it positive
-		rawVoltage = -rawVoltage;
-	double thermalResistance = 10000.0 / ((1.25 / rawVoltage) - 1.0);
+	double thermalResistance = 10000.0 / ((-1.25 / rawVoltage) - 1.0);
     double heatFluxTemperature = (1.0 / (0.003356 - (log(30000.0 / thermalResistance) / 3962.0))) - 273.15;
     return heatFluxTemperature;
 }
