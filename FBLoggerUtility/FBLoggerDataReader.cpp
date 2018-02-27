@@ -375,8 +375,8 @@ double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)
 
 double FBLoggerDataReader::CalculateHeatFluxTemperature(double rawVoltage)
 {
-	double thermalResistance = 10000.0 / ((-1.25 / rawVoltage) - 1.0);
-    double heatFluxTemperature = (1.0 / (0.003356 - (log(30000.0 / thermalResistance) / 3962.0))) - 273.15;
+	double thermistorResistance = 10000.0 / ((-1.25 / rawVoltage) - 1.0);
+    double heatFluxTemperature = (1.0 / (0.003356 - (log(30000.0 / thermistorResistance) / 3962.0))) - 273.15;
     return heatFluxTemperature;
 }
 
