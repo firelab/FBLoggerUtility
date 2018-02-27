@@ -146,8 +146,8 @@ public:
         const double heatFluxMax = 150.0;
         const double heatFluxTemperatureMin = -40.0;
         const double heatFluxTemperatureMax = 1400.0;
-        const double heatFluxTemperatureVoltageMin = 0.0;
-        const double heatFluxTemperatureVoltageMax = 1.24999;
+        const double heatFluxTemperatureVoltageMin = -1.249999999;
+        const double heatFluxTemperatureVoltageMax = -0.000000001;
         const double heatFluxVoltageMin = 0.0;
         const double heatFluxVoltageMax = 2.5;
         const double NAMin = IGNORE_MIN;

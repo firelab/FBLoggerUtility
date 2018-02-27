@@ -32,53 +32,6 @@ FBLoggerDataReader::FBLoggerDataReader()
     lineStream_.str("");
     lineStream_.clear();
 
-    // Initialize H Config Sanity Checks
-    for (int i = 0; i < 9; i++)
-    {
-        sanityChecks_.HRawMin[i] = sanityChecks_.NAMin;
-        sanityChecks_.HRawMax[i] = sanityChecks_.NAMax;
-        sanityChecks_.HFinalMin[i] = sanityChecks_.NAMin;
-        sanityChecks_.HFinalMax[i] = sanityChecks_.NAMax;
-    }
-
-    // H Config Raw Sanity Checks
-    sanityChecks_.HRawMin[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMin;
-    sanityChecks_.HRawMin[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMin;
-    sanityChecks_.HRawMin[HeatFluxIndex::PRESSURE_SENSOR_U] = sanityChecks_.pressureVoltageMin;
-    sanityChecks_.HRawMin[HeatFluxIndex::PRESSURE_SENSOR_V] = sanityChecks_.pressureVoltageMin;
-    sanityChecks_.HRawMin[HeatFluxIndex::PRESSURE_SENSOR_W] = sanityChecks_.pressureVoltageMin;
-    sanityChecks_.HRawMin[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = sanityChecks_.heatFluxVoltageMin;
-    sanityChecks_.HRawMin[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = sanityChecks_.heatFluxVoltageMin;
-    sanityChecks_.HRawMin[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMin;
-
-    sanityChecks_.HRawMax[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMax;
-    sanityChecks_.HRawMax[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMax;
-    sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_U] = sanityChecks_.pressureVoltageMax;
-    sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_V] = sanityChecks_.pressureVoltageMax;
-    sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_W] = sanityChecks_.pressureVoltageMax;
-    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = sanityChecks_.heatFluxVoltageMax;
-    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = sanityChecks_.heatFluxVoltageMax;
-    sanityChecks_.HRawMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
-
-    // Final H Config Sanity Checks
-    sanityChecks_.HFinalMin[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMin;
-    sanityChecks_.HFinalMin[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMin;
-    sanityChecks_.HFinalMin[HeatFluxIndex::VELOCITY_U] = sanityChecks_.velocityMin;
-    sanityChecks_.HFinalMin[HeatFluxIndex::VELOCITY_V] = sanityChecks_.velocityMin;
-    sanityChecks_.HFinalMin[HeatFluxIndex::VELOCITY_W] = sanityChecks_.velocityMin;
-    sanityChecks_.HFinalMin[HeatFluxIndex::HEAT_FLUX] = sanityChecks_.heatFluxMin;
-    sanityChecks_.HFinalMin[HeatFluxIndex::HEAT_FLUX_TEMPERATURE] = sanityChecks_.heatFluxTemperatureMin;
-    sanityChecks_.HFinalMin[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMin;
-
-    sanityChecks_.HFinalMax[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMax;
-    sanityChecks_.HFinalMax[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMax;
-    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_U] = sanityChecks_.velocityMax;
-    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_V] = sanityChecks_.velocityMax;
-    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_W] = sanityChecks_.velocityMax;
-    sanityChecks_.HFinalMax[HeatFluxIndex::HEAT_FLUX] = sanityChecks_.heatFluxMax;
-    sanityChecks_.HFinalMax[HeatFluxIndex::HEAT_FLUX_TEMPERATURE] = sanityChecks_.heatFluxTemperatureMax;
-    sanityChecks_.HFinalMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
-
     // Initialize F Config Sanity Checks
     for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
@@ -109,6 +62,53 @@ FBLoggerDataReader::FBLoggerDataReader()
     sanityChecks_.FFinalMax[FIDPackageIndex::FID_VOLTAGE] = sanityChecks_.FIDVoltageMax;
     sanityChecks_.FFinalMax[FIDPackageIndex::PRESSURE] = sanityChecks_.pressureMax;
     sanityChecks_.FFinalMax[FIDPackageIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
+
+    // Initialize H Config Sanity Checks
+    for (int i = 0; i < 9; i++)
+    {
+        sanityChecks_.HRawMin[i] = sanityChecks_.NAMin;
+        sanityChecks_.HRawMax[i] = sanityChecks_.NAMax;
+        sanityChecks_.HFinalMin[i] = sanityChecks_.NAMin;
+        sanityChecks_.HFinalMax[i] = sanityChecks_.NAMax;
+    }
+
+    // H Config Raw Sanity Checks
+    sanityChecks_.HRawMin[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::PRESSURE_SENSOR_U] = sanityChecks_.pressureVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::PRESSURE_SENSOR_V] = sanityChecks_.pressureVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::PRESSURE_SENSOR_W] = sanityChecks_.pressureVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = sanityChecks_.heatFluxVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = sanityChecks_.heatFluxTemperatureVoltageMin;
+    sanityChecks_.HRawMin[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMin;
+
+    sanityChecks_.HRawMax[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_U] = sanityChecks_.pressureVoltageMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_V] = sanityChecks_.pressureVoltageMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::PRESSURE_SENSOR_W] = sanityChecks_.pressureVoltageMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = sanityChecks_.heatFluxVoltageMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = sanityChecks_.heatFluxTemperatureVoltageMax;
+    sanityChecks_.HRawMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
+
+    // Final H Config Sanity Checks
+    sanityChecks_.HFinalMin[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::VELOCITY_U] = sanityChecks_.velocityMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::VELOCITY_V] = sanityChecks_.velocityMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::VELOCITY_W] = sanityChecks_.velocityMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::HEAT_FLUX] = sanityChecks_.heatFluxMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::HEAT_FLUX_TEMPERATURE] = sanityChecks_.heatFluxTemperatureMin;
+    sanityChecks_.HFinalMin[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMin;
+
+    sanityChecks_.HFinalMax[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = sanityChecks_.temperatureMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = sanityChecks_.temperatureMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_U] = sanityChecks_.velocityMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_V] = sanityChecks_.velocityMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::VELOCITY_W] = sanityChecks_.velocityMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::HEAT_FLUX] = sanityChecks_.heatFluxMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::HEAT_FLUX_TEMPERATURE] = sanityChecks_.heatFluxTemperatureMax;
+    sanityChecks_.HFinalMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
 
     // T Config Sanity Checks
     for (int i = 0; i < NUM_SENSOR_READINGS; i++)
@@ -147,7 +147,7 @@ void FBLoggerDataReader::FillSensorValuesWithTestVoltages()
         status_.sensorReadingValue[3] = 1.16; // P(V)
         status_.sensorReadingValue[4] = 1.01; // P(V)
         status_.sensorReadingValue[5] = 1.23; // HF(V)
-        status_.sensorReadingValue[6] = 0.50; // HFT(V)
+        status_.sensorReadingValue[6] = -0.50; // HFT(V)
         status_.sensorReadingValue[7] = 0.00; // NA
         status_.sensorReadingValue[8] = 16.2; // Panel Temp
     }
