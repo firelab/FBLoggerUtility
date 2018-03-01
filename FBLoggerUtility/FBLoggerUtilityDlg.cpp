@@ -1,5 +1,5 @@
 
-// TCLoggerGUIDlg.cpp : implementation file
+// FBLoggerUtilityDlg.cpp : implementation file
 //
 
 #include "stdafx.h"
@@ -18,6 +18,25 @@
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+
+UINT DatFileProcessRoutine(LPVOID lpParameter)
+{   
+    CFBLoggerUtilityDlg* pThis = static_cast<CFBLoggerUtilityDlg*>(lpParameter);
+    return pThis->ProcessAllDatFiles();
+}
+
+void CFBLoggerUtilityDlg::InitProgressBarDlg()
+{
+    pProgressBarDlg = new CProgressBarDlg(this);
+    BOOL ret = pProgressBarDlg->Create(IDD_PROGRESS_BAR_DLG);
+    if (!ret)   //Create failed.
+    {
+        AfxMessageBox(_T("Error creating Dialog"));
+        delete pProgressBarDlg;
+    }
+    pProgressBarDlg->ShowWindow(SW_SHOW);
+    pProgressBarDlg->CenterWindow(AfxGetMainWnd());
+}
 
 // CAboutDlg dialog used for App About
 
@@ -50,10 +69,11 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
 END_MESSAGE_MAP()
 
-// CTCLoggerGUIDlg dialog
+// CFBLoggerGUIDlg dialog
 
 CFBLoggerUtilityDlg::CFBLoggerUtilityDlg(CWnd* pParent /*=NULL*/)
-	: CDialogEx(CFBLoggerUtilityDlg::IDD, pParent)
+	: CDialogEx(CFBLoggerUtilityDlg::IDD, pParent),
+    pProgressBarDlg(NULL)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -76,7 +96,7 @@ BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
     ON_BN_CLICKED(IDCONVERT, &CFBLoggerUtilityDlg::OnBnClickedConvert)
 END_MESSAGE_MAP()
 
-// CTCLoggerGUIDlg message handlers
+// CFBLoggerGUIDlg message handlers
 BOOL CFBLoggerUtilityDlg::OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult)
 {
     // update the tool tip text
@@ -139,7 +159,7 @@ void CFBLoggerUtilityDlg::ResetDataDirIniFile()
 {
     std::ofstream outfile(m_dataDirIniPath);
 
-    outfile << "tc_data_path=" << "\n";
+    outfile << "fb_data_path=" << "\n";
     m_dataDirBrowser.SetWindowTextW(NULL);
     outfile.close();
 }
@@ -156,38 +176,123 @@ void CFBLoggerUtilityDlg::ProcessIniFiles()
     else
     {
         ReadSingleIniFile(m_dataDirIniPath);
-        m_TCLoggerDataReader.SetDataPath(NarrowCStringToStdString(m_dataPath));
     }
 
     if (!PathFileExists(m_configFileIniPath))
     {
-        m_TCLoggerDataReader.SetDataPath(NarrowCStringToStdString(m_configFileIniPath));
         ResetConfigIniFile();
     }
     else
     {
         ReadSingleIniFile(m_configFileIniPath);
-        m_TCLoggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFileIniPath));
     }
 }
 
-void CFBLoggerUtilityDlg::UpdateDataDirIniFile()
+UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 {
+    m_waitForThread = true;
 
+    FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath));
+    loggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
+    int totalNumberOfFiles = 0;
+    // Check log file, check config file, process input files, create output files 
+    if (loggerDataReader.IsLogFileGood())
+    {
+        loggerDataReader.CheckConfig();
+        if (loggerDataReader.IsConfigFileValid())
+        {
+            totalNumberOfFiles = loggerDataReader.GetNumberOfInputFiles();
+            float flProgress = 0;
+            for(int i = 0; i < totalNumberOfFiles; i++)
+            {
+                // check kill
+                DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
+                if (dwRet == WAIT_OBJECT_0)
+                {
+                    break;
+                }
+
+                loggerDataReader.ProcessSingleDataFile();
+               
+                flProgress = (static_cast<float>(i) / totalNumberOfFiles) * 100.0;
+                ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
+            }
+        }
+    }
+    ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
+    ::PostMessage(pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+
+    loggerDataReader.PrintStatsFile();
+
+    CString numFilesConvertedCString;
+    CString numInvalidFilesCString;
+    int numFilesProcessed = loggerDataReader.GetNumFilesProcessed();
+    int numInvalidFiles = loggerDataReader.GetNumInvalidFiles();
+    int numFilesConverted = numFilesProcessed - numInvalidFiles;
+    numFilesConvertedCString.Format(_T("%d"), numFilesConverted);
+    numInvalidFilesCString.Format(_T("%d"), numInvalidFiles);
+
+    CString text = _T("");
+    CString caption = _T("");
+
+    if (!loggerDataReader.IsConfigFileValid())
+    {
+        text = _T("There are errors in config file at\n");
+        text += m_dataPath + _T("\\config.csv\n\n");
+        caption = ("Error: Invalid config file");
+    }
+    else if (numFilesProcessed == 0)
+    {
+        text = _T("No data (.DAT) files were processed in directory\n\n");
+        text += m_dataPath + _T("\n");
+        caption = ("Error: No valid data files found");
+    }
+    else
+    {
+        string tempText;
+        tempText = "Converted a total of ";
+        tempText += NarrowCStringToStdString(numFilesConvertedCString);
+        tempText += " .DAT files to .csv files in\n" + NarrowCStringToStdString(m_dataPath) + "\n\n";
+        text += tempText.c_str();
+
+        caption = ("Done converting files");
+    }
+
+    if (numInvalidFiles > 0)
+    {
+        if (loggerDataReader.GetNumInvalidFiles() == 1)
+        {
+            text += numInvalidFilesCString + _T(" invalid file was unable to be converted\n");
+        }
+        else
+        {
+            text += numInvalidFilesCString + _T(" invalid files were unable to be converted\n");
+        }
+    }
+
+    if (numFilesProcessed != 0)
+    {
+        CString statsFilePath(loggerDataReader.GetStatsFilePath().c_str());
+        text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
+    }
+
+    CString logFilePath(loggerDataReader.GetLogFilePath().c_str());
+    text += _T("A log file was generated at\n") + logFilePath;
+
+    MessageBox(text, caption, MB_OK);
+
+    m_waitForThread = false;
+    // normal thread exit
+    return 0;
 }
 
 void CFBLoggerUtilityDlg::ResetConfigIniFile()
 {
     std::ofstream outfile(m_configFileIniPath);
 
-    outfile << "tc_config_file=" << "\n";
+    outfile << "fb_config_file=" << "\n";
     m_configFileBrowser.SetWindowTextW(NULL);
     outfile.close();
-}
-
-void CFBLoggerUtilityDlg::UpdateConfigIniFile()
-{
-
 }
 
 void CFBLoggerUtilityDlg::ReadSingleIniFile(CString iniFilePath)
@@ -229,7 +334,7 @@ void CFBLoggerUtilityDlg::ReadSingleIniFile(CString iniFilePath)
             token.erase(std::remove(token.begin(), token.end(), '\r'), token.end());
             token.erase(std::remove(token.begin(), token.end(), '\r\n'), token.end());
             token.erase(std::remove(token.begin(), token.end(), '\t'), token.end());
-            if (token == "tc_data_path")
+            if (token == "fb_data_path")
             {
                 getline(lineStream, token, '=');
                 m_dataPath = token.c_str();
@@ -250,7 +355,7 @@ void CFBLoggerUtilityDlg::ReadSingleIniFile(CString iniFilePath)
                     m_dataDirBrowser.SetWindowTextW(NULL);
                 }
             }
-            else if (token == "tc_config_file")
+            else if (token == "fb_config_file")
             {
                 getline(lineStream, token, '=');
                 m_configFilePath = token.c_str();
@@ -314,7 +419,6 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
     // Convert a TCHAR string to a LPCSTR
     CT2CA pszConvertedAnsiString(m_appPath);
     std::string strAppPath(pszConvertedAnsiString);
-    m_TCLoggerDataReader.SetAppPath(strAppPath);
     ProcessIniFiles();
 
     if (!m_pToolTipCtrl.Create(this, TTS_ALWAYSTIP))
@@ -329,6 +433,8 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
     m_pToolTipCtrl.Activate(TRUE);
 
     EnableToolTips(TRUE);
+
+    m_waitForThread = false;
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -418,129 +524,70 @@ void CFBLoggerUtilityDlg::OnEnChangeConfigFileBrowse()
 
 void CFBLoggerUtilityDlg::OnBnClickedConvert()
 {
-    if (PathFileExists(m_dataPath))
+  
+    if (!m_waitForThread)
     {
-        m_TCLoggerDataReader.SetDataPath(NarrowCStringToStdString(m_dataPath));
-        std::ofstream outfile(m_dataDirIniPath);
-
-        // convert a TCHAR string to a LPCSTR
-        CT2CA pszConvertedAnsiString(_T("tc_data_path=") + m_dataPath);
-        // construct a std::string using the LPCSTR input
-        std::string strStd(pszConvertedAnsiString);
-
-        outfile << strStd << "\n";
-        outfile.close();
-        if (PathFileExists(m_configFilePath))
+        if (PathFileExists(m_dataPath))
         {
-            m_TCLoggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
-            std::ofstream outfile(m_configFileIniPath);
+
+
+            std::ofstream outfile(m_dataDirIniPath);
 
             // convert a TCHAR string to a LPCSTR
-            CT2CA pszConvertedAnsiString(_T("tc_config_file=") + m_configFilePath);
+            CT2CA pszConvertedAnsiString(_T("fb_data_path=") + m_dataPath);
             // construct a std::string using the LPCSTR input
             std::string strStd(pszConvertedAnsiString);
 
             outfile << strStd << "\n";
             outfile.close();
-
-            //m_TCLoggerDataReader.ProcessAllDataFiles();
-
-            m_TCLoggerDataReader.PrepareToReadDataFiles(); // Check config file and input files, create output files 
-            if (m_TCLoggerDataReader.IsLogFileGood())
+            if (PathFileExists(m_configFilePath))
             {
-                while (!m_TCLoggerDataReader.IsDoneReadingDataFiles())
-                {
-                    m_TCLoggerDataReader.ProcessSingleDataFile();
-                }
-            }
-            m_TCLoggerDataReader.EndReadingDataFiles(); // Perform Cleanup
 
-            CString numFilesConvertedCString;
-            CString numInvalidFilesCString;
-            int numFilesProcessed = m_TCLoggerDataReader.GetNumFilesProcessed();
-            int numInvalidFiles = m_TCLoggerDataReader.GetNumInvalidFiles();
-            int numFilesConverted = numFilesProcessed - numInvalidFiles;
-            numFilesConvertedCString.Format(_T("%d"), numFilesConverted);
-            numInvalidFilesCString.Format(_T("%d"), numInvalidFiles);
+                std::ofstream outfile(m_configFileIniPath);
 
-            CString text = _T("");
-            CString caption = _T("");
+                // convert a TCHAR string to a LPCSTR
+                CT2CA pszConvertedAnsiString(_T("fb_config_file=") + m_configFilePath);
+                // construct a std::string using the LPCSTR input
+                std::string strStd(pszConvertedAnsiString);
 
-            if (!m_TCLoggerDataReader.IsConfigFileValid())
-            {
-                text = _T("There are errors in config file at\n");
-                text += m_dataPath + _T("\\config.csv\n\n");
-                caption = ("Error: Invalid config file");
-            }
-            else if (numFilesProcessed == 0)
-            {
-                text = _T("No data (.DAT) files were processed in directory\n\n");
-                text += m_dataPath + _T("\n");
-                caption = ("Error: No valid data files found");
+                outfile << strStd << "\n";
+                outfile.close();
+
+                InitProgressBarDlg();
+                m_hKillEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+                m_hThread = AfxBeginThread(DatFileProcessRoutine, this);
+                //AfxMessageBox(L"Thread started");
             }
             else
             {
-                string tempText;
-                tempText = "Converted a total of ";
-                tempText += NarrowCStringToStdString(numFilesConvertedCString);
-                tempText += " .DAT files to .csv files in\n" + NarrowCStringToStdString(m_dataPath) + "\n\n";
-                text += tempText.c_str();
-
-                caption = ("Done converting files");
-            }
-
-            if (numInvalidFiles > 0)
-            {
-                if (m_TCLoggerDataReader.GetNumInvalidFiles() == 1)
+                CString text = _T("");
+                CString caption = _T("");
+                if (m_configFilePath == "")
                 {
-                    text += numInvalidFilesCString + _T(" invalid file was unable to be converted\n");
+                    text += _T("Error: No config file selected, no conversion performed\n");
                 }
                 else
                 {
-                    text += numInvalidFilesCString + _T(" invalid files were unable to be converted\n");
+                    text += _T("Error: No config file exists at path \"") + m_configFilePath + _T("\", No conversion performed\n");
                 }
+                MessageBox(text, caption, MB_OK);
             }
-
-            if (numFilesProcessed != 0)
-            {     
-                CString statsFilePath(m_TCLoggerDataReader.GetStatsFilePath().c_str());
-                text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
-            }
-
-            CString logFilePath(m_TCLoggerDataReader.GetLogFilePath().c_str());
-            text += _T("A log file was generated at\n") + logFilePath;
-
-            MessageBox(text, caption, MB_OK);
         }
         else
         {
             CString text = _T("");
-            CString caption = _T("");
-            if(m_configFilePath == "")
+            if (m_dataPath == "")
             {
-                text += _T("Error: No config file selected, no conversion performed\n");
+                text = _T("No valid data directory has been set");
             }
             else
             {
-                text += _T("Error: No config file exists at path \"") + m_configFilePath + _T("\", No conversion performed\n");
+                text = _T("Error: directory at path \n\"") + m_dataPath + _T("\"\n does not exist");
             }
+            CString caption("Error: Invalid Directory Entry");
             MessageBox(text, caption, MB_OK);
+            m_dataDirBrowser.SetWindowTextW(NULL);
+            ResetDataDirIniFile();
         }
-    }
-    else
-    {
-        CString text = _T("");
-        if (m_dataPath == "")
-        {
-            text = _T("No valid data directory has been set");
-        }
-        else
-        {
-            text = _T("Error: directory at path \n\"") + m_dataPath + _T("\"\n does not exist");
-        }
-        CString caption("Error: Invalid Directory Entry");
-        MessageBox(text, caption, MB_OK);
-        m_dataDirBrowser.SetWindowTextW(NULL);
-        ResetDataDirIniFile();
     }
 }

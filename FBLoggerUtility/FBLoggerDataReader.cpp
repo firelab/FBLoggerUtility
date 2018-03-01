@@ -14,11 +14,13 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-FBLoggerDataReader::FBLoggerDataReader()
+FBLoggerDataReader::FBLoggerDataReader(string dataPath)
 {
     numFilesProcessed_ = 0;
     numInvalidInputFiles_ = 0;
     numInvalidOutputFiles_ = 0;
+    currentFileIndex_ = 0;
+    numErrors_ = 0;
     serialNumber_ = -1;
     pLogFile_ = NULL;
     pOutLoggerDataFile_ = NULL;
@@ -27,14 +29,17 @@ FBLoggerDataReader::FBLoggerDataReader()
     outputLine_ = "";
     dataPath_ = "";
     appPath_ = "";
-    numErrors_ = 0;
+
     configFilePath_ = "";
     isConfigFileValid_ = false;
     outputsAreGood_ = false;
     lineStream_.str("");
     lineStream_.clear();
 
-    currentFileIndex_ = 0;
+    inputFilesNameList_.clear();
+    invalidInputFileList_.clear();
+    invalidInputFileErrorType_.clear();
+    configMap_.clear();
 
     // Initialize F Config Sanity Checks
     for (int i = 0; i < NUM_SENSOR_READINGS; i++)
@@ -121,12 +126,44 @@ FBLoggerDataReader::FBLoggerDataReader()
         sanityChecks_.TMax[i] = sanityChecks_.temperatureMax;
     }
 
+    SetDataPath(dataPath);
+
+    string logFileNoExtension = dataPath_ + "log_file";
+    logFilePath_ = logFileNoExtension + ".txt";
+    pLogFile_ = new ofstream(logFilePath_, std::ios::out);
+
+    // Check for output file's existence
+    if (!pLogFile_ || pLogFile_->fail())
+    {
+        pLogFile_->close();
+        pLogFile_->clear();
+        SYSTEMTIME systemTime;
+        GetLocalTime(&systemTime);
+
+        string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+            "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
+            MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
+
+        logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
+        logFilePath_ = logFileNoExtension + "_" + dateTimeString + ".txt";
+
+        ofstream logFile(logFilePath_, std::ios::out);
+    }
+
     ResetCurrentFileStats();
 }
 
 FBLoggerDataReader::~FBLoggerDataReader()
 {
+    if (numErrors_ == 0)
+    {
+        ReportSuccessToLog();
+    }
 
+    pLogFile_->close();
+    // Deallocate dynamic memory
+    delete pLogFile_;
+    pLogFile_ = NULL;
 }
 
 void FBLoggerDataReader::FillSensorValuesWithTestVoltages()
@@ -157,54 +194,7 @@ void FBLoggerDataReader::FillSensorValuesWithTestVoltages()
     }
 }
 
-void FBLoggerDataReader::PrepareToReadDataFiles()
-{
-    numFilesProcessed_ = 0;
-    numInvalidInputFiles_ = 0;
-    numInvalidOutputFiles_ = 0;
-    numErrors_ = 0;
-    currentFileIndex_ = 0;
-    outputsAreGood_ = false;
 
-    inputFilesNameList_.clear();
-    invalidInputFileList_.clear();
-    invalidInputFileErrorType_.clear();
-    configMap_.clear();
-
-    string logFileNoExtension = dataPath_ + "log_file";
-    logFilePath_ = logFileNoExtension + ".txt";
-    pLogFile_ = new ofstream(logFilePath_, std::ios::out);
-
-    // Check for output file's existence
-    if (!pLogFile_ || pLogFile_->fail())
-    {
-        pLogFile_->close();
-        pLogFile_->clear();
-        SYSTEMTIME systemTime;
-        GetLocalTime(&systemTime);
-
-        string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
-            "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
-            MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
-
-        logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
-        logFilePath_ = logFileNoExtension + "_" + dateTimeString + ".txt";
-
-        ofstream logFile(logFilePath_, std::ios::out);
-    }
-    if (pLogFile_->good())
-    {
-        PrintLogFileLine();
-        ReadConfig();
-
-        if (isConfigFileValid_)
-        {
-            ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
-            CheckConfigForAllFiles();
-            PrintLogFileLine();
-        }
-    }
-}
 
 void FBLoggerDataReader::ProcessSingleDataFile()
 {
@@ -334,53 +324,20 @@ void FBLoggerDataReader::ProcessSingleDataFile()
     currentFileIndex_++;
 }
 
-void FBLoggerDataReader::EndReadingDataFiles()
+void FBLoggerDataReader::CheckConfig()
 {
-    statsFilePath_ = dataPath_ + "sensor_stats.csv";
-    ofstream outStatsFile(statsFilePath_, std::ios::out);
-
-    // Check for sensor stats file's existence
-    if (!outStatsFile || outStatsFile.fail())
+    if (pLogFile_->good())
     {
-        outStatsFile.close();
-        outStatsFile.clear();
-        SYSTEMTIME systemTime;
-        GetLocalTime(&systemTime);
+        PrintLogFileLine();
+        ReadConfig();
 
-        string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
-            "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
-            MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
-        string statsFileNoExtension = dataPath_ + "sensor_stats";
-        logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
-        statsFilePath_ = statsFileNoExtension + "_" + dateTimeString + ".csv";
-
-        ofstream outStatsFile(statsFilePath_, std::ios::out);
+        if (isConfigFileValid_)
+        {
+            ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
+            CheckConfigForAllFiles();
+            PrintLogFileLine();
+        }
     }
-
-    outputsAreGood_ = (numInvalidInputFiles_ == 0) && outStatsFile.good() && pLogFile_->good();
-
-    if (outStatsFile.good())
-    {
-        pOutSensorStatsFile_ = &outStatsFile;
-    }
- 
-    if (outStatsFile.good())
-    {
-        PrintStatsFile();
-
-        pOutSensorStatsFile_->close();
-        pOutSensorStatsFile_ = NULL;
-    }
-
-    if (numErrors_ == 0)
-    {
-        ReportSuccessToLog();
-    }
-
-    pLogFile_->close();
-    // Deallocate dynamic memory
-    delete pLogFile_;
-    pLogFile_ = NULL;
 }
 
 double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)
@@ -1048,6 +1005,34 @@ void FBLoggerDataReader::PrintStatsFileHeader()
 
 void FBLoggerDataReader::PrintStatsFile()
 {
+    statsFilePath_ = dataPath_ + "sensor_stats.csv";
+    ofstream outStatsFile(statsFilePath_, std::ios::out);
+
+    // Check for sensor stats file's existence
+    if (!outStatsFile || outStatsFile.fail())
+    {
+        outStatsFile.close();
+        outStatsFile.clear();
+        SYSTEMTIME systemTime;
+        GetLocalTime(&systemTime);
+
+        string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+            "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
+            MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
+        string statsFileNoExtension = dataPath_ + "sensor_stats";
+        logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
+        statsFilePath_ = statsFileNoExtension + "_" + dateTimeString + ".csv";
+
+        ofstream outStatsFile(statsFilePath_, std::ios::out);
+    }
+
+    outputsAreGood_ = (numInvalidInputFiles_ == 0) && outStatsFile.good() && pLogFile_->good();
+
+    if (outStatsFile.good())
+    {
+        pOutSensorStatsFile_ = &outStatsFile;
+    }
+
     string outputLine = "";
     string fileName = "";
     for (auto it = statsFileMap_.begin(); it != statsFileMap_.end(); it++)
@@ -1147,6 +1132,9 @@ void FBLoggerDataReader::PrintStatsFile()
 
         *pOutSensorStatsFile_ << outputLine;
     }
+
+    pOutSensorStatsFile_->close();
+    pOutSensorStatsFile_ = NULL;
 }
 
 void FBLoggerDataReader::ReportSuccessToLog()
@@ -1214,6 +1202,11 @@ string FBLoggerDataReader::GetLogFilePath()
 string FBLoggerDataReader::GetStatsFilePath()
 {
     return statsFilePath_;
+}
+
+unsigned int FBLoggerDataReader::GetNumberOfInputFiles()
+{
+    return inputFilesNameList_.size();
 }
 
 unsigned int FBLoggerDataReader::GetNumFilesProcessed()

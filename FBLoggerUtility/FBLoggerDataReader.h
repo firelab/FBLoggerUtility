@@ -21,14 +21,32 @@ using std::map;
 class FBLoggerDataReader
 {
 public:
-    FBLoggerDataReader();
+
+    // Public interface
+    FBLoggerDataReader(string dataPath);
     ~FBLoggerDataReader();
 
-    struct LogFile
-    {
-        std::ofstream logFile;
-    };
+    //void PrepareToReadDataFiles();
+    void ProcessSingleDataFile();
+    void PrintStatsFile();
+    void CheckConfig();
 
+    void SetDataPath(string dataPath);
+    void SetAppPath(string appPath);
+    void SetConfigFile(string configFileFullPath);
+    string GetDataPath();
+    string GetLogFilePath();
+    string GetStatsFilePath();
+    unsigned int GetNumberOfInputFiles();
+    unsigned int GetNumFilesProcessed();
+    unsigned int GetNumInvalidFiles();
+  
+    bool IsConfigFileValid();
+    bool IsLogFileGood();
+    bool IsDoneReadingDataFiles();
+
+private:
+    // Internal data structures
     struct HeaderData
     {
         string rawHeader = "0000";
@@ -165,7 +183,7 @@ public:
         const double temperatureMax = 1400.0;
         const double velocityMin = -36.0;
         const double velocityMax = 36.0;
-     
+
         double FRawMin[9];
         double FRawMax[9];
         double FFinalMin[9];
@@ -187,26 +205,7 @@ public:
         double sensorBearingValue = 0.0;
     };
 
-    // Public interface
- 
-    void PrepareToReadDataFiles();
-    void ProcessSingleDataFile();
-    void EndReadingDataFiles();
 
-    void SetDataPath(string dataPath);
-    void SetAppPath(string appPath);
-    void SetConfigFile(string configFileFullPath);
-    string GetDataPath();
-    string GetLogFilePath();
-    string GetStatsFilePath();
-    unsigned int GetNumFilesProcessed();
-    unsigned int GetNumInvalidFiles();
-  
-    bool IsConfigFileValid();
-    bool IsLogFileGood();
-    bool IsDoneReadingDataFiles();
-
-private:
     static inline bool double_equals(double a, double b, double epsilon = 0.000001)
     {
         return std::abs(a - b) < epsilon;
@@ -259,7 +258,7 @@ private:
     void SetConfigDependentValues();
    
     void PrintStatsFileHeader();
-    void PrintStatsFile();
+  
 
     void ReportSuccessToLog();
 
