@@ -30,6 +30,7 @@ public:
     void ProcessSingleDataFile();
     void PrintStatsFile();
     void CheckConfig();
+    void ReportAbort();
 
     void SetDataPath(string dataPath);
     void SetAppPath(string appPath);

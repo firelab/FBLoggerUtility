@@ -194,8 +194,6 @@ void FBLoggerDataReader::FillSensorValuesWithTestVoltages()
     }
 }
 
-
-
 void FBLoggerDataReader::ProcessSingleDataFile()
 {
     int codepage = CP_UTF8;
@@ -338,6 +336,17 @@ void FBLoggerDataReader::CheckConfig()
             PrintLogFileLine();
         }
     }
+}
+
+void FBLoggerDataReader::ReportAbort()
+{
+    numErrors_++;
+    if (pLogFile_->good())
+    {
+        logFileLine_ = "Conversion aborted by user before completion at " + GetMyLocalDateTimeString() + "\n";
+        *pLogFile_ << logFileLine_;
+    }
+    logFileLine_ = "";
 }
 
 double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)

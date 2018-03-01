@@ -14,10 +14,15 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <mutex>          // std::mutex, std::unique_lock, std::defer_lock
+
+#include "stdlib.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+
+std::mutex mtx;           // mutex for critical section
 
 UINT DatFileProcessRoutine(LPVOID lpParameter)
 {   
@@ -94,6 +99,7 @@ BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
     ON_EN_CHANGE(IDC_DATADIRBROWSE, &CFBLoggerUtilityDlg::OnEnChangeDataDirBrowse)
     ON_EN_CHANGE(IDC_CONFIGFILEBROWSE, &CFBLoggerUtilityDlg::OnEnChangeConfigFileBrowse)
     ON_BN_CLICKED(IDCONVERT, &CFBLoggerUtilityDlg::OnBnClickedConvert)
+    ON_BN_CLICKED(IDCANCEL, &CFBLoggerUtilityDlg::OnBnClickedCancel)
 END_MESSAGE_MAP()
 
 // CFBLoggerGUIDlg message handlers
@@ -190,7 +196,13 @@ void CFBLoggerUtilityDlg::ProcessIniFiles()
 
 UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 {
+    std::unique_lock<std::mutex> wait(mtx, std::defer_lock);
+    wait.lock();
     m_waitForThread = true;
+    wait.unlock();
+
+    bool aborted = false;
+   
 
     FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath));
     loggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
@@ -209,79 +221,90 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
                 if (dwRet == WAIT_OBJECT_0)
                 {
+                    aborted = true;
+                    loggerDataReader.ReportAbort();
+                    goto END_CONVERSION;
                     break;
                 }
-
-                loggerDataReader.ProcessSingleDataFile();
-               
-                flProgress = (static_cast<float>(i) / totalNumberOfFiles) * 100.0;
-                ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
+                else
+                {             
+                    loggerDataReader.ProcessSingleDataFile();    
+                    flProgress = (static_cast<float>(i) / totalNumberOfFiles) * 100.0;
+                    ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
+                }
             }
         }
     }
     ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
     ::PostMessage(pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
 
-    loggerDataReader.PrintStatsFile();
-
-    CString numFilesConvertedCString;
-    CString numInvalidFilesCString;
-    int numFilesProcessed = loggerDataReader.GetNumFilesProcessed();
-    int numInvalidFiles = loggerDataReader.GetNumInvalidFiles();
-    int numFilesConverted = numFilesProcessed - numInvalidFiles;
-    numFilesConvertedCString.Format(_T("%d"), numFilesConverted);
-    numInvalidFilesCString.Format(_T("%d"), numInvalidFiles);
-
-    CString text = _T("");
-    CString caption = _T("");
-
-    if (!loggerDataReader.IsConfigFileValid())
+    if (!aborted)
     {
-        text = _T("There are errors in config file at\n");
-        text += m_dataPath + _T("\\config.csv\n\n");
-        caption = ("Error: Invalid config file");
-    }
-    else if (numFilesProcessed == 0)
-    {
-        text = _T("No data (.DAT) files were processed in directory\n\n");
-        text += m_dataPath + _T("\n");
-        caption = ("Error: No valid data files found");
-    }
-    else
-    {
-        string tempText;
-        tempText = "Converted a total of ";
-        tempText += NarrowCStringToStdString(numFilesConvertedCString);
-        tempText += " .DAT files to .csv files in\n" + NarrowCStringToStdString(m_dataPath) + "\n\n";
-        text += tempText.c_str();
+        loggerDataReader.PrintStatsFile();
 
-        caption = ("Done converting files");
-    }
+        CString numFilesConvertedCString;
+        CString numInvalidFilesCString;
+        int numFilesProcessed = loggerDataReader.GetNumFilesProcessed();
+        int numInvalidFiles = loggerDataReader.GetNumInvalidFiles();
+        int numFilesConverted = numFilesProcessed - numInvalidFiles;
+        numFilesConvertedCString.Format(_T("%d"), numFilesConverted);
+        numInvalidFilesCString.Format(_T("%d"), numInvalidFiles);
 
-    if (numInvalidFiles > 0)
-    {
-        if (loggerDataReader.GetNumInvalidFiles() == 1)
+        CString text = _T("");
+        CString caption = _T("");
+
+        if (!loggerDataReader.IsConfigFileValid())
         {
-            text += numInvalidFilesCString + _T(" invalid file was unable to be converted\n");
+            text = _T("There are errors in config file at\n");
+            text += m_dataPath + _T("\\config.csv\n\n");
+            caption = ("Error: Invalid config file");
+        }
+        else if (numFilesProcessed == 0)
+        {
+            text = _T("No data (.DAT) files were processed in directory\n\n");
+            text += m_dataPath + _T("\n");
+            caption = ("Error: No valid data files found");
         }
         else
         {
-            text += numInvalidFilesCString + _T(" invalid files were unable to be converted\n");
+            string tempText;
+            tempText = "Converted a total of ";
+            tempText += NarrowCStringToStdString(numFilesConvertedCString);
+            tempText += " .DAT files to .csv files in\n" + NarrowCStringToStdString(m_dataPath) + "\n\n";
+            text += tempText.c_str();
+
+            caption = ("Done converting files");
         }
+
+        if (numInvalidFiles > 0)
+        {
+            if (loggerDataReader.GetNumInvalidFiles() == 1)
+            {
+                text += numInvalidFilesCString + _T(" invalid file was unable to be converted\n");
+            }
+            else
+            {
+                text += numInvalidFilesCString + _T(" invalid files were unable to be converted\n");
+            }
+        }
+
+        if (numFilesProcessed != 0)
+        {
+            CString statsFilePath(loggerDataReader.GetStatsFilePath().c_str());
+            text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
+        }
+
+        CString logFilePath(loggerDataReader.GetLogFilePath().c_str());
+        text += _T("A log file was generated at\n") + logFilePath;
+
+        MessageBox(text, caption, MB_OK);
     }
 
-    if (numFilesProcessed != 0)
-    {
-        CString statsFilePath(loggerDataReader.GetStatsFilePath().c_str());
-        text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
-    }
-
-    CString logFilePath(loggerDataReader.GetLogFilePath().c_str());
-    text += _T("A log file was generated at\n") + logFilePath;
-
-    MessageBox(text, caption, MB_OK);
-
+END_CONVERSION:
+    wait.lock();
     m_waitForThread = false;
+    m_safeToExit = true;
+    wait.unlock();
     // normal thread exit
     return 0;
 }
@@ -427,6 +450,8 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
         return FALSE;
     }
 
+    m_hKillEvent = NULL;
+
     m_pToolTipCtrl.AddTool(&m_dataDirBrowser, m_dataPath);
     m_pToolTipCtrl.AddTool(&m_configFileBrowser, m_configFilePath);
     m_pToolTipCtrl.SetDelayTime(TTDT_AUTOPOP, 300000); // stay up for 5 minutes
@@ -435,6 +460,7 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
     EnableToolTips(TRUE);
 
     m_waitForThread = false;
+    m_safeToExit = true;
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -457,6 +483,10 @@ void CFBLoggerUtilityDlg::OnSysCommand(UINT nID, LPARAM lParam)
 		CAboutDlg dlgAbout;
 		dlgAbout.DoModal();
 	}
+    else if ((nID & 0xFFF0) == SC_CLOSE)
+    {
+        OnBnClickedCancel();
+    }
 	else
 	{
 		CDialogEx::OnSysCommand(nID, lParam);
@@ -554,7 +584,7 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 outfile.close();
 
                 InitProgressBarDlg();
-                m_hKillEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+                m_hKillEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
                 m_hThread = AfxBeginThread(DatFileProcessRoutine, this);
                 //AfxMessageBox(L"Thread started");
             }
@@ -590,4 +620,20 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
             ResetDataDirIniFile();
         }
     }
+}
+
+void CFBLoggerUtilityDlg::OnBnClickedCancel()
+{
+    // TODO: Add your control notification handler code here
+
+    SetEvent(m_hKillEvent);
+    Sleep(1000); // Give time for event to post
+    DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
+
+    while (!m_safeToExit)
+    {
+        Sleep(1000); // Give time for objects to be destroyed
+    }
+
+    CDialogEx::OnCancel();
 }

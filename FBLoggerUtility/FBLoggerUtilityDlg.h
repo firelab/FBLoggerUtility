@@ -45,6 +45,7 @@ public:
     afx_msg void OnEnChangeDataDirBrowse();
     afx_msg void OnEnChangeConfigFileBrowse();
     afx_msg void OnBnClickedConvert();
+    afx_msg void OnBnClickedCancel();
 
     BOOL OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult);
     CMFCEditBrowseCtrl m_dataDirBrowser;
@@ -65,7 +66,8 @@ private:
     CString m_dataPath;
     CString m_configFilePath;
 
-    bool m_waitForThread;
+    volatile bool m_waitForThread;
+    volatile bool m_safeToExit;
 
     int m_numFilesProcessed;
     int m_numInvalidFiles;
