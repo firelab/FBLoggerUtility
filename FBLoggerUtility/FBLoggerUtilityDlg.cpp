@@ -202,7 +202,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     lock.unlock();
 
     bool aborted = false;
-   
+
     FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath));
     loggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
     int totalNumberOfFiles = 0;
@@ -229,13 +229,16 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                     loggerDataReader.ProcessSingleDataFile();    
                     flProgress = (static_cast<float>(i) / totalNumberOfFiles) * 100.0;
                     ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
+                    if (i == totalNumberOfFiles - 1)
+                    {
+                        ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
+                        ::PostMessage(pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+                    }
                 }
             }
         }
     }
-    ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
-    ::PostMessage(pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
-
+  
     if (!aborted)
     {
         loggerDataReader.PrintStatsFile();

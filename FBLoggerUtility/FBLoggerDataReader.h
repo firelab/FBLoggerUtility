@@ -258,9 +258,6 @@ private:
 
     void SetConfigDependentValues();
    
-    void PrintStatsFileHeader();
-  
-
     void ReportSuccessToLog();
 
     void UpdateStatsFileMap();
@@ -292,7 +289,6 @@ private:
     ParsedNumericData parsedNumericData_;
     ifstream* pInFile_;
     ofstream* pOutLoggerDataFile_;
-    ofstream* pOutSensorStatsFile_;
     ofstream* pLogFile_;
     string outputLine_;
     string logFilePath_;

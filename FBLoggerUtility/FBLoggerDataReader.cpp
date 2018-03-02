@@ -24,7 +24,6 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     serialNumber_ = -1;
     pLogFile_ = NULL;
     pOutLoggerDataFile_ = NULL;
-    pOutSensorStatsFile_ = NULL;
     pInFile_ = NULL;
     outputLine_ = "";
     dataPath_ = "";
@@ -137,6 +136,12 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     {
         pLogFile_->close();
         pLogFile_->clear();
+        if (pLogFile_ != NULL)
+        {
+            delete pLogFile_;
+            pLogFile_ = NULL;
+        }
+
         SYSTEMTIME systemTime;
         GetLocalTime(&systemTime);
 
@@ -146,10 +151,19 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
 
         logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
         logFilePath_ = logFileNoExtension + "_" + dateTimeString + ".txt";
-
-        ofstream logFile(logFilePath_, std::ios::out);
+        pLogFile_ = new ofstream(logFilePath_, std::ios::out);
     }
-
+    if (!pLogFile_ || pLogFile_->fail())
+    {
+        // Something really went wrong here
+        pLogFile_->close();
+        pLogFile_->clear();
+        if (pLogFile_ != NULL)
+        {
+            delete pLogFile_;
+            pLogFile_ = NULL;
+        }
+    }
     ResetCurrentFileStats();
 }
 
@@ -160,10 +174,14 @@ FBLoggerDataReader::~FBLoggerDataReader()
         ReportSuccessToLog();
     }
 
-    pLogFile_->close();
-    // Deallocate dynamic memory
-    delete pLogFile_;
-    pLogFile_ = NULL;
+    if (pLogFile_ != NULL)
+    {
+        pLogFile_->close();
+        pLogFile_->clear();
+        // Deallocate dynamic memory
+        delete pLogFile_;
+        pLogFile_ = NULL;
+    }
 }
 
 void FBLoggerDataReader::FillSensorValuesWithTestVoltages()
@@ -995,28 +1013,10 @@ void FBLoggerDataReader::SetConfigDependentValues()
     status_.columnRawType[8] = "Panel Temp (°C)";
 }
 
-void FBLoggerDataReader::PrintStatsFileHeader()
-{
-    string outputLine = "";
-    outputLine += "Full Sensor Min/Max Stats For All Files:\n";
-    outputLine += "File Name,Col 1 Min,Col 1 Max,Col 1 Type,";
-    outputLine += "Col 2 Min,Col 2 Max,Col 2 Type,";
-    outputLine += "Col 3 Min,Col 3 Max,Col 3 Type,";
-    outputLine += "Col 3 Min,Col 4 Max,Col 4 Type,";
-    outputLine += "Col 3 Min,Col 5 Max,Col 5 Type,";
-    outputLine += "Col 6 Min,Col 6 Max,Col 6 Type,";
-    outputLine += "Col 7 Min,Col 7 Max,Col 7 Type,";
-    outputLine += "Col 8 Min,Col 8 Max,Col 8 Type,";
-    outputLine += "Panel Temp Min,Panel Temp Max,Panel Temp Type\n";
-
-    *pOutSensorStatsFile_ << outputLine;
-}
-
 void FBLoggerDataReader::PrintStatsFile()
 {
     statsFilePath_ = dataPath_ + "sensor_stats.csv";
     ofstream outStatsFile(statsFilePath_, std::ios::out);
-
     // Check for sensor stats file's existence
     if (!outStatsFile || outStatsFile.fail())
     {
@@ -1032,118 +1032,125 @@ void FBLoggerDataReader::PrintStatsFile()
         logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
         statsFilePath_ = statsFileNoExtension + "_" + dateTimeString + ".csv";
 
-        ofstream outStatsFile(statsFilePath_, std::ios::out);
+        outStatsFile.open(statsFilePath_, std::ios::out);
     }
 
     outputsAreGood_ = (numInvalidInputFiles_ == 0) && outStatsFile.good() && pLogFile_->good();
 
     if (outStatsFile.good())
     {
-        pOutSensorStatsFile_ = &outStatsFile;
-    }
-
-    string outputLine = "";
-    string fileName = "";
-    for (auto it = statsFileMap_.begin(); it != statsFileMap_.end(); it++)
-    {
-        if (it->second.isFailedSanityCheckRaw)
+        string outputLine = "";
+        string fileName = "";
+        for (auto it = statsFileMap_.begin(); it != statsFileMap_.end(); it++)
         {
-            int numFailures = 0;
-            int lastFailure = 0;
-            fileName = it->second.fileName;
-            outputLine += fileName + ": Raw data has failed sanity check in column(s) ";
-            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+            if (it->second.isFailedSanityCheckRaw)
             {
-                if (it->second.columnFailedSanityCheckRaw[i])
+                int numFailures = 0;
+                int lastFailure = 0;
+                fileName = it->second.fileName;
+                outputLine += fileName + ": Raw data has failed sanity check in column(s) ";
+                for (int i = 0; i < NUM_SENSOR_READINGS; i++)
                 {
-                    numFailures++;
-                    lastFailure = i;
+                    if (it->second.columnFailedSanityCheckRaw[i])
+                    {
+                        numFailures++;
+                        lastFailure = i;
+                    }
+                }
+                for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+                {
+                    if (it->second.columnFailedSanityCheckRaw[i])
+                    {
+                        if ((numFailures > 1) && (i < lastFailure))
+                        {
+                            outputLine += to_string(i + 1) + " ";
+                        }
+                        else if ((numFailures > 1) && (i == lastFailure))
+                        {
+                            outputLine += "and " + to_string(i + 1) + "\n";
+                        }
+                        else
+                        {
+                            outputLine += to_string(i + 1) + "\n";
+                        }
+                    }
                 }
             }
-            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+            if (it->second.isFailedSanityCheckFinal)
             {
-                if (it->second.columnFailedSanityCheckRaw[i])
+                int numFailures = 0;
+                int lastFailure = 0;
+                outputLine += "Converted data in file " + it->second.fileName + " has failed sanity check in column(s) ";
+                for (int i = 0; i < NUM_SENSOR_READINGS; i++)
                 {
-                    if ((numFailures > 1) && (i < lastFailure))
+                    if (it->second.columnFailedSanityCheckFinal[i])
                     {
-                        outputLine += to_string(i + 1) + " ";
+                        numFailures++;
+                        lastFailure = i;
                     }
-                    else if ((numFailures > 1) && (i == lastFailure))
+                }
+                for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+                {
+                    if (it->second.columnFailedSanityCheckFinal[i])
                     {
-                        outputLine += "and " + to_string(i + 1) + "\n";
-                    }
-                    else
-                    {
-                        outputLine += to_string(i + 1) + "\n";
+                        if ((numFailures > 1) && (i < lastFailure))
+                        {
+                            outputLine += to_string(i + 1) + " ";
+                        }
+                        else if ((numFailures > 1) && (i == lastFailure))
+                        {
+                            outputLine += "and " + to_string(i + 1) + "\n";
+                        }
+                        else
+                        {
+                            outputLine += to_string(i + 1) + "\n";
+                        }
                     }
                 }
             }
         }
-        if (it->second.isFailedSanityCheckFinal)
+
+        if (outputLine != "")
         {
-            int numFailures = 0;
-            int lastFailure = 0;
-            outputLine += "Converted data in file " + it->second.fileName + " has failed sanity check in column(s) ";
-            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
-            {
-                if (it->second.columnFailedSanityCheckFinal[i])
-                {
-                    numFailures++;
-                    lastFailure = i;
-                }
-            }
-            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
-            {
-                if (it->second.columnFailedSanityCheckFinal[i])
-                {
-                    if ((numFailures > 1) && (i < lastFailure))
-                    {
-                        outputLine += to_string(i + 1) + " ";
-                    }
-                    else if ((numFailures > 1) && (i == lastFailure))
-                    {
-                        outputLine += "and " + to_string(i + 1) + "\n";
-                    }
-                    else
-                    {
-                        outputLine += to_string(i + 1) + "\n";
-                    }
-                }
-            }
-        }
-    }
-
-    if (outputLine != "")
-    {
-        outputLine += "\n";
-        *pOutSensorStatsFile_ << outputLine;
-    }
-
-    PrintStatsFileHeader();
-
-    outputLine = "";
-    for (auto it = statsFileMap_.begin(); it != statsFileMap_.end(); it++)
-    {
-        outputLine += it->second.fileName + ",";
-
-        for (int i = 0; i < NUM_SENSOR_READINGS; i++)
-        {
-            outputLine += std::to_string(it->second.columnMin[i]) + "," + std::to_string(it->second.columnMax[i]) + "," + status_.columnRawType[i];
-            if (i < 8)
-            {
-                outputLine += ",";
-            }
-            else
-            {
-                outputLine += "\n";
-            }
+            outputLine += "\n";
+            outStatsFile << outputLine;
         }
 
-        *pOutSensorStatsFile_ << outputLine;
-    }
+        outputLine = "";
+        outputLine += "Full Sensor Min/Max Stats For All Files:\n";
+        outputLine += "File Name,Col 1 Min,Col 1 Max,Col 1 Type,";
+        outputLine += "Col 2 Min,Col 2 Max,Col 2 Type,";
+        outputLine += "Col 3 Min,Col 3 Max,Col 3 Type,";
+        outputLine += "Col 3 Min,Col 4 Max,Col 4 Type,";
+        outputLine += "Col 3 Min,Col 5 Max,Col 5 Type,";
+        outputLine += "Col 6 Min,Col 6 Max,Col 6 Type,";
+        outputLine += "Col 7 Min,Col 7 Max,Col 7 Type,";
+        outputLine += "Col 8 Min,Col 8 Max,Col 8 Type,";
+        outputLine += "Panel Temp Min,Panel Temp Max,Panel Temp Type\n";
+        outStatsFile << outputLine;
 
-    pOutSensorStatsFile_->close();
-    pOutSensorStatsFile_ = NULL;
+        outputLine = "";
+        for (auto it = statsFileMap_.begin(); it != statsFileMap_.end(); it++)
+        {
+            outputLine = it->second.fileName + ",";
+
+            for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+            {
+                outputLine += std::to_string(it->second.columnMin[i]) + "," + std::to_string(it->second.columnMax[i]) + "," + status_.columnRawType[i];
+                if (i < 8)
+                {
+                    outputLine += ",";
+                }
+                else
+                {
+                    outputLine += "\n";
+                }
+            }
+
+            outStatsFile << outputLine;
+        }
+    }
+    outStatsFile.close();
 }
 
 void FBLoggerDataReader::ReportSuccessToLog()
