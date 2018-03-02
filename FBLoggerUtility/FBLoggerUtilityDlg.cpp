@@ -196,14 +196,13 @@ void CFBLoggerUtilityDlg::ProcessIniFiles()
 
 UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 {
-    std::unique_lock<std::mutex> wait(mtx, std::defer_lock);
-    wait.lock();
-    m_waitForThread = true;
-    wait.unlock();
+    std::unique_lock<std::mutex> lock(mtx, std::defer_lock);
+    lock.lock();
+    m_safeToExit = false;
+    lock.unlock();
 
     bool aborted = false;
    
-
     FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath));
     loggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
     int totalNumberOfFiles = 0;
@@ -223,7 +222,6 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 {
                     aborted = true;
                     loggerDataReader.ReportAbort();
-                    goto END_CONVERSION;
                     break;
                 }
                 else
@@ -300,11 +298,10 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         MessageBox(text, caption, MB_OK);
     }
 
-END_CONVERSION:
-    wait.lock();
-    m_waitForThread = false;
+    lock.lock();
     m_safeToExit = true;
-    wait.unlock();
+    m_waitForThread = false;
+    lock.unlock();
     // normal thread exit
     return 0;
 }
@@ -485,7 +482,12 @@ void CFBLoggerUtilityDlg::OnSysCommand(UINT nID, LPARAM lParam)
 	}
     else if ((nID & 0xFFF0) == SC_CLOSE)
     {
-        OnBnClickedCancel();
+        if (m_waitForThread)
+        {
+            SetEvent(m_hKillEvent); // Kill the worker thread
+            DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for thread to shutdown
+        }
+        PostQuitMessage(0);
     }
 	else
 	{
@@ -554,13 +556,12 @@ void CFBLoggerUtilityDlg::OnEnChangeConfigFileBrowse()
 
 void CFBLoggerUtilityDlg::OnBnClickedConvert()
 {
-  
+    std::unique_lock<std::mutex> lock(mtx, std::defer_lock);
+
     if (!m_waitForThread)
     {
         if (PathFileExists(m_dataPath))
         {
-
-
             std::ofstream outfile(m_dataDirIniPath);
 
             // convert a TCHAR string to a LPCSTR
@@ -583,10 +584,14 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 outfile << strStd << "\n";
                 outfile.close();
 
+                lock.lock();
+                m_waitForThread = true;
+                lock.unlock();
+
                 InitProgressBarDlg();
                 m_hKillEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-                m_hThread = AfxBeginThread(DatFileProcessRoutine, this);
-                //AfxMessageBox(L"Thread started");
+                m_workerThread = AfxBeginThread(DatFileProcessRoutine, this);
+                //AfxMessageBox(L"Thread started")
             }
             else
             {
@@ -625,14 +630,10 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
 void CFBLoggerUtilityDlg::OnBnClickedCancel()
 {
     // TODO: Add your control notification handler code here
-
-    SetEvent(m_hKillEvent);
-    Sleep(1000); // Give time for event to post
-    DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
-
-    while (!m_safeToExit)
+    if (m_waitForThread)
     {
-        Sleep(1000); // Give time for objects to be destroyed
+        SetEvent(m_hKillEvent); // Kill the worker thread
+        DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
     }
 
     CDialogEx::OnCancel();

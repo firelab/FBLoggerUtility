@@ -38,7 +38,7 @@ protected:
     CProgressBarDlg* pProgressBarDlg;
     HANDLE m_ThreadID;
 
-    CWinThread* m_hThread;
+    CWinThread* m_workerThread;
     HANDLE m_hKillEvent;
 
 public:
@@ -66,10 +66,10 @@ private:
     CString m_dataPath;
     CString m_configFilePath;
 
-    volatile bool m_waitForThread;
-    volatile bool m_safeToExit;
-
     int m_numFilesProcessed;
     int m_numInvalidFiles;
     int m_numFilesConverted;
+
+    volatile bool m_waitForThread;
+    volatile bool m_safeToExit;
 };
