@@ -436,7 +436,7 @@ double FBLoggerDataReader::CalculateTCTemperature(double rawVoltage)
     // temperature => converted temperature of the thermocouple to be written to the human readable output file(in units of degrees C)*/
 
     double panelTemp = status_.sensorReadingValue[TCIndex::PANEL_TEMP];
-    double panel_millivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp * panelTemp * 0.0393;
+    double panel_millivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp + 0.0393* panelTemp;
     double temperature_millivolt = panel_millivolt + rawVoltage;
     return 24.319 * (temperature_millivolt - 0.0621 * temperature_millivolt * temperature_millivolt) + 
         0.00013 * (temperature_millivolt * temperature_millivolt * temperature_millivolt);
