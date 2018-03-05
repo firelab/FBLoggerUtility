@@ -124,7 +124,7 @@ void CProgressBarDlg::OnTimer(UINT_PTR nIDEvent)
 
 LRESULT CProgressBarDlg::OnUpdateProgressBar(WPARAM wparam, LPARAM lparam)
 {
-	m_ProgressBar.SetPos(wparam);
+	m_ProgressBar.SetPos((int)wparam);
 	CString val2;
 	val2.Format(_T("%d "),wparam);
 	val2 += _T("% ");

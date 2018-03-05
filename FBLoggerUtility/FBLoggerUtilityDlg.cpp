@@ -30,19 +30,6 @@ UINT DatFileProcessRoutine(LPVOID lpParameter)
     return pThis->ProcessAllDatFiles();
 }
 
-void CFBLoggerUtilityDlg::InitProgressBarDlg()
-{
-    pProgressBarDlg = new CProgressBarDlg(this);
-    BOOL ret = pProgressBarDlg->Create(IDD_PROGRESS_BAR_DLG);
-    if (!ret)   //Create failed.
-    {
-        AfxMessageBox(_T("Error creating Dialog"));
-        delete pProgressBarDlg;
-    }
-    pProgressBarDlg->ShowWindow(SW_SHOW);
-    pProgressBarDlg->CenterWindow(AfxGetMainWnd());
-}
-
 // CAboutDlg dialog used for App About
 
 class CAboutDlg : public CDialogEx
@@ -101,6 +88,82 @@ BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
     ON_BN_CLICKED(IDCONVERT, &CFBLoggerUtilityDlg::OnBnClickedConvert)
     ON_BN_CLICKED(IDCANCEL, &CFBLoggerUtilityDlg::OnBnClickedCancel)
 END_MESSAGE_MAP()
+
+BOOL CFBLoggerUtilityDlg::OnInitDialog()
+{
+    CDialogEx::OnInitDialog();
+
+    // Add "About..." menu item to system menu.
+
+    // IDM_ABOUTBOX must be in the system command range.
+    ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
+    ASSERT(IDM_ABOUTBOX < 0xF000);
+
+    CMenu* pSysMenu = GetSystemMenu(FALSE);
+    if (pSysMenu != NULL)
+    {
+        BOOL bNameValid;
+        CString strAboutMenu;
+        bNameValid = strAboutMenu.LoadString(IDS_ABOUTBOX);
+        ASSERT(bNameValid);
+        if (!strAboutMenu.IsEmpty())
+        {
+            pSysMenu->AppendMenu(MF_SEPARATOR);
+            pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
+        }
+    }
+
+    // Set the icon for this dialog.  The framework does this automatically
+    //  when the application's main window is not a dialog
+    SetIcon(m_hIcon, TRUE);			// Set big icon
+    SetIcon(m_hIcon, FALSE);		// Set small icon
+
+                                    // TODO: Add extra initialization here
+    wchar_t buffer[MAX_PATH];
+    GetModuleFileName(NULL, buffer, MAX_PATH);
+    m_appPath = buffer;
+    m_appPath = m_appPath.Left(m_appPath.ReverseFind(_T('\\')));
+
+    // Convert a TCHAR string to a LPCSTR
+    CT2CA pszConvertedAnsiString(m_appPath);
+    std::string strAppPath(pszConvertedAnsiString);
+    ProcessIniFiles();
+
+    if (!m_pToolTipCtrl.Create(this, TTS_ALWAYSTIP))
+    {
+        TRACE(_T("Unable To create ToolTip\n"));
+        return FALSE;
+    }
+
+    m_hKillEvent = NULL;
+    m_workerThread = NULL;
+
+    m_pToolTipCtrl.AddTool(&m_dataDirBrowser, m_dataPath);
+    m_pToolTipCtrl.AddTool(&m_configFileBrowser, m_configFilePath);
+    m_pToolTipCtrl.SetDelayTime(TTDT_AUTOPOP, 300000); // stay up for 5 minutes
+    m_pToolTipCtrl.Activate(TRUE);
+
+    EnableToolTips(TRUE);
+
+    m_threadCount.store(0);
+    m_waitForThread.store(false);
+    m_hKillEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+    return TRUE;  // return TRUE  unless you set the focus to a control
+}
+
+void CFBLoggerUtilityDlg::InitProgressBarDlg()
+{
+    pProgressBarDlg = new CProgressBarDlg(this);
+    BOOL ret = pProgressBarDlg->Create(IDD_PROGRESS_BAR_DLG);
+    if (!ret)   //Create failed.
+    {
+        AfxMessageBox(_T("Error creating Dialog"));
+        delete pProgressBarDlg;
+    }
+    pProgressBarDlg->ShowWindow(SW_SHOW);
+    pProgressBarDlg->CenterWindow(AfxGetMainWnd());
+}
 
 // CFBLoggerGUIDlg message handlers
 BOOL CFBLoggerUtilityDlg::OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult)
@@ -175,7 +238,7 @@ void CFBLoggerUtilityDlg::ProcessIniFiles()
     m_dataDirIniPath = m_appPath + _T("\\data_dir.ini");
     m_configFileIniPath = m_appPath + _T("\\config_file.ini");
 
-    if (!PathFileExists(m_dataDirIniPath))
+    if (!MyFileExists(m_dataDirIniPath))
     {
         ResetDataDirIniFile();
     }
@@ -184,7 +247,7 @@ void CFBLoggerUtilityDlg::ProcessIniFiles()
         ReadSingleIniFile(m_dataDirIniPath);
     }
 
-    if (!PathFileExists(m_configFileIniPath))
+    if (!MyFileExists(m_configFileIniPath))
     {
         ResetConfigIniFile();
     }
@@ -196,11 +259,6 @@ void CFBLoggerUtilityDlg::ProcessIniFiles()
 
 UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 {
-    std::unique_lock<std::mutex> lock(mtx, std::defer_lock);
-    lock.lock();
-    m_safeToExit = false;
-    lock.unlock();
-
     bool aborted = false;
 
     FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath));
@@ -227,7 +285,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 else
                 {             
                     loggerDataReader.ProcessSingleDataFile();    
-                    flProgress = (static_cast<float>(i) / totalNumberOfFiles) * 100.0;
+                    flProgress = (static_cast<float>(i) / totalNumberOfFiles) * (static_cast<float>(100.0));
                     ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
                     if (i == totalNumberOfFiles - 1)
                     {
@@ -301,10 +359,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         MessageBox(text, caption, MB_OK);
     }
 
-    lock.lock();
-    m_safeToExit = true;
-    m_waitForThread = false;
-    lock.unlock();
+    m_waitForThread.store(false);
+    m_threadCount.fetch_add(-1);
     // normal thread exit
     return 0;
 }
@@ -383,7 +439,7 @@ void CFBLoggerUtilityDlg::ReadSingleIniFile(CString iniFilePath)
                 getline(lineStream, token, '=');
                 m_configFilePath = token.c_str();
                 m_configFilePath.Replace(_T("\""), _T(""));
-                if (PathFileExists(m_configFilePath))
+                if (MyFileExists(m_configFilePath))
                 {
                     m_configFileBrowser.SetWindowTextW(m_configFilePath);
                 }
@@ -402,67 +458,6 @@ void CFBLoggerUtilityDlg::ReadSingleIniFile(CString iniFilePath)
         }
     }
     infile.close();
-}
-
-BOOL CFBLoggerUtilityDlg::OnInitDialog()
-{
-	CDialogEx::OnInitDialog();
-
-	// Add "About..." menu item to system menu.
-
-	// IDM_ABOUTBOX must be in the system command range.
-	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
-	ASSERT(IDM_ABOUTBOX < 0xF000);
-
-	CMenu* pSysMenu = GetSystemMenu(FALSE);
-	if (pSysMenu != NULL)
-	{
-		BOOL bNameValid;
-		CString strAboutMenu;
-		bNameValid = strAboutMenu.LoadString(IDS_ABOUTBOX);
-		ASSERT(bNameValid);
-		if (!strAboutMenu.IsEmpty())
-		{
-			pSysMenu->AppendMenu(MF_SEPARATOR);
-			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
-		}
-	}
-    
-	// Set the icon for this dialog.  The framework does this automatically
-	//  when the application's main window is not a dialog
-	SetIcon(m_hIcon, TRUE);			// Set big icon
-	SetIcon(m_hIcon, FALSE);		// Set small icon
-
-	// TODO: Add extra initialization here
-    wchar_t buffer[MAX_PATH];
-    GetModuleFileName(NULL, buffer, MAX_PATH);
-    m_appPath = buffer;
-    m_appPath = m_appPath.Left(m_appPath.ReverseFind(_T('\\')));
-
-    // Convert a TCHAR string to a LPCSTR
-    CT2CA pszConvertedAnsiString(m_appPath);
-    std::string strAppPath(pszConvertedAnsiString);
-    ProcessIniFiles();
-
-    if (!m_pToolTipCtrl.Create(this, TTS_ALWAYSTIP))
-    {
-        TRACE(_T("Unable To create ToolTip\n"));
-        return FALSE;
-    }
-
-    m_hKillEvent = NULL;
-
-    m_pToolTipCtrl.AddTool(&m_dataDirBrowser, m_dataPath);
-    m_pToolTipCtrl.AddTool(&m_configFileBrowser, m_configFilePath);
-    m_pToolTipCtrl.SetDelayTime(TTDT_AUTOPOP, 300000); // stay up for 5 minutes
-    m_pToolTipCtrl.Activate(TRUE);
-
-    EnableToolTips(TRUE);
-
-    m_waitForThread = false;
-    m_safeToExit = true;
-
-	return TRUE;  // return TRUE  unless you set the focus to a control
 }
 
 BOOL CFBLoggerUtilityDlg::PreTranslateMessage(MSG* pMsg)
@@ -485,7 +480,7 @@ void CFBLoggerUtilityDlg::OnSysCommand(UINT nID, LPARAM lParam)
 	}
     else if ((nID & 0xFFF0) == SC_CLOSE)
     {
-        if (m_waitForThread)
+        if (m_waitForThread.load())
         {
             SetEvent(m_hKillEvent); // Kill the worker thread
             DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for thread to shutdown
@@ -559,10 +554,10 @@ void CFBLoggerUtilityDlg::OnEnChangeConfigFileBrowse()
 
 void CFBLoggerUtilityDlg::OnBnClickedConvert()
 {
-    std::unique_lock<std::mutex> lock(mtx, std::defer_lock);
-
-    if (!m_waitForThread)
+    if (!m_waitForThread.load())
     {
+        m_waitForThread.store(true);
+      
         if (PathFileExists(m_dataPath))
         {
             std::ofstream outfile(m_dataDirIniPath);
@@ -570,31 +565,32 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
             // convert a TCHAR string to a LPCSTR
             CT2CA pszConvertedAnsiString(_T("fb_data_path=") + m_dataPath);
             // construct a std::string using the LPCSTR input
-            std::string strStd(pszConvertedAnsiString);
+            std::string strStdDataPath(pszConvertedAnsiString);
 
-            outfile << strStd << "\n";
+            outfile << strStdDataPath << "\n";
             outfile.close();
-            if (PathFileExists(m_configFilePath))
-            {
 
+            if (MyFileExists(m_configFilePath))
+            {
                 std::ofstream outfile(m_configFileIniPath);
 
                 // convert a TCHAR string to a LPCSTR
                 CT2CA pszConvertedAnsiString(_T("fb_config_file=") + m_configFilePath);
                 // construct a std::string using the LPCSTR input
-                std::string strStd(pszConvertedAnsiString);
+                std::string strStdConfigPath(pszConvertedAnsiString);
 
-                outfile << strStd << "\n";
+                outfile << strStdConfigPath << "\n";
                 outfile.close();
 
-                lock.lock();
-                m_waitForThread = true;
-                lock.unlock();
-
                 InitProgressBarDlg();
-                m_hKillEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-                m_workerThread = AfxBeginThread(DatFileProcessRoutine, this);
-                //AfxMessageBox(L"Thread started")
+               
+                m_workerThread = NULL;
+                if (m_threadCount.load() < 1)
+                {
+                    m_threadCount.fetch_add(1);
+                    m_workerThread = AfxBeginThread(DatFileProcessRoutine, this);
+                    //AfxMessageBox(L"Thread started")
+                }
             }
             else
             {
@@ -608,6 +604,9 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 {
                     text += _T("Error: No config file exists at path \"") + m_configFilePath + _T("\", No conversion performed\n");
                 }
+                m_waitForThread.store(false);
+                m_workerThread = NULL;
+                m_configFileBrowser.SetWindowTextW(NULL);
                 MessageBox(text, caption, MB_OK);
             }
         }
@@ -623,9 +622,11 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 text = _T("Error: directory at path \n\"") + m_dataPath + _T("\"\n does not exist");
             }
             CString caption("Error: Invalid Directory Entry");
-            MessageBox(text, caption, MB_OK);
+            m_waitForThread.store(false);
+            m_workerThread = NULL;
             m_dataDirBrowser.SetWindowTextW(NULL);
             ResetDataDirIniFile();
+            MessageBox(text, caption, MB_OK);
         }
     }
 }
@@ -633,10 +634,13 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
 void CFBLoggerUtilityDlg::OnBnClickedCancel()
 {
     // TODO: Add your control notification handler code here
-    if (m_waitForThread)
+    if (m_waitForThread.load())
     {
         SetEvent(m_hKillEvent); // Kill the worker thread
-        DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
+        if (m_workerThread != NULL)
+        {
+            DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
+        }
     }
 
     CDialogEx::OnCancel();

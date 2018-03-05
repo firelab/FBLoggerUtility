@@ -1222,7 +1222,7 @@ string FBLoggerDataReader::GetStatsFilePath()
 
 unsigned int FBLoggerDataReader::GetNumberOfInputFiles()
 {
-    return inputFilesNameList_.size();
+    return (unsigned int)inputFilesNameList_.size();
 }
 
 unsigned int FBLoggerDataReader::GetNumFilesProcessed()

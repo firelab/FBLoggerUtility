@@ -301,7 +301,7 @@ private:
 
     int serialNumber_;
 
-    int currentFileIndex_;
+    unsigned int currentFileIndex_;
 
     string logFileLine_;
 

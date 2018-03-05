@@ -26,3 +26,14 @@ static inline void ReadDirectoryIntoStringVector(const string& name, vector<stri
         FindClose(hFind);
     }
 }
+
+static inline bool MyFileExists(const string& filePath)
+{
+    CString pathCString(filePath.c_str());
+    return !(INVALID_FILE_ATTRIBUTES == GetFileAttributes(pathCString) && GetLastError() == ERROR_FILE_NOT_FOUND);
+}
+
+static inline bool MyFileExists(const CString& filePath)
+{
+    return !(INVALID_FILE_ATTRIBUTES == GetFileAttributes(filePath) && GetLastError() == ERROR_FILE_NOT_FOUND);
+}

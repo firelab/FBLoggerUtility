@@ -7,6 +7,8 @@
 #include "FBLoggerDataReader.h"
 #include "ProgressBarDlg.h"
 
+#include <atomic>
+
 UINT DatFileProcessRoutine(LPVOID lpParameter);
 
 // CTCLoggerGUIDlg dialog
@@ -70,6 +72,6 @@ private:
     int m_numInvalidFiles;
     int m_numFilesConverted;
 
-    volatile bool m_waitForThread;
-    volatile bool m_safeToExit;
+    atomic<bool> m_waitForThread;
+    atomic<int> m_threadCount;
 };
