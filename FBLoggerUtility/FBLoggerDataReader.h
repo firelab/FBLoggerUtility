@@ -153,6 +153,15 @@ private:
         };
     };
 
+
+    struct TCIndex
+    {
+        enum TCIndexEnum
+        {
+            PANEL_TEMP = 8
+        };
+    };
+
     struct SanityChecks
     {
         enum SanityCheckTypeEnum
@@ -221,7 +230,8 @@ private:
     int CalculateHeatFluxComponentVelocities(double temperatureOne, double temperatureTwo,
         double pressureVoltageU, double pressureVoltageV, double pressureVoltageW, double sensorBearing);
     double CalculateFIDPackagePressure(double rawVoltage);
-    
+    double CalculateTCTemperature(double rawVoltage);
+
     void PerformNeededDataConversions();
 
     void PerformSanityChecksOnValues(SanityChecks::SanityCheckTypeEnum sanityCheckType);
