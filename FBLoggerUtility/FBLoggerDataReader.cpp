@@ -427,7 +427,7 @@ double FBLoggerDataReader::CalculateTCTemperature(double rawVoltage)
 {
     double panelTemp = status_.sensorReadingValue[TCIndex::PANEL_TEMP];
     double panelMillivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp + 0.0393 * panelTemp;
-    double temperatureMillivolt = panelMillivolt + rawVoltage;
+    double temperatureMillivolt = panelMillivolt + rawVoltage*1000.0;
     return (24.319 * temperatureMillivolt) - (0.0621 * temperatureMillivolt * temperatureMillivolt) + 
         (0.00013 * temperatureMillivolt * temperatureMillivolt * temperatureMillivolt);
 }
