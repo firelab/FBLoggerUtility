@@ -427,7 +427,7 @@ double FBLoggerDataReader::CalculateTCTemperature(double rawVoltage)
 {
     double panelTemp = status_.sensorReadingValue[TCIndex::PANEL_TEMP];
     double panelMillivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp + 0.0393 * panelTemp;
-    double temperatureMillivolt = panelMillivolt + rawVoltage*1000.0;
+    double temperatureMillivolt = panelMillivolt + rawVoltage * 1000.0;
     return (24.319 * temperatureMillivolt) - (0.0621 * temperatureMillivolt * temperatureMillivolt) + 
         (0.00013 * temperatureMillivolt * temperatureMillivolt * temperatureMillivolt);
 }
@@ -436,6 +436,10 @@ void FBLoggerDataReader::PerformNeededDataConversions()
 {
     if (configurationType_ == "F")
     {
+        // Convert temperature from volts to °C
+        double temperatureVoltage = status_.sensorReadingValue[FIDPackageIndex::TEMPERATURE];
+        status_.sensorReadingValue[FIDPackageIndex::TEMPERATURE] = CalculateTCTemperature(temperatureVoltage);
+
         double FIDPackagePressure = CalculateFIDPackagePressure(status_.sensorReadingValue[FIDPackageIndex::PRESSURE_VOLTAGE]);
         bool FIDPackagePressureGood = (FIDPackagePressure <= sanityChecks_.pressureMax) && (FIDPackagePressure >= sanityChecks_.pressureMin);
         if (FIDPackagePressureGood)
@@ -449,6 +453,12 @@ void FBLoggerDataReader::PerformNeededDataConversions()
     }
     else if (configurationType_ == "H")
     {
+        // Convert temperature from volts to °C
+        double temperatureVoltageOne = status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_ONE];
+        status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = CalculateTCTemperature(temperatureVoltageOne);
+        double temperatureVoltageTwo = status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_TWO];
+        status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = CalculateTCTemperature(temperatureVoltageTwo);
+
         double heatFlux = CalculateHeatFlux(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE]);
         double heatFluxTemperature = CalculateHeatFluxTemperature(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE]);
 
@@ -464,9 +474,12 @@ void FBLoggerDataReader::PerformNeededDataConversions()
     }
     else if (configurationType_ == "T")
     {
+        // Convert temperature from volts to °C
+        double temperatureVoltage;
         for (int i = 0; i < 8; i++)
         {
-            status_.sensorReadingValue[i] = CalculateTCTemperature(status_.sensorReadingValue[i]);
+            temperatureVoltage = status_.sensorReadingValue[i];
+            status_.sensorReadingValue[i] = CalculateTCTemperature(temperatureVoltage);
         }
     }
 }

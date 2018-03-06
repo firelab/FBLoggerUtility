@@ -153,7 +153,6 @@ private:
         };
     };
 
-
     struct TCIndex
     {
         enum TCIndexEnum
