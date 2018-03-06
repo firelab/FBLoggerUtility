@@ -425,21 +425,11 @@ double FBLoggerDataReader::CalculateFIDPackagePressure(double rawVoltage)
 
 double FBLoggerDataReader::CalculateTCTemperature(double rawVoltage)
 {
-    // panel_millivolt = 2.0 * (10 ^ (-5)) * panel_temp * panel_temp + 0.0393 * panel_temp;
-    // temp_millivolt = panel_millivolt + thermocouple_millivolts;
-    // temperature = 24.319 * temp_millivolt - 0.0621*temp_millivolt*temp_millivolt + 0.00013* temp_millivolt*temp_millivolt*temp_millivolt;
-
-    // Variables above are :
-    // panel_temp =>  panel temperature as read from the raw file column 9
-    // panel_millivolt => intermediate value needed for conversion
-    // temp_millivolt =>  intermediate value needed for conversion
-    // temperature => converted temperature of the thermocouple to be written to the human readable output file(in units of degrees C)*/
-
     double panelTemp = status_.sensorReadingValue[TCIndex::PANEL_TEMP];
-    double panel_millivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp + 0.0393 * panelTemp;
-    double temperature_millivolt = panel_millivolt + rawVoltage;
-    return (24.319 * temperature_millivolt) - (0.0621 * temperature_millivolt * temperature_millivolt) + 
-        (0.00013 * temperature_millivolt * temperature_millivolt * temperature_millivolt);
+    double panelMillivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp + 0.0393 * panelTemp;
+    double temperatureMillivolt = panelMillivolt + rawVoltage;
+    return (24.319 * temperatureMillivolt) - (0.0621 * temperatureMillivolt * temperatureMillivolt) + 
+        (0.00013 * temperatureMillivolt * temperatureMillivolt * temperatureMillivolt);
 }
 
 void FBLoggerDataReader::PerformNeededDataConversions()
