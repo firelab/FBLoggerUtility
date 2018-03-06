@@ -72,6 +72,6 @@ private:
     int m_numInvalidFiles;
     int m_numFilesConverted;
 
-    atomic<bool> m_waitForThread;
-    atomic<int> m_threadCount;
+    atomic<bool> m_waitForWorkerThread;
+    atomic<int> m_workerThreadCount;
 };

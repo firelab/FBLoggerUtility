@@ -145,8 +145,8 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
 
     EnableToolTips(TRUE);
 
-    m_threadCount.store(0);
-    m_waitForThread.store(false);
+    m_workerThreadCount.store(0);
+    m_waitForWorkerThread.store(false);
     m_hKillEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
     return TRUE;  // return TRUE  unless you set the focus to a control
@@ -359,8 +359,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         MessageBox(text, caption, MB_OK);
     }
 
-    m_waitForThread.store(false);
-    m_threadCount.fetch_add(-1);
+    m_waitForWorkerThread.store(false);
+    m_workerThreadCount.fetch_add(-1);
     // normal thread exit
     return 0;
 }
@@ -480,10 +480,10 @@ void CFBLoggerUtilityDlg::OnSysCommand(UINT nID, LPARAM lParam)
 	}
     else if ((nID & 0xFFF0) == SC_CLOSE)
     {
-        if (m_waitForThread.load())
+        if (m_waitForWorkerThread.load())
         {
             SetEvent(m_hKillEvent); // Kill the worker thread
-            DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for thread to shutdown
+            DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
         }
         PostQuitMessage(0);
     }
@@ -554,9 +554,9 @@ void CFBLoggerUtilityDlg::OnEnChangeConfigFileBrowse()
 
 void CFBLoggerUtilityDlg::OnBnClickedConvert()
 {
-    if (!m_waitForThread.load())
+    if (!m_waitForWorkerThread.load())
     {
-        m_waitForThread.store(true);
+        m_waitForWorkerThread.store(true);
       
         if (PathFileExists(m_dataPath))
         {
@@ -582,14 +582,22 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 outfile << strStdConfigPath << "\n";
                 outfile.close();
 
-                InitProgressBarDlg();
-               
-                m_workerThread = NULL;
-                if (m_threadCount.load() < 1)
+                if (m_workerThreadCount.load() < 1)
                 {
-                    m_threadCount.fetch_add(1);
+                    m_workerThreadCount.fetch_add(1);
+                    InitProgressBarDlg();
                     m_workerThread = AfxBeginThread(DatFileProcessRoutine, this);
-                    //AfxMessageBox(L"Thread started")
+                }
+                else
+                {
+                    CString text = _T("");
+                    CString caption = _T("");
+                 
+                    text += _T("Error: Could not create worker thread, no conversion performed\n");
+                   
+                    m_configFileBrowser.SetWindowTextW(NULL);
+                    m_waitForWorkerThread.store(false);
+                    MessageBox(text, caption, MB_OK);
                 }
             }
             else
@@ -604,9 +612,9 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 {
                     text += _T("Error: No config file exists at path \"") + m_configFilePath + _T("\", No conversion performed\n");
                 }
-                m_waitForThread.store(false);
-                m_workerThread = NULL;
+               
                 m_configFileBrowser.SetWindowTextW(NULL);
+                m_waitForWorkerThread.store(false);
                 MessageBox(text, caption, MB_OK);
             }
         }
@@ -622,10 +630,10 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 text = _T("Error: directory at path \n\"") + m_dataPath + _T("\"\n does not exist");
             }
             CString caption("Error: Invalid Directory Entry");
-            m_waitForThread.store(false);
-            m_workerThread = NULL;
-            m_dataDirBrowser.SetWindowTextW(NULL);
+
             ResetDataDirIniFile();
+            m_dataDirBrowser.SetWindowTextW(NULL);
+            m_waitForWorkerThread.store(false);
             MessageBox(text, caption, MB_OK);
         }
     }
@@ -633,14 +641,10 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
 
 void CFBLoggerUtilityDlg::OnBnClickedCancel()
 {
-    // TODO: Add your control notification handler code here
-    if (m_waitForThread.load())
+    if (m_waitForWorkerThread.load())
     {
         SetEvent(m_hKillEvent); // Kill the worker thread
-        if (m_workerThread != NULL)
-        {
-            DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
-        }
+        DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
     }
 
     CDialogEx::OnCancel();
