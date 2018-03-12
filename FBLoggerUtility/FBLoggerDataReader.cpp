@@ -369,7 +369,10 @@ void FBLoggerDataReader::ReportAbort()
 
 double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)
 {
-    return 56.60 * pow(rawVoltage, 1.129);
+	if (true)	//if this is after the test gorse burn in 2018, we need to add 1.25 volts
+		rawVoltage = rawVoltage + 1.25;
+
+	return 56.60 * pow(rawVoltage, 1.129);
 }
 
 double FBLoggerDataReader::CalculateHeatFluxTemperature(double rawVoltage)
