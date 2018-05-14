@@ -96,6 +96,7 @@ private:
         bool isSensorNumberValid = false;
         bool isSensorBearingValid = false;
         bool isGoodOutput = true;
+        bool carryBugEncountered_ = false;
         unsigned int configFileLineNumber = 0;
     };
 
@@ -252,6 +253,7 @@ private:
     void GetHeader();
     void ParseHeader();
     void SetLoggerDataOutFilePath(string inFileName);
+    void PrintCarryBugToLog();
     void PrintConfigErrorsToLog();
     void PrintLogFileLine();
     void PrintHeader();

@@ -335,6 +335,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
     if(pLogFile_->good())
     {
         PrintLogFileLine();
+        PrintCarryBugToLog();
     }
 
     numFilesProcessed_++;
@@ -1005,6 +1006,7 @@ void FBLoggerDataReader::ResetInFileReadingStatus()
         status_.sensorReadingValue[i] = 0.0;
     }
     status_.headerFound = false;
+    status_.carryBugEncountered_ = false;
 }
 
 void FBLoggerDataReader::ResetCurrentFileStats()
@@ -1580,6 +1582,8 @@ void FBLoggerDataReader::ParseHeader()
         // The character ':' appears in the seconds portion of some headers
         // due to an arithmetic error in which 1 was added to the ones place
         // but was not carried over to the tens
+        status_.carryBugEncountered_ = true;
+        numErrors_++;
 
         // Correct the seconds string
         char tensSecondsChar = headerData_.secondString[0];
@@ -1631,6 +1635,16 @@ void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
     }
 
     outLoggerDataFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString + ".csv";
+}
+
+void FBLoggerDataReader::PrintCarryBugToLog()
+{
+    if (pLogFile_->good() && status_.carryBugEncountered_)
+    {
+        logFileLine_ = "Error: File " + currentFileStats_.fileName + " has failure to carry the one in header\n";
+        *pLogFile_ << logFileLine_;
+    }
+    logFileLine_ = "";
 }
 
 void FBLoggerDataReader::PrintConfigErrorsToLog()
