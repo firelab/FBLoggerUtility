@@ -299,6 +299,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                                 // Reset sensor reading counter 
                                 status_.sensorReadingCounter = 0;
                                 // Update time for next set of sensor readings
+                                headerData_.milliseconds += headerData_.sampleInterval;
                                 UpdateTime();
                             }
                         }
@@ -1425,53 +1426,52 @@ void FBLoggerDataReader::UpdateTime()
     // Zero is in first entry so index is calendar year month
     static const unsigned int monthLength[] = { 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
-    headerData_.milliseconds += headerData_.sampleInterval;
     if (headerData_.milliseconds >= 1000)
     {
         headerData_.milliseconds -= 1000;
         headerData_.seconds++;
-        if (headerData_.seconds >= 60)
+    }
+    if (headerData_.seconds >= 60)
+    {
+        headerData_.seconds -= 60;
+        headerData_.minutes++;
+    }
+    if (headerData_.minutes >= 60)
+    {
+        headerData_.minutes -= 60;
+        headerData_.hours++;
+    }
+    if (headerData_.hours >= 24)
+    {
+        headerData_.hours -= 24;
+        headerData_.day++;
+    }
+    // Handling leap years
+    bool leap = (headerData_.year % 4 == 0) && (headerData_.year % 100 != 0 || headerData_.year % 400 == 0);
+    if (headerData_.day > monthLength[headerData_.month])
+    {
+        if (!(leap && (headerData_.month == 2)))
         {
-            headerData_.seconds -= 60;
-            headerData_.minutes++;
-            if (headerData_.minutes >= 60)
-            {
-                headerData_.minutes -= 60;
-                headerData_.hours++;
-                if (headerData_.hours >= 24)
-                {
-                    headerData_.hours -= 24;
-                    headerData_.day++;
-                    // Handling leap years
-                    bool leap = (headerData_.year % 4 == 0) && (headerData_.year % 100 != 0 || headerData_.year % 400 == 0);
-                    if (headerData_.day > monthLength[headerData_.month])
-                    {
-                        if (!(leap && (headerData_.month == 2)))
-                        {
-                            // If it's not both february and a leap year
-                            // Then move on to the next month
-                            headerData_.day = 1;
-                            headerData_.month++;
-                        }
-                        else if (leap && (headerData_.month == 2) && (headerData_.day > 29))
-                        {
-                            // Else if it's a leap year and yesterday was February 29
-                            // Then move on to the next month
-                            headerData_.day = 1;
-                            headerData_.month++;
-                        }
-                    }
-                    if (headerData_.month > 12)
-                    {
-                        headerData_.year++;
-                        headerData_.month = 1;
-                    }
-                }
-            }
+            // If it's not both february and a leap year
+            // Then move on to the next month
+            headerData_.day = 1;
+            headerData_.month++;
+        }
+        else if (leap && (headerData_.month == 2) && (headerData_.day > 29))
+        {
+            // Else if it's a leap year and yesterday was February 29
+            // Then move on to the next month
+            headerData_.day = 1;
+            headerData_.month++;
         }
     }
+    if (headerData_.month > 12)
+    {
+        headerData_.year++;
+        headerData_.month = 1;
+    }
 }
-
+     
 string FBLoggerDataReader::GetMyLocalDateTimeString()
 {
     SYSTEMTIME systemTime;
@@ -1575,6 +1575,37 @@ void FBLoggerDataReader::ParseHeader()
         headerData_.sampleIntervalString[i - 44] = headerData_.rawHeader[i];
     }
     headerData_.sampleInterval = std::stoi(headerData_.sampleIntervalString);
+    if (headerData_.secondString.back() == ':')
+    {
+        // The character ':' appears in the seconds portion of some headers
+        // due to an arithmetic error in which 1 was added to the ones place
+        // but was not carried over to the tens
+
+        // Correct the seconds string
+        char tensSecondsChar = headerData_.secondString[0];
+        string  tensSecondsString(1, tensSecondsChar);
+        int tensSecondsValue = std::stoi(tensSecondsString);
+        tensSecondsValue++;
+        tensSecondsString = std::to_string(tensSecondsValue);
+        tensSecondsChar = tensSecondsString[0];
+        char onesSecondsChar = '0';
+        headerData_.secondString[0] = tensSecondsChar;
+        headerData_.secondString[1] = onesSecondsChar;
+        // Correct the seconds value
+        headerData_.seconds = std::stoi(headerData_.secondString);
+
+        // Now update the time to propogate the correct values
+        UpdateTime();
+
+        // Update the time string values
+        headerData_.yearString = std::to_string(headerData_.year);
+        headerData_.monthString = MakeStringWidthTwoFromInt(headerData_.month);
+        headerData_.dayString = MakeStringWidthTwoFromInt(headerData_.day);
+        headerData_.hourString = MakeStringWidthTwoFromInt(headerData_.hours);
+        headerData_.minuteString = MakeStringWidthTwoFromInt(headerData_.minutes);
+        headerData_.secondString = MakeStringWidthTwoFromInt(headerData_.seconds);
+        headerData_.millisecondString = MakeStringWidthThreeFromInt(headerData_.milliseconds);
+    }
 }
 
 void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
