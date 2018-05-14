@@ -1627,7 +1627,7 @@ void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
 
     if (infileIntValue == serialNumber_ && IsOnlyDigits(infileName))
     {
-        outLoggerDataFilePath_ = dataPath_ + +"SN" + headerData_.serialNumberString.c_str();
+        outLoggerDataFilePath_ = dataPath_ + "SN" + headerData_.serialNumberString.c_str();
     }
     else
     {
