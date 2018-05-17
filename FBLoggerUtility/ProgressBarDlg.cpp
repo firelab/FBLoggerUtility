@@ -16,8 +16,12 @@
 CProgressBarDlg::CProgressBarDlg(CWnd* pParent /*=NULL*/)
 : CDialogEx(CProgressBarDlg::IDD, pParent)
 {
-    m_pParent = pParent;
-    m_hParent = m_pParent->GetSafeHwnd();
+    m_pParent = NULL;
+    if (pParent != NULL)
+    {
+        m_pParent = pParent;
+        m_hParent = m_pParent->GetSafeHwnd();
+    }
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
 
@@ -135,7 +139,10 @@ LRESULT CProgressBarDlg::OnUpdateProgressBar(WPARAM wparam, LPARAM lparam)
 
 void CProgressBarDlg::OnCancel()
 {
-    ::PostMessage(m_hParent, CANCEL_PROCESSING, 0, 0);
+    if (m_pParent != NULL)
+    {
+        ::PostMessage(m_hParent, CANCEL_PROCESSING, 0, 0);
+    }
 }
 
 void CProgressBarDlg::OnOK()
@@ -150,7 +157,10 @@ void CProgressBarDlg::PostNcDestroy()
 
 void CProgressBarDlg::OnClose()
 {
-    ::PostMessage(m_hParent, CANCEL_PROCESSING, 0, 0);
+    if (m_pParent != NULL)
+    {
+        ::PostMessage(m_hParent, CANCEL_PROCESSING, 0, 0);
+    }
 }
 
 LRESULT CProgressBarDlg::OnCloseProgressBar(WPARAM, LPARAM)
