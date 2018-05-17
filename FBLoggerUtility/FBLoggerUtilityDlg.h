@@ -40,7 +40,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 
     CToolTipCtrl m_pToolTipCtrl;
-    CProgressBarDlg* pProgressBarDlg;
+    CProgressBarDlg* m_pProgressBarDlg;
     HANDLE m_ThreadID;
 
     CWinThread* m_workerThread;

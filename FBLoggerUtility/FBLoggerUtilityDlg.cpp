@@ -65,7 +65,7 @@ END_MESSAGE_MAP()
 
 CFBLoggerUtilityDlg::CFBLoggerUtilityDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CFBLoggerUtilityDlg::IDD, pParent),
-    pProgressBarDlg(NULL)
+    m_pProgressBarDlg(NULL)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -158,15 +158,15 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
 
 void CFBLoggerUtilityDlg::InitProgressBarDlg()
 {
-    pProgressBarDlg = new CProgressBarDlg(this);
-    BOOL ret = pProgressBarDlg->Create(IDD_PROGRESS_BAR_DLG);
+    m_pProgressBarDlg = new CProgressBarDlg(this);
+    BOOL ret = m_pProgressBarDlg->Create(IDD_PROGRESS_BAR_DLG);
     if (!ret)   //Create failed.
     {
         AfxMessageBox(_T("Error creating Dialog"));
-        delete pProgressBarDlg;
+        delete m_pProgressBarDlg;
     }
-    pProgressBarDlg->ShowWindow(SW_SHOW);
-    pProgressBarDlg->CenterWindow(AfxGetMainWnd());
+    m_pProgressBarDlg->ShowWindow(SW_SHOW);
+    m_pProgressBarDlg->CenterWindow(AfxGetMainWnd());
 }
 
 // CFBLoggerGUIDlg message handlers
@@ -285,6 +285,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 if (dwRet == WAIT_OBJECT_0)
                 {
                     aborted = true;
+                    ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
                     loggerDataReader.ReportAbort();
                     break;
                 }
@@ -292,11 +293,11 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 {             
                     loggerDataReader.ProcessSingleDataFile();    
                     flProgress = (static_cast<float>(i) / totalNumberOfFiles) * (static_cast<float>(100.0));
-                    ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
+                    ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
                     if (i == totalNumberOfFiles - 1)
                     {
-                        ::PostMessage(pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
-                        ::PostMessage(pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+                        ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
+                        ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
                     }
                 }
             }
@@ -367,6 +368,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
     m_waitForWorkerThread.store(false);
     m_workerThreadCount.fetch_add(-1);
+    
     PostMessage(WORKER_THREAD_DONE, 0, 0);
     // normal thread exit
     return 0;
@@ -564,7 +566,7 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
     if (!m_waitForWorkerThread.load())
     {
         m_waitForWorkerThread.store(true);
-      
+        ResetEvent(m_hKillEvent); // Don't kill Worker thread
         if (PathFileExists(m_dataPath))
         {
             std::ofstream outfile(m_dataDirIniPath);
@@ -659,7 +661,11 @@ void CFBLoggerUtilityDlg::OnBnClickedCancel()
 
 LRESULT CFBLoggerUtilityDlg::OnCancelProcessing(WPARAM, LPARAM)
 {
-    OnBnClickedCancel();
+    if (m_waitForWorkerThread.load())
+    {
+        SetEvent(m_hKillEvent); // Kill the worker thread
+        DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
+    }
     return 0;
 }
 
