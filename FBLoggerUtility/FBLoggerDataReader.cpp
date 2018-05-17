@@ -1631,7 +1631,7 @@ void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
     }
     else
     {
-        outLoggerDataFilePath_ = dataPath_ + infileName + "_" + +"SN" + headerData_.serialNumberString.c_str();
+        outLoggerDataFilePath_ = dataPath_ + infileName + "_" + "SN" + headerData_.serialNumberString.c_str();
     }
 
     outLoggerDataFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString + ".csv";

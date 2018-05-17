@@ -87,6 +87,7 @@ BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
     ON_EN_CHANGE(IDC_CONFIGFILEBROWSE, &CFBLoggerUtilityDlg::OnEnChangeConfigFileBrowse)
     ON_BN_CLICKED(IDCONVERT, &CFBLoggerUtilityDlg::OnBnClickedConvert)
     ON_BN_CLICKED(IDCANCEL, &CFBLoggerUtilityDlg::OnBnClickedCancel)
+    ON_MESSAGE(CANCEL_PROCESSING, &CFBLoggerUtilityDlg::OnCancelProcessing)
 END_MESSAGE_MAP()
 
 BOOL CFBLoggerUtilityDlg::OnInitDialog()
@@ -648,4 +649,10 @@ void CFBLoggerUtilityDlg::OnBnClickedCancel()
     }
 
     CDialogEx::OnCancel();
+}
+
+LRESULT CFBLoggerUtilityDlg::OnCancelProcessing(WPARAM, LPARAM)
+{
+    OnBnClickedCancel();
+    return 0;
 }

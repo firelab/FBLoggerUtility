@@ -16,6 +16,8 @@
 CProgressBarDlg::CProgressBarDlg(CWnd* pParent /*=NULL*/)
 : CDialogEx(CProgressBarDlg::IDD, pParent)
 {
+    m_pParent = pParent;
+    m_hParent = m_pParent->GetSafeHwnd();
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
 
@@ -36,6 +38,7 @@ BEGIN_MESSAGE_MAP(CProgressBarDlg, CDialogEx)
 	ON_WM_CLOSE()
 	ON_MESSAGE(UPDATE_PROGRESSS_BAR, OnUpdateProgressBar)
 	ON_MESSAGE(CLOSE_PROGRESSS_BAR, OnCloseProgressBar)	
+    ON_BN_CLICKED(IDC_PROGCANCEL, &CProgressBarDlg::OnBnClickedCancel)
 END_MESSAGE_MAP()
 
 
@@ -97,8 +100,6 @@ HCURSOR CProgressBarDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-
-
 void CProgressBarDlg::OnTimer(UINT_PTR nIDEvent)
 {
 	// TODO: Add your message handler code here and/or call default
@@ -134,8 +135,7 @@ LRESULT CProgressBarDlg::OnUpdateProgressBar(WPARAM wparam, LPARAM lparam)
 
 void CProgressBarDlg::OnCancel()
 {
-	
-	
+    ::PostMessage(m_hParent, CANCEL_PROCESSING, 0, 0);
 }
 
 void CProgressBarDlg::OnOK()
@@ -147,11 +147,11 @@ void CProgressBarDlg::PostNcDestroy()
 {	
 	delete this;
 }
+
 void CProgressBarDlg::OnClose()
 {
-	
+    ::PostMessage(m_hParent, CANCEL_PROCESSING, 0, 0);
 }
-
 
 LRESULT CProgressBarDlg::OnCloseProgressBar(WPARAM, LPARAM)
 {
@@ -159,4 +159,9 @@ LRESULT CProgressBarDlg::OnCloseProgressBar(WPARAM, LPARAM)
 	 this->DestroyWindow();  // destroy it
 
 	return 0;
+}
+
+void CProgressBarDlg::OnBnClickedCancel()
+{
+    OnCancel();
 }

@@ -11,6 +11,8 @@
 class CReconstructionView;
 #define UPDATE_PROGRESSS_BAR  (WM_USER + 100)
 #define CLOSE_PROGRESSS_BAR   (WM_USER + 101)
+#define CANCEL_PROCESSING     (WM_USER + 102)
+
 // CTickCounterDlg dialog
 class CProgressBarDlg : public CDialogEx
 {
@@ -28,6 +30,9 @@ public:
 // Implementation
 protected:
 	HICON m_hIcon;
+    CWnd* m_pParent;
+    HWND  m_hParent;
+
 public:
 	
 	CStatic m_ApplicationTime;
@@ -37,10 +42,10 @@ public:
 	DWORD m_nTimer;
 	// Generated message map functions
 	virtual BOOL OnInitDialog();
+    DECLARE_MESSAGE_MAP()
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
-	afx_msg HCURSOR OnQueryDragIcon();
-	DECLARE_MESSAGE_MAP()
+    afx_msg HCURSOR OnQueryDragIcon();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg LRESULT OnUpdateProgressBar(WPARAM wparam, LPARAM lparam);
 	afx_msg LRESULT OnCloseProgressBar(WPARAM, LPARAM);
@@ -51,4 +56,5 @@ public:
 	
 	
 	
+    afx_msg void OnBnClickedCancel();
 };

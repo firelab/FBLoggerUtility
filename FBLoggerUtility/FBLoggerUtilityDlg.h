@@ -48,6 +48,7 @@ public:
     afx_msg void OnEnChangeConfigFileBrowse();
     afx_msg void OnBnClickedConvert();
     afx_msg void OnBnClickedCancel();
+    afx_msg LRESULT OnCancelProcessing(WPARAM, LPARAM);
 
     BOOL OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult);
     CMFCEditBrowseCtrl m_dataDirBrowser;
