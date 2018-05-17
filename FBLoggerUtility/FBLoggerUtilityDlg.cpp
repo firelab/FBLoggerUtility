@@ -75,6 +75,7 @@ void CFBLoggerUtilityDlg::DoDataExchange(CDataExchange* pDX)
     CDialogEx::DoDataExchange(pDX);
     DDX_Control(pDX, IDC_DATADIRBROWSE, m_dataDirBrowser);
     DDX_Control(pDX, IDC_CONFIGFILEBROWSE, m_configFileBrowser);
+    DDX_Control(pDX, IDCONVERT, m_btnConvert);
 }
 
 BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
@@ -88,6 +89,8 @@ BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
     ON_BN_CLICKED(IDCONVERT, &CFBLoggerUtilityDlg::OnBnClickedConvert)
     ON_BN_CLICKED(IDCANCEL, &CFBLoggerUtilityDlg::OnBnClickedCancel)
     ON_MESSAGE(CANCEL_PROCESSING, &CFBLoggerUtilityDlg::OnCancelProcessing)
+    ON_MESSAGE(WORKER_THREAD_RUNNING, &CFBLoggerUtilityDlg::OnWorkerThreadRunning)
+    ON_MESSAGE(WORKER_THREAD_DONE, &CFBLoggerUtilityDlg::OnWorkerThreadDone)
 END_MESSAGE_MAP()
 
 BOOL CFBLoggerUtilityDlg::OnInitDialog()
@@ -262,6 +265,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 {
     bool aborted = false;
 
+    PostMessage(WORKER_THREAD_RUNNING, 0, 0);
+
     FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath));
     loggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
     int totalNumberOfFiles = 0;
@@ -362,6 +367,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
     m_waitForWorkerThread.store(false);
     m_workerThreadCount.fetch_add(-1);
+    PostMessage(WORKER_THREAD_DONE, 0, 0);
     // normal thread exit
     return 0;
 }
@@ -654,5 +660,17 @@ void CFBLoggerUtilityDlg::OnBnClickedCancel()
 LRESULT CFBLoggerUtilityDlg::OnCancelProcessing(WPARAM, LPARAM)
 {
     OnBnClickedCancel();
+    return 0;
+}
+
+LRESULT CFBLoggerUtilityDlg::OnWorkerThreadRunning(WPARAM, LPARAM)
+{
+    m_btnConvert.ShowWindow(FALSE);
+    return 0;
+}
+
+LRESULT CFBLoggerUtilityDlg::OnWorkerThreadDone(WPARAM, LPARAM)
+{
+    m_btnConvert.ShowWindow(TRUE);
     return 0;
 }

@@ -53,8 +53,5 @@ public:
 	afx_msg void OnOK();
 	afx_msg void PostNcDestroy();
 	afx_msg void OnClose();
-	
-	
-	
     afx_msg void OnBnClickedCancel();
 };

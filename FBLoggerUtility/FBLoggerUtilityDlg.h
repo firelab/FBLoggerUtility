@@ -9,6 +9,9 @@
 
 #include <atomic>
 
+#define WORKER_THREAD_RUNNING     (WM_USER + 103)
+#define WORKER_THREAD_DONE        (WM_USER + 104)
+
 UINT DatFileProcessRoutine(LPVOID lpParameter);
 
 // CTCLoggerGUIDlg dialog
@@ -49,6 +52,8 @@ public:
     afx_msg void OnBnClickedConvert();
     afx_msg void OnBnClickedCancel();
     afx_msg LRESULT OnCancelProcessing(WPARAM, LPARAM);
+    afx_msg LRESULT OnWorkerThreadRunning(WPARAM, LPARAM);
+    afx_msg LRESULT OnWorkerThreadDone(WPARAM, LPARAM);
 
     BOOL OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult);
     CMFCEditBrowseCtrl m_dataDirBrowser;
@@ -75,4 +80,6 @@ private:
 
     atomic<bool> m_waitForWorkerThread;
     atomic<int> m_workerThreadCount;
+public:
+    CButton m_btnConvert;
 };
