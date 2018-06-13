@@ -926,8 +926,6 @@ void FBLoggerDataReader::ProcessErrorsInLineOfConfigFile()
         isConfigFileValid_ = false;
         numErrors_++;
     }
-
-    int a = 1;
 }
 
 void FBLoggerDataReader::CheckConfigForAllFiles()
@@ -1257,6 +1255,11 @@ void FBLoggerDataReader::ReportSuccessToLog()
 void FBLoggerDataReader::UpdateStatsFileMap()
 {
     statsFileMap_.insert(pair<int, StatsFileData>(serialNumber_, currentFileStats_));
+}
+
+void FBLoggerDataReader::SetPrintRaw(bool option)
+{
+    printRaw_ = option;
 }
 
 void FBLoggerDataReader::SetDataPath(string dataPath)

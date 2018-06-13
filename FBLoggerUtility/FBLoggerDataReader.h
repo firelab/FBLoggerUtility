@@ -31,7 +31,9 @@ public:
     void PrintStatsFile();
     void CheckConfig();
     void ReportAbort();
+    bool CheckConfigFileFormatIsValid(ifstream& configFile);
 
+    void SetPrintRaw(bool option);
     void SetDataPath(string dataPath);
     void SetAppPath(string appPath);
     void SetConfigFile(string configFileFullPath);
@@ -246,11 +248,13 @@ private:
 
     void PerformSanityChecksOnValues(SanityChecks::SanityCheckTypeEnum sanityCheckType);
 
+   
+
     // Private methods
 	void ReadConfig();
  
     void ParseTokensFromLineOfConfigFile(string& line);
-    bool CheckConfigFileFormatIsValid(ifstream& configFile);
+    
     void ProcessErrorsInLineOfConfigFile();
     void CheckConfigForAllFiles();
     bool GetFirstHeader();

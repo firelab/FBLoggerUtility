@@ -38,14 +38,14 @@ public:
 	CAboutDlg();
 
 // Dialog Data
-	enum { IDD = IDD_ABOUTBOX };
+enum { IDD = IDD_ABOUTBOX };
 
-	protected:
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+    protected:
+        virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
-// Implementation
+    // Implementation
 protected:
-	DECLARE_MESSAGE_MAP()
+    DECLARE_MESSAGE_MAP()
 };
 
 CAboutDlg::CAboutDlg() : CDialogEx(CAboutDlg::IDD)
@@ -55,7 +55,7 @@ CAboutDlg::CAboutDlg() : CDialogEx(CAboutDlg::IDD)
 
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 {
-	CDialogEx::DoDataExchange(pDX);
+    CDialogEx::DoDataExchange(pDX);
 }
 
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
@@ -64,10 +64,10 @@ END_MESSAGE_MAP()
 // CFBLoggerGUIDlg dialog
 
 CFBLoggerUtilityDlg::CFBLoggerUtilityDlg(CWnd* pParent /*=NULL*/)
-	: CDialogEx(CFBLoggerUtilityDlg::IDD, pParent),
+    : CDialogEx(CFBLoggerUtilityDlg::IDD, pParent),
     m_pProgressBarDlg(NULL)
 {
-	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+    m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
 
 void CFBLoggerUtilityDlg::DoDataExchange(CDataExchange* pDX)
@@ -81,9 +81,9 @@ void CFBLoggerUtilityDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
     ON_NOTIFY_EX_RANGE(TTN_NEEDTEXTW, 0, 0xFFFF, OnToolTipText)
     ON_NOTIFY_EX_RANGE(TTN_NEEDTEXTA, 0, 0xFFFF, OnToolTipText)
-	ON_WM_SYSCOMMAND()
-	ON_WM_PAINT()
-	ON_WM_QUERYDRAGICON()
+    ON_WM_SYSCOMMAND()
+    ON_WM_PAINT()
+    ON_WM_QUERYDRAGICON()
     ON_EN_CHANGE(IDC_DATADIRBROWSE, &CFBLoggerUtilityDlg::OnEnChangeDataDirBrowse)
     ON_EN_CHANGE(IDC_CONFIGFILEBROWSE, &CFBLoggerUtilityDlg::OnEnChangeConfigFileBrowse)
     ON_BN_CLICKED(IDCONVERT, &CFBLoggerUtilityDlg::OnBnClickedConvert)
@@ -91,6 +91,7 @@ BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
     ON_MESSAGE(CANCEL_PROCESSING, &CFBLoggerUtilityDlg::OnCancelProcessing)
     ON_MESSAGE(WORKER_THREAD_RUNNING, &CFBLoggerUtilityDlg::OnWorkerThreadRunning)
     ON_MESSAGE(WORKER_THREAD_DONE, &CFBLoggerUtilityDlg::OnWorkerThreadDone)
+    ON_BN_CLICKED(IDC_CHECK1, &CFBLoggerUtilityDlg::OnBnClickedCheck1)
 END_MESSAGE_MAP()
 
 BOOL CFBLoggerUtilityDlg::OnInitDialog()
@@ -131,7 +132,27 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
     // Convert a TCHAR string to a LPCSTR
     CT2CA pszConvertedAnsiString(m_appPath);
     std::string strAppPath(pszConvertedAnsiString);
-    ProcessIniFiles();
+
+    m_appConfigFileIniPath = m_appPath + _T("\\FBLoggerUtility.ini");
+
+    if (!PathFileExists(m_appConfigFileIniPath))
+    {
+        std::ofstream outfile(m_appConfigFileIniPath);
+        if (outfile.fail())
+        {
+            AfxMessageBox(_T("Fatal Error creating ini file, Exiting application"));
+            PostQuitMessage(0);
+            outfile.close();
+        }
+        else
+        {
+            outfile << "fb_data_path=\n";
+            outfile << "fb_config_file=\n";
+            outfile << "fb_create_raw=\n";
+            outfile.close();
+        }
+    }
+    ProcessIniFile();
 
     if (!m_pToolTipCtrl.Create(this, TTS_ALWAYSTIP))
     {
@@ -227,40 +248,6 @@ BOOL CFBLoggerUtilityDlg::OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult)
     return TRUE;    // message was handled
 }
 
-
-void CFBLoggerUtilityDlg::ResetDataDirIniFile()
-{
-    std::ofstream outfile(m_dataDirIniPath);
-
-    outfile << "fb_data_path=" << "\n";
-    m_dataDirBrowser.SetWindowTextW(NULL);
-    outfile.close();
-}
-
-void CFBLoggerUtilityDlg::ProcessIniFiles()
-{
-    m_dataDirIniPath = m_appPath + _T("\\data_dir.ini");
-    m_configFileIniPath = m_appPath + _T("\\config_file.ini");
-
-    if (!MyFileExists(m_dataDirIniPath))
-    {
-        ResetDataDirIniFile();
-    }
-    else
-    {
-        ReadSingleIniFile(m_dataDirIniPath);
-    }
-
-    if (!MyFileExists(m_configFileIniPath))
-    {
-        ResetConfigIniFile();
-    }
-    else
-    {
-        ReadSingleIniFile(m_configFileIniPath);
-    }
-}
-
 UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 {
     bool aborted = false;
@@ -278,6 +265,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         {
             totalNumberOfFiles = loggerDataReader.GetNumberOfInputFiles();
             float flProgress = 0;
+            loggerDataReader.SetPrintRaw(m_createRawTicked);
             for(int i = 0; i < totalNumberOfFiles; i++)
             {
                 // check kill
@@ -374,21 +362,14 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     return 0;
 }
 
-void CFBLoggerUtilityDlg::ResetConfigIniFile()
-{
-    std::ofstream outfile(m_configFileIniPath);
-
-    outfile << "fb_config_file=" << "\n";
-    m_configFileBrowser.SetWindowTextW(NULL);
-    outfile.close();
-}
-
-void CFBLoggerUtilityDlg::ReadSingleIniFile(CString iniFilePath)
+void CFBLoggerUtilityDlg::ProcessIniFile()
 {
     bool isDataPathValid;
     bool isConfigurationTypeValid;
 
-    ifstream infile(iniFilePath);
+   
+
+    ifstream infile(m_appConfigFileIniPath);
     string line;
     string dataPath;
     std::stringstream lineStream;
@@ -439,11 +420,10 @@ void CFBLoggerUtilityDlg::ReadSingleIniFile(CString iniFilePath)
                         CString caption("Error: Previous Data Directory Entry Invalid");
                         MessageBox(text, caption, MB_OK);
                     }
-                    ResetDataDirIniFile();
                     m_dataDirBrowser.SetWindowTextW(NULL);
                 }
             }
-            else if (token == "fb_config_file")
+            if (token == "fb_config_file")
             {
                 getline(lineStream, token, '=');
                 m_configFilePath = token.c_str();
@@ -460,8 +440,27 @@ void CFBLoggerUtilityDlg::ReadSingleIniFile(CString iniFilePath)
                         CString caption("Error: Previous Config File Entry Invalid");
                         MessageBox(text, caption, MB_OK);
                     }
-                    ResetConfigIniFile();
                     m_configFileBrowser.SetWindowTextW(NULL);
+                }
+            }
+            if (token == "fb_create_raw")
+            {
+                CButton *m_ctlCheck1 = (CButton*)GetDlgItem(IDC_CHECK1);
+                getline(lineStream, token);
+                
+                if (token == "true")
+                {
+                    m_ctlCheck1->SetCheck(1);
+                }
+                else if (token == "false")
+                {
+                    m_ctlCheck1->SetCheck(0);
+                    m_createRawTicked = false;
+                }
+                else
+                {
+                    m_ctlCheck1->SetCheck(1);
+                    m_createRawTicked = true;
                 }
             }
         }
@@ -494,6 +493,46 @@ void CFBLoggerUtilityDlg::OnSysCommand(UINT nID, LPARAM lParam)
             SetEvent(m_hKillEvent); // Kill the worker thread
             DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
         }
+
+        std::ofstream outfile(m_appConfigFileIniPath);
+        // convert a TCHAR string to a LPCSTR
+        CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
+        // construct a std::string using the LPCSTR input
+        std::string strStdDataPath(pszConvertedAnsiStringDataPath);
+        // convert a TCHAR string to a LPCSTR
+        CT2CA pszConvertedAnsiStringConfigFilePath(_T("fb_config_file=") + m_configFilePath);
+        // construct a std::string using the LPCSTR input
+        std::string strStdConfigFilePath(pszConvertedAnsiStringConfigFilePath);
+
+        if (PathFileExists(m_dataPath))
+        {
+            outfile << strStdDataPath << "\n";
+        }
+        else
+        {
+            outfile << "fb_data_path=\n";
+        }
+
+        if (PathFileExists(m_configFilePath))
+        {
+            outfile << strStdConfigFilePath << "\n";
+        }
+        else
+        {
+            outfile << "fb_config_file=\n";
+        }
+
+        if (m_createRawTicked)
+        {
+            outfile << "fb_create_raw=true";
+        }
+        else
+        {
+            outfile << "fb_create_raw=false";
+        }
+
+        outfile.close();
+
         PostQuitMessage(0);
     }
 	else
@@ -563,51 +602,32 @@ void CFBLoggerUtilityDlg::OnEnChangeConfigFileBrowse()
 
 void CFBLoggerUtilityDlg::OnBnClickedConvert()
 {
+    bool configFileExists = false;
+
     if (!m_waitForWorkerThread.load())
     {
         m_waitForWorkerThread.store(true);
         ResetEvent(m_hKillEvent); // Don't kill Worker thread
         if (PathFileExists(m_dataPath))
         {
-            std::ofstream outfile(m_dataDirIniPath);
+            std::ofstream outfile(m_appConfigFileIniPath);
 
             // convert a TCHAR string to a LPCSTR
-            CT2CA pszConvertedAnsiString(_T("fb_data_path=") + m_dataPath);
+            CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
             // construct a std::string using the LPCSTR input
-            std::string strStdDataPath(pszConvertedAnsiString);
+            std::string strStdDataPath(pszConvertedAnsiStringDataPath);
 
             outfile << strStdDataPath << "\n";
-            outfile.close();
 
-            if (MyFileExists(m_configFilePath))
+            // convert a TCHAR string to a LPCSTR
+            CT2CA pszConvertedAnsiStringConfigFilePath(_T("fb_config_file=") + m_configFilePath);
+            // construct a std::string using the LPCSTR input
+            std::string strStdConfigFilePath(pszConvertedAnsiStringConfigFilePath);
+
+            if (PathFileExists(m_configFilePath))
             {
-                std::ofstream outfile(m_configFileIniPath);
-
-                // convert a TCHAR string to a LPCSTR
-                CT2CA pszConvertedAnsiString(_T("fb_config_file=") + m_configFilePath);
-                // construct a std::string using the LPCSTR input
-                std::string strStdConfigPath(pszConvertedAnsiString);
-
-                outfile << strStdConfigPath << "\n";
-                outfile.close();
-
-                if (m_workerThreadCount.load() < 1)
-                {
-                    m_workerThreadCount.fetch_add(1);
-                    InitProgressBarDlg();
-                    m_workerThread = AfxBeginThread(DatFileProcessRoutine, this);
-                }
-                else
-                {
-                    CString text = _T("");
-                    CString caption = _T("");
-                 
-                    text += _T("Error: Could not create worker thread, no conversion performed\n");
-                   
-                    m_configFileBrowser.SetWindowTextW(NULL);
-                    m_waitForWorkerThread.store(false);
-                    MessageBox(text, caption, MB_OK);
-                }
+                outfile << strStdConfigFilePath << "\n";
+                configFileExists = true;
             }
             else
             {
@@ -621,10 +641,45 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 {
                     text += _T("Error: No config file exists at path \"") + m_configFilePath + _T("\", No conversion performed\n");
                 }
-               
+
                 m_configFileBrowser.SetWindowTextW(NULL);
                 m_waitForWorkerThread.store(false);
                 MessageBox(text, caption, MB_OK);
+            }
+
+            if (m_createRawTicked)
+            {
+                outfile << "fb_create_raw=true";
+            }
+            else
+            {
+                outfile << "fb_create_raw=false";
+            }
+
+            outfile.close();
+
+            if (configFileExists && m_workerThreadCount.load() < 1)
+            {
+                std::ifstream configFile(m_configFilePath, std::ios::in | std::ios::binary);
+                FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath));
+                bool configIsValid = loggerDataReader.CheckConfigFileFormatIsValid(configFile);
+
+                if (configIsValid)
+                {
+                    m_workerThreadCount.fetch_add(1);
+                    InitProgressBarDlg();
+                    m_workerThread = AfxBeginThread(DatFileProcessRoutine, this);
+                }
+                else
+                {
+                    CString text = _T("");
+                    CString caption = _T("");
+                    text += _T("Error: Config file at path \"") + m_configFilePath + _T("\", is invalid. No conversion performed\n");
+
+                    m_configFileBrowser.SetWindowTextW(NULL);
+                    m_waitForWorkerThread.store(false);
+                    MessageBox(text, caption, MB_OK);
+                }
             }
         }
         else
@@ -640,7 +695,33 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
             }
             CString caption("Error: Invalid Directory Entry");
 
-            ResetDataDirIniFile();
+            std::ofstream outfile(m_appConfigFileIniPath);
+
+            outfile << "fb_data_path=\n";
+            if (PathFileExists(m_configFilePath))
+            {
+                // convert a TCHAR string to a LPCSTR
+                CT2CA pszConvertedAnsiStringConfigFilePath(_T("fb_config_file=") + m_configFilePath);
+                // construct a std::string using the LPCSTR input
+                std::string strStdConfigFilePath(pszConvertedAnsiStringConfigFilePath);
+                outfile << strStdConfigFilePath << "\n";
+                configFileExists = true;
+            }
+            else
+            {
+                outfile << "fb_data_path=\n";
+            }
+            
+            if(m_createRawTicked)
+            {
+                outfile << "fb_create_raw=true";
+            }
+            else
+            {
+                outfile << "fb_create_raw=false";
+            }
+          
+            outfile.close();
             m_dataDirBrowser.SetWindowTextW(NULL);
             m_waitForWorkerThread.store(false);
             MessageBox(text, caption, MB_OK);
@@ -657,6 +738,46 @@ void CFBLoggerUtilityDlg::OnBnClickedCancel()
     }
 
     CDialogEx::OnCancel();
+
+    std::ofstream outfile(m_appConfigFileIniPath);
+    // convert a TCHAR string to a LPCSTR
+    CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
+    // construct a std::string using the LPCSTR input
+    std::string strStdDataPath(pszConvertedAnsiStringDataPath);
+
+    // convert a TCHAR string to a LPCSTR
+    CT2CA pszConvertedAnsiStringConfigFilePath(_T("fb_config_file=") + m_configFilePath);
+    // construct a std::string using the LPCSTR input
+    std::string strStdConfigFilePath(pszConvertedAnsiStringConfigFilePath);
+
+    if (PathFileExists(m_dataPath))
+    {
+        outfile << strStdDataPath << "\n";
+    }
+    else
+    {
+        outfile << "fb_data_path=\n";
+    }
+
+    if (PathFileExists(m_configFilePath))
+    {
+        outfile << strStdConfigFilePath << "\n";
+    }
+    else
+    {
+        outfile << "fb_config_file=\n";
+    }
+
+    if (m_createRawTicked)
+    {
+        outfile << "fb_create_raw=true";
+    }
+    else
+    {
+        outfile << "fb_create_raw=false";
+    }
+
+    outfile.close();
 }
 
 LRESULT CFBLoggerUtilityDlg::OnCancelProcessing(WPARAM, LPARAM)
@@ -679,4 +800,11 @@ LRESULT CFBLoggerUtilityDlg::OnWorkerThreadDone(WPARAM, LPARAM)
 {
     m_btnConvert.ShowWindow(TRUE);
     return 0;
+}
+
+void CFBLoggerUtilityDlg::OnBnClickedCheck1()
+{
+    // TODO: Add your control notification handler code here
+    CButton *m_ctlCheck1 = (CButton*)GetDlgItem(IDC_CHECK1);
+    m_createRawTicked = (m_ctlCheck1->GetCheck() == 1) ? true : false;
 }

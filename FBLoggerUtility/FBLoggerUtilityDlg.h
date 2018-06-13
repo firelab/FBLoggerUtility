@@ -62,15 +62,11 @@ public:
     UINT ProcessAllDatFiles();
 
 private:
-    void ResetDataDirIniFile();
-    void ResetConfigIniFile();
-    void ReadSingleIniFile(CString iniFilePath);
-    void ProcessIniFiles();
+    void ProcessIniFile();
     void InitProgressBarDlg();
 
     CString m_appPath;
-    CString m_dataDirIniPath;
-    CString m_configFileIniPath;
+    CString m_appConfigFileIniPath;
     CString m_dataPath;
     CString m_configFilePath;
 
@@ -78,8 +74,11 @@ private:
     int m_numInvalidFiles;
     int m_numFilesConverted;
 
+    bool m_createRawTicked;
+
     atomic<bool> m_waitForWorkerThread;
     atomic<int> m_workerThreadCount;
 public:
     CButton m_btnConvert;
+    afx_msg void OnBnClickedCheck1();
 };
