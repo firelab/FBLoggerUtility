@@ -40,6 +40,8 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     invalidInputFileErrorType_.clear();
     configMap_.clear();
 
+    printRaw_ = false;
+
     // Initialize F Config Sanity Checks
     for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
@@ -246,6 +248,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
         }
         else
         {
+            ofstream rawOutDataFile;
             // Get the size of the data file in bytes
             const char* cStringFilePath = inDataFilePath_.c_str();
             struct stat results;
@@ -268,6 +271,12 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     ofstream outDataFile(outLoggerDataFilePath_, std::ios::out);
                     pOutLoggerDataFile_ = &outDataFile;
 
+                    if (printRaw_)
+                    {
+                        rawOutDataFile.open(rawOutLoggerDataFilePath_, std::ios::out);
+                        pRawOutLoggerDataFile_ = &rawOutDataFile;
+                    }
+
                     // Check for output file's existence and is not open by another process
                     if (pOutLoggerDataFile_ == NULL || outDataFile.fail())
                     {
@@ -278,12 +287,26 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                         PrintLogFileLine();
                         status_.isGoodOutput = false;
                     }
+
+                    if (printRaw_ && (pRawOutLoggerDataFile_ == NULL || rawOutDataFile.fail()))
+                    {
+                        pRawOutLoggerDataFile_->close();
+                        // Report error
+                        logFileLine_ = "ERROR: Unable to open " + rawOutLoggerDataFilePath_ + "\n";
+                        PrintLogFileLine();
+                        status_.isGoodOutput = false;
+                    }
+
                     // We can read the input file
                     else
                     {
                         status_.isGoodOutput = true;
                         SetConfigDependentValues();
-                        PrintHeader();
+                        PrintHeader(pOutLoggerDataFile_, OutFileType::PROCESSED);
+                        if (printRaw_)
+                        {
+                            PrintHeader(pRawOutLoggerDataFile_, OutFileType::RAW);
+                        }
                         while (status_.pos < (fileSizeInBytes_ - BYTES_READ_PER_ITERATION))
                         {
                             ReadNextHeaderOrNumber();
@@ -292,10 +315,14 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                             {
                                 // An entire row of sensor data has been read in
                                 PerformSanityChecksOnValues(SanityChecks::RAW);
+                                if(printRaw_)
+                                {
+                                    PrintSensorDataOutput(pRawOutLoggerDataFile_);
+                                }
                                 PerformNeededDataConversions();
                                 PerformSanityChecksOnValues(SanityChecks::FINAL);
                                 UpdateStatsFileMap();
-                                PrintSensorDataOutput();
+                                PrintSensorDataOutput(pOutLoggerDataFile_);
                                 // Reset sensor reading counter 
                                 status_.sensorReadingCounter = 0;
                                 // Update time for next set of sensor readings
@@ -310,6 +337,11 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     pInFile_ = NULL;
                     pOutLoggerDataFile_->close();
                     pOutLoggerDataFile_ = NULL;
+                    if (printRaw_)
+                    {
+                        pRawOutLoggerDataFile_->close();
+                        pRawOutLoggerDataFile_ = NULL;
+                    }
                 }
             }
             else
@@ -1026,9 +1058,9 @@ void FBLoggerDataReader::SetConfigDependentValues()
 {
     if (configurationType_ == "F")
     {
-        //status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"FID(V)\",\"P(V)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (°C)\"\n";
         status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"FID(V)\",\"P(Pa)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (°C)\"\n";
-        status_.columnRawType[0] = "°C";
+        status_.rawConfigColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"Temp(V)\",\"FID(V)\",\"P(V)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (V)\"\n";
+        status_.columnRawType[0] = "V";
         status_.columnRawType[1] = "FID(V)";
         status_.columnRawType[2] = "P(V)";
         for (int i = 3; i < 8; i++)
@@ -1038,8 +1070,8 @@ void FBLoggerDataReader::SetConfigDependentValues()
     }
     else if (configurationType_ == "H")
     {
-        //status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"P(V)\",\"P(V)\",\"P(V)\",\"HF(V)\",\"HFT(V)\",\"NA\",\"Panel Temp (°C)\"\n";
         status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"u(m/s)\",\"v(m/s)\",\"w(m/s)\",\"HF(kW/m^2)\",\"HFT(C)\",\"NA\",\"Panel Temp (°C)\"\n";
+        status_.rawConfigColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"Temp(V)\",\"Temp(V)\",\"u(V)\",\"v(V)\",\"w(V)\",\"HF(V)\",\"HFT(V)\",\"NA\",\"Panel Temp (V)\"\n";
         for (int i = 0; i < 2; i++)
         {
             status_.columnRawType[i] = "°C";
@@ -1055,13 +1087,14 @@ void FBLoggerDataReader::SetConfigDependentValues()
     else if (configurationType_ == "T")
     {
         status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"Panel Temp (°C)\"\n";
+        status_.rawConfigColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Panel Temp (Temp(V))\"\n";
         for (int i = 0; i < 8; i++)
         {
-            status_.columnRawType[i] = "°C";
+            status_.columnRawType[i] = "V";
         }
     }
     // Common among all configurations
-    status_.columnRawType[8] = "Panel Temp (°C)";
+    status_.columnRawType[8] = "Panel Temp (V)";
 }
 
 void FBLoggerDataReader::PrintStatsFile()
@@ -1363,7 +1396,11 @@ void FBLoggerDataReader::ReadNextHeaderOrNumber()
         // Get header data and print it to file
         GetHeader();
         ParseHeader();
-        PrintHeader();
+        PrintHeader(pOutLoggerDataFile_, OutFileType::PROCESSED);
+        if (printRaw_)
+        {
+            PrintHeader(pRawOutLoggerDataFile_, OutFileType::RAW);
+        }
     }
 }
 
@@ -1628,13 +1665,27 @@ void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
     if (infileIntValue == serialNumber_ && IsOnlyDigits(infileName))
     {
         outLoggerDataFilePath_ = dataPath_ + "SN" + headerData_.serialNumberString.c_str();
+        if (printRaw_)
+        {
+            rawOutLoggerDataFilePath_ = outLoggerDataFilePath_;
+        }
     }
     else
     {
         outLoggerDataFilePath_ = dataPath_ + infileName + "_" + "SN" + headerData_.serialNumberString.c_str();
+        if (printRaw_)
+        {
+            rawOutLoggerDataFilePath_ = outLoggerDataFilePath_;
+        }
     }
 
-    outLoggerDataFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString + ".csv";
+    outLoggerDataFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString;
+    if (printRaw_)
+    {
+        rawOutLoggerDataFilePath_ = outLoggerDataFilePath_;
+        rawOutLoggerDataFilePath_ += "_RAW.csv";
+    }
+    outLoggerDataFilePath_ += ".csv";
 }
 
 void FBLoggerDataReader::PrintCarryBugToLog()
@@ -1682,20 +1733,27 @@ void FBLoggerDataReader::PrintLogFileLine()
     logFileLine_ = "";
 }
 
-void FBLoggerDataReader::PrintHeader()
+void FBLoggerDataReader::PrintHeader(ofstream* pOutFile, OutFileType::OutFileTypeEnum outFileType)
 {
     outputLine_ += "\"SN" + headerData_.serialNumberString + "\"," + "\"" + headerData_.latitudeDegreesString + " " +
         headerData_.latitudeDecimalMinutesString + "\",\"" + headerData_.longitudeDegreesString + " " +
         headerData_.longitudeDecimalMinutesString + "\", " + headerData_.sampleIntervalString + "\n";
 
     // Print header data to file
-    if (pOutLoggerDataFile_)
+    if (pOutFile)
     {
-        *pOutLoggerDataFile_ << outputLine_;
-        // Print column header data to file
+        *pOutFile << outputLine_;
 
-        outputLine_ = status_.configColumnTextLine;
-        *pOutLoggerDataFile_ << outputLine_;
+        // Print column header data to file
+        if (outFileType == OutFileType::RAW)
+        {
+            outputLine_ = status_.rawConfigColumnTextLine;
+        }
+        else
+        {
+            outputLine_ = status_.configColumnTextLine;
+        }
+        *pOutFile << outputLine_;
 
         // Clear out output buffer for next function call
         outputLine_ = "";
@@ -1748,7 +1806,7 @@ void FBLoggerDataReader::UpdateSensorMaxAndMin()
     }
 }
 
-void FBLoggerDataReader::PrintSensorDataOutput()
+void FBLoggerDataReader::PrintSensorDataOutput(ofstream* pOutFile)
 {
     const unsigned int miliSecondWidth = 3;
 
@@ -1818,9 +1876,9 @@ void FBLoggerDataReader::PrintSensorDataOutput()
             outputLine_ += "\n";
 
             // Print to file
-            if (pOutLoggerDataFile_)
+            if (pOutFile)
             {
-                *pOutLoggerDataFile_ << outputLine_;
+                *pOutFile << outputLine_;
                 // Clear out output buffer for next function call
                 outputLine_ = "";
             }

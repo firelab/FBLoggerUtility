@@ -88,6 +88,7 @@ private:
         uint32_t pos = 0;
         uint32_t recordNumber = 0;
         string configColumnTextLine;
+        string rawConfigColumnTextLine;
         string columnRawType[9];
         double sensorReadingValue[9];
         bool headerFound = false;
@@ -159,6 +160,15 @@ private:
         enum TCIndexEnum
         {
             PANEL_TEMP = 8
+        };
+    };
+
+    struct OutFileType
+    {
+        enum OutFileTypeEnum
+        {
+            RAW = 0,
+            PROCESSED = 1
         };
     };
 
@@ -256,11 +266,11 @@ private:
     void PrintCarryBugToLog();
     void PrintConfigErrorsToLog();
     void PrintLogFileLine();
-    void PrintHeader();
+    void PrintHeader(ofstream* pOutFile, OutFileType::OutFileTypeEnum outFileType);
     string MakeStringWidthTwoFromInt(int headerData);
     string MakeStringWidthThreeFromInt(int headerData);
     void UpdateSensorMaxAndMin();
-    void PrintSensorDataOutput();
+    void PrintSensorDataOutput(ofstream* pOutFile);
     float UnsignedIntToIEEEFloat(uint32_t binaryNumber);
    
     void ResetHeaderData();
@@ -286,6 +296,7 @@ private:
 
     bool isConfigFileValid_;
     bool outputsAreGood_;
+    bool printRaw_;
 
     string appPath_;
     string dataPath_;
@@ -295,11 +306,13 @@ private:
     unsigned int fileSizeInBytes_;
     string inDataFilePath_;
     string outLoggerDataFilePath_;
+    string rawOutLoggerDataFilePath_;
     HeaderData headerData_;
     InFileReadingStatus status_;
     ParsedNumericData parsedNumericData_;
     ifstream* pInFile_;
     ofstream* pOutLoggerDataFile_;
+    ofstream* pRawOutLoggerDataFile_;
     ofstream* pLogFile_;
     string outputLine_;
     string logFilePath_;
