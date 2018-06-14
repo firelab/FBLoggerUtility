@@ -133,19 +133,24 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
     CT2CA pszConvertedAnsiString(m_appPath);
     std::string strAppPath(pszConvertedAnsiString);
 
-    m_appConfigFileIniPath = m_appPath + _T("\\FBLoggerUtility.ini");
+    m_appIniPath = m_appPath + _T("\\FBLoggerUtility.ini");
 
-    if (!PathFileExists(m_appConfigFileIniPath))
+    if (!PathFileExists(m_appIniPath))
     {
-        std::ofstream outfile(m_appConfigFileIniPath);
+        std::ofstream outfile(m_appIniPath);
         if (outfile.fail())
         {
             AfxMessageBox(_T("Fatal Error creating ini file, Exiting application"));
-            PostQuitMessage(0);
             outfile.close();
+            PostQuitMessage(0);
         }
         else
         {
+            m_dataPath = "";
+            m_dataDirBrowser.SetWindowTextW(NULL);
+            m_configFilePath = "";
+            m_configFileBrowser.SetWindowTextW(NULL);
+
             outfile << "fb_data_path=\n";
             outfile << "fb_config_file=\n";
             outfile << "fb_create_raw=\n";
@@ -369,7 +374,7 @@ void CFBLoggerUtilityDlg::ProcessIniFile()
 
    
 
-    ifstream infile(m_appConfigFileIniPath);
+    ifstream infile(m_appIniPath);
     string line;
     string dataPath;
     std::stringstream lineStream;
@@ -420,6 +425,7 @@ void CFBLoggerUtilityDlg::ProcessIniFile()
                         CString caption("Error: Previous Data Directory Entry Invalid");
                         MessageBox(text, caption, MB_OK);
                     }
+                    m_dataPath = "";
                     m_dataDirBrowser.SetWindowTextW(NULL);
                 }
             }
@@ -428,7 +434,7 @@ void CFBLoggerUtilityDlg::ProcessIniFile()
                 getline(lineStream, token, '=');
                 m_configFilePath = token.c_str();
                 m_configFilePath.Replace(_T("\""), _T(""));
-                if (MyFileExists(m_configFilePath))
+                if (PathFileExists(m_configFilePath))
                 {
                     m_configFileBrowser.SetWindowTextW(m_configFilePath);
                 }
@@ -436,10 +442,11 @@ void CFBLoggerUtilityDlg::ProcessIniFile()
                 {
                     if (m_configFilePath != "")
                     {
-                        CString text = _T("Error: No config file exists at path \n\"") + m_dataPath + _T("\"\n");
+                        CString text = _T("Error: No config file exists at path \n\"") + m_configFilePath + _T("\"\n");
                         CString caption("Error: Previous Config File Entry Invalid");
                         MessageBox(text, caption, MB_OK);
                     }
+                    m_configFilePath = "";
                     m_configFileBrowser.SetWindowTextW(NULL);
                 }
             }
@@ -494,7 +501,7 @@ void CFBLoggerUtilityDlg::OnSysCommand(UINT nID, LPARAM lParam)
             DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
         }
 
-        std::ofstream outfile(m_appConfigFileIniPath);
+        std::ofstream outfile(m_appIniPath);
         // convert a TCHAR string to a LPCSTR
         CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
         // construct a std::string using the LPCSTR input
@@ -610,7 +617,7 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
         ResetEvent(m_hKillEvent); // Don't kill Worker thread
         if (PathFileExists(m_dataPath))
         {
-            std::ofstream outfile(m_appConfigFileIniPath);
+            std::ofstream outfile(m_appIniPath);
 
             // convert a TCHAR string to a LPCSTR
             CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
@@ -695,7 +702,7 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
             }
             CString caption("Error: Invalid Directory Entry");
 
-            std::ofstream outfile(m_appConfigFileIniPath);
+            std::ofstream outfile(m_appIniPath);
 
             outfile << "fb_data_path=\n";
             if (PathFileExists(m_configFilePath))
@@ -739,7 +746,7 @@ void CFBLoggerUtilityDlg::OnBnClickedCancel()
 
     CDialogEx::OnCancel();
 
-    std::ofstream outfile(m_appConfigFileIniPath);
+    std::ofstream outfile(m_appIniPath);
     // convert a TCHAR string to a LPCSTR
     CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
     // construct a std::string using the LPCSTR input

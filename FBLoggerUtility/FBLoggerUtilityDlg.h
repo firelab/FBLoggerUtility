@@ -66,7 +66,7 @@ private:
     void InitProgressBarDlg();
 
     CString m_appPath;
-    CString m_appConfigFileIniPath;
+    CString m_appIniPath;
     CString m_dataPath;
     CString m_configFilePath;
 
