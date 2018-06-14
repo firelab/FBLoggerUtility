@@ -102,5 +102,6 @@ double convertVelocity::getCp(double angle, double ReynoldsNumber)
 	if (angle > 90.0)	//calibration data is only good for 0-90, cp doesn't care about sign of wind (at least here)
 		angle = 180.0 - angle;
 
-	return 1.099 + 9.311e-03*angle - 2.424e-04*angle*angle + 7.536e-07*ReynoldsNumber - 7.091e-13*ReynoldsNumber*ReynoldsNumber - 3.061e-09*angle*ReynoldsNumber;
+	//return 1.099 + 9.311e-03*angle - 2.424e-04*angle*angle + 7.536e-07*ReynoldsNumber - 7.091e-13*ReynoldsNumber*ReynoldsNumber - 3.061e-09*angle*ReynoldsNumber;  //old conversion which had an error where Re number was incorrectly computed
+	return -1.185e-01*exp(2.804e-02*angle) + 2.487e+00 + 2.883e-07*ReynoldsNumber - 1.0;
 }
