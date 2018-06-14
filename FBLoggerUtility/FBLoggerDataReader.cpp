@@ -314,6 +314,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                             if (status_.sensorReadingCounter == 9)
                             {
                                 // An entire row of sensor data has been read in
+                                status_.recordNumber++;
                                 PerformSanityChecksOnValues(SanityChecks::RAW);
                                 if(printRaw_)
                                 {
@@ -1828,7 +1829,6 @@ void FBLoggerDataReader::PrintSensorDataOutput(ofstream* pOutFile)
     {
         if (i == 0)
         {
-            status_.recordNumber++;
             yearString = MakeStringWidthTwoFromInt(headerData_.year);
             monthString = MakeStringWidthTwoFromInt(headerData_.month);
             dayString = MakeStringWidthTwoFromInt(headerData_.day);
