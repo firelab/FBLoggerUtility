@@ -785,7 +785,7 @@ LRESULT CFBLoggerUtilityDlg::OnCancelProcessing(WPARAM, LPARAM)
     if (m_waitForWorkerThread.load())
     {
         SetEvent(m_hKillEvent); // Kill the worker thread
-        DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
+        DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to safely shutdown
     }
     return 0;
 }
@@ -793,12 +793,16 @@ LRESULT CFBLoggerUtilityDlg::OnCancelProcessing(WPARAM, LPARAM)
 LRESULT CFBLoggerUtilityDlg::OnWorkerThreadRunning(WPARAM, LPARAM)
 {
     m_btnConvert.ShowWindow(FALSE);
+    CButton *m_ctlCheck1 = (CButton*)GetDlgItem(IDC_CHECK1);
+    m_ctlCheck1->ShowWindow(FALSE);
     return 0;
 }
 
 LRESULT CFBLoggerUtilityDlg::OnWorkerThreadDone(WPARAM, LPARAM)
 {
     m_btnConvert.ShowWindow(TRUE);
+    CButton *m_ctlCheck1 = (CButton*)GetDlgItem(IDC_CHECK1);
+    m_ctlCheck1->ShowWindow(TRUE);
     return 0;
 }
 
