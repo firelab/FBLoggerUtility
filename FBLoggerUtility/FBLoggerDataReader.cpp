@@ -420,7 +420,7 @@ double FBLoggerDataReader::CalculateHeatFluxTemperature(double rawVoltage)
 int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureOne, double temperatureTwo,
     double pressureVoltageU, double pressureVoltageV, double pressureVoltageW, double sensorBearing)
 {
-    bool tempOneGood = (temperatureOne <= sanityChecks_.temperatureMax) && (temperatureTwo >= sanityChecks_.temperatureMin);
+    bool tempOneGood = (temperatureOne <= sanityChecks_.temperatureMax) && (temperatureOne >= sanityChecks_.temperatureMin);
     bool tempTwoGood = (temperatureTwo <= sanityChecks_.temperatureMax) && (temperatureTwo >= sanityChecks_.temperatureMin);
     double temperature = 0.0;
 
@@ -435,11 +435,14 @@ int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureO
     }
     else if (tempTwoGood)
     {
-        temperature = temperatureOne;
+        temperature = temperatureTwo;
     }
     else
     {
         // Error
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U] = 9999;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V] = 9999;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_W] = 9999;
         return -1;
     }
 
@@ -451,6 +454,10 @@ int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureO
     }
     else
     {
+        // Error
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U] = 9999;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V] = 9999;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_W] = 9999;
         return -1;
     }
     return 0; // success
