@@ -15,6 +15,8 @@
 #include <errno.h>
 
 FBLoggerDataReader::FBLoggerDataReader(string dataPath)
+    :logFilePath_(dataPath + "\\log_file.txt"),
+    logFile_(logFilePath_, std::ios::out)
 {
     startClock_ = clock();
 
@@ -24,9 +26,6 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     currentFileIndex_ = 0;
     numErrors_ = 0;
     serialNumber_ = -1;
-    pLogFile_ = NULL;
-    pOutLoggerDataFile_ = NULL;
-    pInFile_ = NULL;
     outputLine_ = "";
     dataPath_ = "";
     appPath_ = "";
@@ -132,20 +131,14 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     SetDataPath(dataPath);
 
     string logFileNoExtension = dataPath_ + "log_file";
-    logFilePath_ = logFileNoExtension + ".txt";
-    pLogFile_ = new ofstream(logFilePath_, std::ios::out);
-
+    //logFilePath_ = logFileNoExtension + ".txt";
+   
     // Check for output file's existence
-    if (!pLogFile_ || pLogFile_->fail())
+    if (logFile_.fail())
     {
-        pLogFile_->close();
-        pLogFile_->clear();
-        if (pLogFile_ != NULL)
-        {
-            delete pLogFile_;
-            pLogFile_ = NULL;
-        }
-
+        logFile_.close();
+        logFile_.clear();
+        
         SYSTEMTIME systemTime;
         GetLocalTime(&systemTime);
 
@@ -155,18 +148,13 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
 
         logFileLine_ = "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
         logFilePath_ = logFileNoExtension + "_" + dateTimeString + ".txt";
-        pLogFile_ = new ofstream(logFilePath_, std::ios::out);
+        logFile_.open(logFilePath_, std::ios::out);
     }
-    if (!pLogFile_ || pLogFile_->fail())
+    if (logFile_.fail())
     {
         // Something really went wrong here
-        pLogFile_->close();
-        pLogFile_->clear();
-        if (pLogFile_ != NULL)
-        {
-            delete pLogFile_;
-            pLogFile_ = NULL;
-        }
+        logFile_.close();
+        logFile_.clear();
     }
     ResetCurrentFileStats();
 }
@@ -176,13 +164,10 @@ FBLoggerDataReader::~FBLoggerDataReader()
     totalTimeInSeconds_ = (clock() - startClock_) / (double)CLOCKS_PER_SEC;
     PrintFinalReportToLog();
   
-    if (pLogFile_ != NULL)
+    if (logFile_.fail())
     {
-        pLogFile_->close();
-        pLogFile_->clear();
-        // Deallocate dynamic memory
-        delete pLogFile_;
-        pLogFile_ = NULL;
+        logFile_.close();
+        logFile_.clear();
     }
 }
 
@@ -228,7 +213,6 @@ void FBLoggerDataReader::ProcessSingleDataFile()
         inDataFilePath_ = dataPath_ + infileName;
 
         std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
-        pInFile_ = &inFile;
 
         outputLine_ = "";
         configurationType_ = "";
@@ -237,18 +221,16 @@ void FBLoggerDataReader::ProcessSingleDataFile()
         ResetCurrentFileStats();
 
         // Check for input file's existence
-        if (pInFile_ == NULL)
+        if (inFile.fail())
         {
-            pInFile_->close();
-            pInFile_ = NULL;
-            pOutLoggerDataFile_ = NULL;
+            inFile.close();
             // Report error
             logFileLine_ = "ERROR: Input file " + inDataFilePath_ + " does not exist\n";
             PrintLogFileLine();
         }
         else
         {
-            ofstream rawOutDataFile;
+            ofstream rawOutFile;
             // Get the size of the data file in bytes
             const char* cStringFilePath = inDataFilePath_.c_str();
             struct stat results;
@@ -256,7 +238,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
             {
                 fileSizeInBytes_ = results.st_size;
 
-                bool headerFound = GetFirstHeader();
+                bool headerFound = GetFirstHeader(inFile);
 
                 if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
                 {
@@ -268,29 +250,27 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     currentFileStats_.fileName = infileName;
                     SetLoggerDataOutFilePath(infileName);
 
-                    ofstream outDataFile(outLoggerDataFilePath_, std::ios::out);
-                    pOutLoggerDataFile_ = &outDataFile;
-
+                    ofstream outFile(outLoggerDataFilePath_, std::ios::out);
+                   
                     if (printRaw_)
                     {
-                        rawOutDataFile.open(rawOutLoggerDataFilePath_, std::ios::out);
-                        pRawOutLoggerDataFile_ = &rawOutDataFile;
+                        rawOutFile.open(rawOutLoggerDataFilePath_, std::ios::out);
                     }
 
                     // Check for output file's existence and is not open by another process
-                    if (pOutLoggerDataFile_ == NULL || outDataFile.fail())
+                    if (outFile.fail())
                     {
-                        pInFile_->close();
-                        pOutLoggerDataFile_->close();
+                        inFile.close();
+                        outFile.close();
                         // Report error
                         logFileLine_ = "ERROR: Unable to open " + outLoggerDataFilePath_ + "\n";
                         PrintLogFileLine();
                         status_.isGoodOutput = false;
                     }
 
-                    if (printRaw_ && (pRawOutLoggerDataFile_ == NULL || rawOutDataFile.fail()))
+                    if (printRaw_ && rawOutFile.fail())
                     {
-                        pRawOutLoggerDataFile_->close();
+                        rawOutFile.close();
                         // Report error
                         logFileLine_ = "ERROR: Unable to open " + rawOutLoggerDataFilePath_ + "\n";
                         PrintLogFileLine();
@@ -302,14 +282,14 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     {
                         status_.isGoodOutput = true;
                         SetConfigDependentValues();
-                        PrintHeader(pOutLoggerDataFile_, OutFileType::PROCESSED);
+                        PrintHeader(outFile, OutFileType::PROCESSED);
                         if (printRaw_)
                         {
-                            PrintHeader(pRawOutLoggerDataFile_, OutFileType::RAW);
+                            PrintHeader(rawOutFile, OutFileType::RAW);
                         }
                         while (status_.pos < (fileSizeInBytes_ - BYTES_READ_PER_ITERATION))
                         {
-                            ReadNextHeaderOrNumber();
+                            ReadNextHeaderOrNumber(inFile, outFile);
                             UpdateSensorMaxAndMin();
                             if (status_.sensorReadingCounter == 9)
                             {
@@ -318,12 +298,12 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                                 PerformSanityChecksOnValues(SanityChecks::RAW);
                                 if(printRaw_)
                                 {
-                                    PrintSensorDataOutput(pRawOutLoggerDataFile_);
+                                    PrintSensorDataOutput(rawOutFile);
                                 }
                                 PerformNeededDataConversions();
                                 PerformSanityChecksOnValues(SanityChecks::FINAL);
                                 UpdateStatsFileMap();
-                                PrintSensorDataOutput(pOutLoggerDataFile_);
+                                PrintSensorDataOutput(outFile);
                                 // Reset sensor reading counter 
                                 status_.sensorReadingCounter = 0;
                                 // Update time for next set of sensor readings
@@ -334,22 +314,18 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     }
 
                     // Close the file streams
-                    pInFile_->close();
-                    pInFile_ = NULL;
-                    pOutLoggerDataFile_->close();
-                    pOutLoggerDataFile_ = NULL;
+                    inFile.close();
+                    outFile.close();
                     if (printRaw_)
                     {
-                        pRawOutLoggerDataFile_->close();
-                        pRawOutLoggerDataFile_ = NULL;
+                        rawOutFile.close();
                     }
                 }
             }
             else
             {
-                inFile.close();
-                pInFile_ = NULL;
                 // An error occurred
+                inFile.close();
             }
         }
 
@@ -365,7 +341,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
         numErrors_++;
     }
 
-    if(pLogFile_->good())
+    if(logFile_.good())
     {
         PrintLogFileLine();
         PrintCarryBugToLog();
@@ -377,7 +353,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
 
 void FBLoggerDataReader::CheckConfig()
 {
-    if (pLogFile_->good())
+    if (logFile_.good())
     {
         PrintLogFileLine();
         ReadConfig();
@@ -394,10 +370,10 @@ void FBLoggerDataReader::CheckConfig()
 void FBLoggerDataReader::ReportAbort()
 {
     numErrors_++;
-    if (pLogFile_->good())
+    if (logFile_.good())
     {
         logFileLine_ = "Conversion aborted by user before completion at " + GetMyLocalDateTimeString() + "\n";
-        *pLogFile_ << logFileLine_;
+        logFile_ << logFileLine_;
     }
     logFileLine_ = "";
 }
@@ -953,17 +929,16 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
         if (extension == ".DAT" || extension == ".dat")
         {
             std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
-            pInFile_ = &inFile;
+            //pInFile_ = &inFile;
 
             // Check for input file's existence
-            if (pInFile_ == NULL)
+            if (inFile.fail())
             {
                 // Cannot open file
                 numInvalidInputFiles_++;
                 invalidInputFileList_.push_back(inDataFilePath_);
                 invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::CANNOT_OPEN_FILE);
-                pInFile_->close();
-                pInFile_ = NULL;
+                inFile.close();
             }
             else
             {
@@ -974,7 +949,7 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
                     // The size of the file in bytes
                     fileSizeInBytes_ = results.st_size;
 
-                    bool headerFound = GetFirstHeader();
+                    bool headerFound = GetFirstHeader(inFile);
                     int serialNumber = atoi(headerData_.serialNumberString.c_str());
                     if ((headerFound) && (configMap_.find(serialNumber) == configMap_.end()) || configMap_.find(serialNumber)->second == "")
                     {
@@ -982,8 +957,7 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
                         numInvalidInputFiles_++;
                         invalidInputFileList_.push_back(inDataFilePath_);
                         invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_CONFIG);
-                        pInFile_->close();
-                        pInFile_ = NULL;
+                        inFile.close();
                     }
                     else if (!headerFound)
                     {
@@ -991,8 +965,7 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
                         numInvalidInputFiles_++;
                         invalidInputFileList_.push_back(inDataFilePath_);
                         invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_HEADER);
-                        pInFile_->close();
-                        pInFile_ = NULL;
+                        inFile.close();
                     }
                 }
             }
@@ -1125,7 +1098,7 @@ void FBLoggerDataReader::PrintStatsFile()
         outStatsFile.open(statsFilePath_, std::ios::out);
     }
 
-    outputsAreGood_ = (numInvalidInputFiles_ == 0) && outStatsFile.good() && pLogFile_->good();
+    outputsAreGood_ = (numInvalidInputFiles_ == 0) && outStatsFile.good() && logFile_.good();
 
     if (outStatsFile.good())
     {
@@ -1246,7 +1219,7 @@ void FBLoggerDataReader::PrintStatsFile()
 void FBLoggerDataReader::PrintFinalReportToLog()
 {
     string dataPathOutput = dataPath_.substr(0, dataPath_.size() - 1);
-    if (pLogFile_->good() && logFileLine_ == "" && invalidInputFileList_.empty())
+    if (logFile_.good() && logFileLine_ == "" && invalidInputFileList_.empty())
     {
         if ((numFilesProcessed_ > 0) && (numErrors_ == 0))
         {
@@ -1260,7 +1233,7 @@ void FBLoggerDataReader::PrintFinalReportToLog()
         {
             logFileLine_ = "No DAT files found in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
         }
-        *pLogFile_ << logFileLine_;
+        logFile_ << logFileLine_;
     }
 }
 
@@ -1342,9 +1315,9 @@ bool FBLoggerDataReader::IsConfigFileValid()
 bool FBLoggerDataReader::IsLogFileGood()
 {
     bool isGood = false;
-    if (!pLogFile_ == NULL)
+    if (!logFile_.fail())
     {
-        isGood = pLogFile_->good();
+        isGood = logFile_.good();
     }
     return isGood;
 }
@@ -1354,21 +1327,21 @@ bool FBLoggerDataReader::IsDoneReadingDataFiles()
     return(currentFileIndex_ >= inputFilesNameList_.size());
 }
 
-bool FBLoggerDataReader::GetFirstHeader()
+bool FBLoggerDataReader::GetFirstHeader(ifstream& inFile)
 {
     ResetInFileReadingStatus();
     ResetHeaderData();
 
-    status_.pos = (int)pInFile_->tellg();
+    status_.pos = (int)inFile.tellg();
     uint32_t filePositionLimit = fileSizeInBytes_ - BYTES_READ_PER_ITERATION;
 
     // Keep grabbing bytes until header is found or end of file is reached
     while (!status_.headerFound && (status_.pos < filePositionLimit))
     {
-        GetRawNumber();
+        GetRawNumber(inFile);
 
         // Update file reading position
-        status_.pos = (int)pInFile_->tellg();
+        status_.pos = (int)inFile.tellg();
     }
     if (status_.headerFound)
     {
@@ -1376,21 +1349,21 @@ bool FBLoggerDataReader::GetFirstHeader()
         status_.recordNumber = 0;
         status_.sensorReadingCounter = 0;
         // Get header data and print it to file
-        GetHeader();
+        GetHeader(inFile);
         ParseHeader();
         // Update file reading position
-        status_.pos = (int)pInFile_->tellg();
+        status_.pos = (int)inFile.tellg();
     }
 
     return status_.headerFound;
 }
 
-void FBLoggerDataReader::ReadNextHeaderOrNumber()
+void FBLoggerDataReader::ReadNextHeaderOrNumber(ifstream& inFile, ofstream& outFile)
 {
     status_.headerFound = false;
-    status_.pos = (int)pInFile_->tellg();
+    status_.pos = (int)inFile.tellg();
 
-    GetRawNumber();
+    GetRawNumber(inFile);
     CheckForHeader();
     if (!status_.headerFound)
     {
@@ -1409,12 +1382,12 @@ void FBLoggerDataReader::ReadNextHeaderOrNumber()
         status_.recordNumber = 0;
         status_.sensorReadingCounter = 0;
         // Get header data and print it to file
-        GetHeader();
+        GetHeader(inFile);
         ParseHeader();
-        PrintHeader(pOutLoggerDataFile_, OutFileType::PROCESSED);
+        PrintHeader(outFile, OutFileType::PROCESSED);
         if (printRaw_)
         {
-            PrintHeader(pRawOutLoggerDataFile_, OutFileType::RAW);
+            PrintHeader(outFile, OutFileType::RAW);
         }
     }
 }
@@ -1430,7 +1403,7 @@ uint32_t FBLoggerDataReader::GetIntFromByteArray(uint8_t byteArray[4])
     return integerValue;
 }
 
-void FBLoggerDataReader::GetRawNumber()
+void FBLoggerDataReader::GetRawNumber(ifstream& inFile)
 {
     uint8_t byte;
     char rawByte[2];
@@ -1442,7 +1415,7 @@ void FBLoggerDataReader::GetRawNumber()
     // Always read in 4 bytes, then check if those 4 bytes contain the header signature
     for (int i = 0; i < 4; i++)
     {
-        pInFile_->read(rawByte, 1);
+        inFile.read(rawByte, 1);
         pRawByte = (uint8_t *)(&rawByte);
         byte = *pRawByte;
         parsedNumericData_.rawHexNumber[i] = byte;
@@ -1451,7 +1424,7 @@ void FBLoggerDataReader::GetRawNumber()
     // If it is not a header, read in 1 more byte for channel number
     if (!status_.headerFound)
     {
-        pInFile_->read(rawByte, 1);
+        inFile.read(rawByte, 1);
         pRawByte = (uint8_t *)(&rawByte);
         parsedNumericData_.channelNumber = *pRawByte;
         if (parsedNumericData_.channelNumber == 0) 
@@ -1536,7 +1509,7 @@ string FBLoggerDataReader::GetMyLocalDateTimeString()
         MakeStringWidthTwoFromInt(systemTime.wSecond) + ":" + MakeStringWidthThreeFromInt(systemTime.wMilliseconds);
 }
 
-void FBLoggerDataReader::GetHeader()
+void FBLoggerDataReader::GetHeader(ifstream& inFile)
 {
     uint8_t byte = 0;
     ResetHeaderData();
@@ -1547,11 +1520,8 @@ void FBLoggerDataReader::GetHeader()
     }
     for (unsigned int i = 4; i < 48; i++)
     {
-        if (pInFile_)
-        {
-            *pInFile_ >> byte;
+            inFile >> byte;
             headerData_.rawHeader += byte;
-        }
     }
 }
 
@@ -1705,10 +1675,10 @@ void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
 
 void FBLoggerDataReader::PrintCarryBugToLog()
 {
-    if (pLogFile_->good() && status_.carryBugEncountered_)
+    if (logFile_.good() && status_.carryBugEncountered_)
     {
         logFileLine_ = "Error: File " + currentFileStats_.fileName + " has failure to carry the one in header\n";
-        *pLogFile_ << logFileLine_;
+        logFile_ << logFileLine_;
     }
     logFileLine_ = "";
 }
@@ -1734,30 +1704,30 @@ void FBLoggerDataReader::PrintConfigErrorsToLog()
         {
             logFileLine_ += "ERROR: The file " + outLoggerDataFilePath_ + " may be already opened by another process\n";
         }
-        *pLogFile_ << logFileLine_;
+        logFile_ << logFileLine_;
     }
     logFileLine_ = "";
 }
 
 void FBLoggerDataReader::PrintLogFileLine()
 {
-    if (pLogFile_->good() && logFileLine_ != "")
+    if (logFile_.good() && logFileLine_ != "")
     {
-        *pLogFile_ << logFileLine_;
+        logFile_ << logFileLine_;
     }
     logFileLine_ = "";
 }
 
-void FBLoggerDataReader::PrintHeader(ofstream* pOutFile, OutFileType::OutFileTypeEnum outFileType)
+void FBLoggerDataReader::PrintHeader(ofstream& outFile, OutFileType::OutFileTypeEnum outFileType)
 {
     outputLine_ += "\"SN" + headerData_.serialNumberString + "\"," + "\"" + headerData_.latitudeDegreesString + " " +
         headerData_.latitudeDecimalMinutesString + "\",\"" + headerData_.longitudeDegreesString + " " +
         headerData_.longitudeDecimalMinutesString + "\", " + headerData_.sampleIntervalString + "\n";
 
     // Print header data to file
-    if (pOutFile)
+    if (outFile.good())
     {
-        *pOutFile << outputLine_;
+        outFile << outputLine_;
 
         // Print column header data to file
         if (outFileType == OutFileType::RAW)
@@ -1768,7 +1738,7 @@ void FBLoggerDataReader::PrintHeader(ofstream* pOutFile, OutFileType::OutFileTyp
         {
             outputLine_ = status_.configColumnTextLine;
         }
-        *pOutFile << outputLine_;
+        outFile << outputLine_;
 
         // Clear out output buffer for next function call
         outputLine_ = "";
@@ -1821,7 +1791,7 @@ void FBLoggerDataReader::UpdateSensorMaxAndMin()
     }
 }
 
-void FBLoggerDataReader::PrintSensorDataOutput(ofstream* pOutFile)
+void FBLoggerDataReader::PrintSensorDataOutput(ofstream& outFile)
 {
     const unsigned int miliSecondWidth = 3;
 
@@ -1890,9 +1860,9 @@ void FBLoggerDataReader::PrintSensorDataOutput(ofstream* pOutFile)
             outputLine_ += "\n";
 
             // Print to file
-            if (pOutFile)
+            if (outFile.good())
             {
-                *pOutFile << outputLine_;
+                outFile << outputLine_;
                 // Clear out output buffer for next function call
                 outputLine_ = "";
             }

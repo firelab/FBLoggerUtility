@@ -22,7 +22,6 @@ using std::map;
 class FBLoggerDataReader
 {
 public:
-
     // Public interface
     FBLoggerDataReader(string dataPath);
     ~FBLoggerDataReader();
@@ -247,24 +246,24 @@ private:
     void ParseTokensFromLineOfConfigFile(string& line);
     void ProcessErrorsInLineOfConfigFile();
     void CheckConfigForAllFiles();
-    bool GetFirstHeader();
-    void ReadNextHeaderOrNumber();
+    bool GetFirstHeader(ifstream& inFile);
+    void ReadNextHeaderOrNumber(ifstream& inFile, ofstream& outFile);
     uint32_t GetIntFromByteArray(uint8_t arr[4]);
-    void GetRawNumber();
+    void GetRawNumber(ifstream& inFile);
 	void CheckForHeader();
     void UpdateTime();
     string GetMyLocalDateTimeString();
-    void GetHeader();
+    void GetHeader(ifstream& inFile);
     void ParseHeader();
     void SetLoggerDataOutFilePath(string inFileName);
     void PrintCarryBugToLog();
     void PrintConfigErrorsToLog();
     void PrintLogFileLine();
-    void PrintHeader(ofstream* pOutFile, OutFileType::OutFileTypeEnum outFileType);
+    void PrintHeader(ofstream& pOutFile, OutFileType::OutFileTypeEnum outFileType);
     string MakeStringWidthTwoFromInt(int headerData);
     string MakeStringWidthThreeFromInt(int headerData);
     void UpdateSensorMaxAndMin();
-    void PrintSensorDataOutput(ofstream* pOutFile);
+    void PrintSensorDataOutput(ofstream& pOutFile);
     float UnsignedIntToIEEEFloat(uint32_t binaryNumber);
     void ResetHeaderData();
     void ResetInFileReadingStatus();
@@ -309,10 +308,7 @@ private:
     string configFilePath_;
     string configurationType_;
 
-    ifstream* pInFile_;
-    ofstream* pOutLoggerDataFile_;
-    ofstream* pRawOutLoggerDataFile_;
-    ofstream* pLogFile_;
+    ofstream logFile_;
     stringstream lineStream_;
 
     HeaderData headerData_;
