@@ -16,6 +16,8 @@
 
 FBLoggerDataReader::FBLoggerDataReader(string dataPath)
 {
+    startClock_ = clock();
+
     numFilesProcessed_ = 0;
     numInvalidInputFiles_ = 0;
     numInvalidOutputFiles_ = 0;
@@ -170,12 +172,10 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
 }
 
 FBLoggerDataReader::~FBLoggerDataReader()
-{
-    if (numErrors_ == 0)
-    {
-        ReportSuccessToLog();
-    }
-
+{  
+    totalTimeInSeconds_ = (clock() - startClock_) / (double)CLOCKS_PER_SEC;
+    PrintFinalReportToLog();
+  
     if (pLogFile_ != NULL)
     {
         pLogFile_->close();
@@ -1243,14 +1243,18 @@ void FBLoggerDataReader::PrintStatsFile()
     outStatsFile.close();
 }
 
-void FBLoggerDataReader::ReportSuccessToLog()
+void FBLoggerDataReader::PrintFinalReportToLog()
 {
     string dataPathOutput = dataPath_.substr(0, dataPath_.size() - 1);
-    if (pLogFile_->good() && logFileLine_ == "" && invalidInputFileList_.empty() && numErrors_ == 0)
+    if (pLogFile_->good() && logFileLine_ == "" && invalidInputFileList_.empty())
     {
-        if (numFilesProcessed_)
+        if ((numFilesProcessed_ > 0) && (numErrors_ == 0))
         {
-            logFileLine_ = "Successfully processed " + std::to_string(numFilesProcessed_) + " DAT files in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
+            logFileLine_ = "Successfully processed " + std::to_string(numFilesProcessed_) + " DAT files in " + std::to_string(totalTimeInSeconds_) + " seconds in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
+        }
+        else if ((numFilesProcessed_ > 0) && (numErrors_ > 0))
+        {
+            logFileLine_ = "Processed " + std::to_string(numFilesProcessed_) + " DAT files with " + std::to_string(numErrors_) + " errors in " + std::to_string(totalTimeInSeconds_) + " seconds in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
         }
         else
         {

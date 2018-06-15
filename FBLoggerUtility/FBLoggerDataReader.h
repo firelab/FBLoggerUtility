@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <time.h>
 
 #include "convertVelocity.h"
 
@@ -227,34 +228,23 @@ private:
         double sensorBearingValue = 0.0;
     };
 
-
+    // Private methods
     static inline bool double_equals(double a, double b, double epsilon = 0.000001)
     {
         return std::abs(a - b) < epsilon;
     }
 
-    static const unsigned int NUM_SENSOR_READINGS = 9;
-
     void FillSensorValuesWithTestVoltages(); // Debug use only!
-
     double CalculateHeatFlux(double rawVoltage);
     double CalculateHeatFluxTemperature(double rawVoltage);
     int CalculateHeatFluxComponentVelocities(double temperatureOne, double temperatureTwo,
         double pressureVoltageU, double pressureVoltageV, double pressureVoltageW, double sensorBearing);
     double CalculateFIDPackagePressure(double rawVoltage);
     double CalculateTCTemperature(double rawVoltage);
-
     void PerformNeededDataConversions();
-
     void PerformSanityChecksOnValues(SanityChecks::SanityCheckTypeEnum sanityCheckType);
-
-   
-
-    // Private methods
 	void ReadConfig();
- 
     void ParseTokensFromLineOfConfigFile(string& line);
-    
     void ProcessErrorsInLineOfConfigFile();
     void CheckConfigForAllFiles();
     bool GetFirstHeader();
@@ -276,19 +266,16 @@ private:
     void UpdateSensorMaxAndMin();
     void PrintSensorDataOutput(ofstream* pOutFile);
     float UnsignedIntToIEEEFloat(uint32_t binaryNumber);
-   
     void ResetHeaderData();
     void ResetInFileReadingStatus();
     void ResetCurrentFileStats();
-
     void SetConfigDependentValues();
-   
-    void ReportSuccessToLog();
-
+    void PrintFinalReportToLog();
     void UpdateStatsFileMap();
 
     // Private data members
-    const uint8_t BYTES_READ_PER_ITERATION = 5; // 5 total: 4 byte sensor reading, 1 byte channel number
+    static const unsigned int NUM_SENSOR_READINGS = 9;
+    static const uint8_t BYTES_READ_PER_ITERATION = 5; // 5 total: 4 byte sensor reading, 1 byte channel number
 
     vector<string> inputFilesNameList_;
     vector<string> invalidInputFileList_;
@@ -302,40 +289,40 @@ private:
     bool outputsAreGood_;
     bool printRaw_;
 
-    string appPath_;
-    string dataPath_;
+    int serialNumber_;
+    unsigned int currentFileIndex_;
+    unsigned int numErrors_;
     unsigned int numFilesProcessed_;
     unsigned int numInvalidInputFiles_;
     unsigned int numInvalidOutputFiles_;
     unsigned int fileSizeInBytes_;
+
     string inDataFilePath_;
     string outLoggerDataFilePath_;
     string rawOutLoggerDataFilePath_;
-    HeaderData headerData_;
-    InFileReadingStatus status_;
-    ParsedNumericData parsedNumericData_;
+    string outputLine_;
+    string appPath_;
+    string dataPath_;
+    string logFilePath_;
+    string logFileLine_;
+    string statsFilePath_;
+    string configFilePath_;
+    string configurationType_;
+
     ifstream* pInFile_;
     ofstream* pOutLoggerDataFile_;
     ofstream* pRawOutLoggerDataFile_;
     ofstream* pLogFile_;
-    string outputLine_;
-    string logFilePath_;
-    string statsFilePath_;
-    string configFilePath_;
-    string configurationType_;
-    unsigned int numErrors_;
-    ConfigFileLine configFileLine_;
     stringstream lineStream_;
 
-    int serialNumber_;
-
-    unsigned int currentFileIndex_;
-
-    string logFileLine_;
-
+    HeaderData headerData_;
+    InFileReadingStatus status_;
+    ParsedNumericData parsedNumericData_;
+    ConfigFileLine configFileLine_;
     SanityChecks sanityChecks_;
-
     convertVelocity convertVelocity_;
-
     StatsFileData currentFileStats_;
+
+    clock_t startClock_;
+    double totalTimeInSeconds_;
 };
