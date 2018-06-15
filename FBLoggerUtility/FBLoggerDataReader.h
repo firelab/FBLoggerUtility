@@ -297,8 +297,8 @@ private:
     unsigned int fileSizeInBytes_;
 
     string inDataFilePath_;
-    string outLoggerDataFilePath_;
-    string rawOutLoggerDataFilePath_;
+    string outFilePath_;
+    string rawOutFilePath_;
     string outputLine_;
     string appPath_;
     string dataPath_;
@@ -312,6 +312,8 @@ private:
     stringstream lineStream_;
 
     HeaderData headerData_;
+    HeaderData startTimeForSession_;
+    HeaderData endTimeForSession_;
     InFileReadingStatus status_;
     ParsedNumericData parsedNumericData_;
     ConfigFileLine configFileLine_;

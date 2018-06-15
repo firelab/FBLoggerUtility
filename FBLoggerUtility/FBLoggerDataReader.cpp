@@ -131,8 +131,7 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     SetDataPath(dataPath);
 
     string logFileNoExtension = dataPath_ + "log_file";
-    //logFilePath_ = logFileNoExtension + ".txt";
-   
+
     // Check for output file's existence
     if (logFile_.fail())
     {
@@ -250,11 +249,11 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     currentFileStats_.fileName = infileName;
                     SetLoggerDataOutFilePath(infileName);
 
-                    ofstream outFile(outLoggerDataFilePath_, std::ios::out);
+                    ofstream outFile(outFilePath_, std::ios::out);
                    
                     if (printRaw_)
                     {
-                        rawOutFile.open(rawOutLoggerDataFilePath_, std::ios::out);
+                        rawOutFile.open(rawOutFilePath_, std::ios::out);
                     }
 
                     // Check for output file's existence and is not open by another process
@@ -263,7 +262,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                         inFile.close();
                         outFile.close();
                         // Report error
-                        logFileLine_ = "ERROR: Unable to open " + outLoggerDataFilePath_ + "\n";
+                        logFileLine_ = "ERROR: Unable to open " + outFilePath_ + "\n";
                         PrintLogFileLine();
                         status_.isGoodOutput = false;
                     }
@@ -272,7 +271,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     {
                         rawOutFile.close();
                         // Report error
-                        logFileLine_ = "ERROR: Unable to open " + rawOutLoggerDataFilePath_ + "\n";
+                        logFileLine_ = "ERROR: Unable to open " + rawOutFilePath_ + "\n";
                         PrintLogFileLine();
                         status_.isGoodOutput = false;
                     }
@@ -1351,6 +1350,23 @@ bool FBLoggerDataReader::GetFirstHeader(ifstream& inFile)
         // Get header data and print it to file
         GetHeader(inFile);
         ParseHeader();
+
+        // Store new header time as start time for next logging session
+        startTimeForSession_.year = headerData_.year;
+        startTimeForSession_.yearString = headerData_.yearString;
+        startTimeForSession_.month = headerData_.month;
+        startTimeForSession_.monthString = headerData_.monthString;
+        startTimeForSession_.day = headerData_.day;
+        startTimeForSession_.dayString = headerData_.dayString;
+        startTimeForSession_.hours = headerData_.hours;
+        startTimeForSession_.hourString = headerData_.hourString;
+        startTimeForSession_.minutes = headerData_.minutes;
+        startTimeForSession_.minuteString = headerData_.minuteString;
+        startTimeForSession_.seconds = headerData_.seconds;
+        startTimeForSession_.secondString = headerData_.secondString;
+        startTimeForSession_.milliseconds = headerData_.milliseconds;
+        startTimeForSession_.millisecondString = headerData_.millisecondString;
+
         // Update file reading position
         status_.pos = (int)inFile.tellg();
     }
@@ -1381,9 +1397,43 @@ void FBLoggerDataReader::ReadNextHeaderOrNumber(ifstream& inFile, ofstream& outF
         // Reset record and sensor reading count
         status_.recordNumber = 0;
         status_.sensorReadingCounter = 0;
+
+        // Store current time as end time for latest logging session
+        endTimeForSession_.year = headerData_.year;
+        endTimeForSession_.yearString = headerData_.yearString;
+        endTimeForSession_.month = headerData_.month;
+        endTimeForSession_.monthString = headerData_.monthString;
+        endTimeForSession_.day = headerData_.day;
+        endTimeForSession_.dayString = headerData_.dayString;
+        endTimeForSession_.hours = headerData_.hours;
+        endTimeForSession_.hourString = headerData_.hourString;
+        endTimeForSession_.minutes = headerData_.minutes;
+        endTimeForSession_.minuteString = headerData_.minuteString;
+        endTimeForSession_.seconds = headerData_.seconds;
+        endTimeForSession_.secondString = headerData_.secondString;
+        endTimeForSession_.milliseconds = headerData_.milliseconds;
+        endTimeForSession_.millisecondString = headerData_.millisecondString;
+        
         // Get header data and print it to file
         GetHeader(inFile);
         ParseHeader();
+
+        // Store new header time as start time for next logging session
+        startTimeForSession_.year = headerData_.year;
+        startTimeForSession_.yearString = headerData_.yearString;
+        startTimeForSession_.month = headerData_.month;
+        startTimeForSession_.monthString = headerData_.monthString;
+        startTimeForSession_.day = headerData_.day;
+        startTimeForSession_.dayString = headerData_.dayString;
+        startTimeForSession_.hours = headerData_.hours;
+        startTimeForSession_.hourString = headerData_.hourString;
+        startTimeForSession_.minutes = headerData_.minutes;
+        startTimeForSession_.minuteString = headerData_.minuteString;
+        startTimeForSession_.seconds = headerData_.seconds;
+        startTimeForSession_.secondString = headerData_.secondString;
+        startTimeForSession_.milliseconds = headerData_.milliseconds;
+        startTimeForSession_.millisecondString = headerData_.millisecondString;
+
         PrintHeader(outFile, OutFileType::PROCESSED);
         if (printRaw_)
         {
@@ -1649,28 +1699,28 @@ void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
 
     if (infileIntValue == serialNumber_ && IsOnlyDigits(infileName))
     {
-        outLoggerDataFilePath_ = dataPath_ + "SN" + headerData_.serialNumberString.c_str();
+        outFilePath_ = dataPath_ + "SN" + headerData_.serialNumberString.c_str();
         if (printRaw_)
         {
-            rawOutLoggerDataFilePath_ = outLoggerDataFilePath_;
+            rawOutFilePath_ = outFilePath_;
         }
     }
     else
     {
-        outLoggerDataFilePath_ = dataPath_ + infileName + "_" + "SN" + headerData_.serialNumberString.c_str();
+        outFilePath_ = dataPath_ + infileName + "_" + "SN" + headerData_.serialNumberString.c_str();
         if (printRaw_)
         {
-            rawOutLoggerDataFilePath_ = outLoggerDataFilePath_;
+            rawOutFilePath_ = outFilePath_;
         }
     }
 
-    outLoggerDataFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString;
+    outFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString;
     if (printRaw_)
     {
-        rawOutLoggerDataFilePath_ = outLoggerDataFilePath_;
-        rawOutLoggerDataFilePath_ += "_RAW.csv";
+        rawOutFilePath_ = outFilePath_;
+        rawOutFilePath_ += "_RAW.csv";
     }
-    outLoggerDataFilePath_ += ".csv";
+    outFilePath_ += ".csv";
 }
 
 void FBLoggerDataReader::PrintCarryBugToLog()
@@ -1702,7 +1752,7 @@ void FBLoggerDataReader::PrintConfigErrorsToLog()
         }
         else if (invalidInputFileErrorType_[i] == InvalidInputFileErrorType::ALREADY_OPEN)
         {
-            logFileLine_ += "ERROR: The file " + outLoggerDataFilePath_ + " may be already opened by another process\n";
+            logFileLine_ += "ERROR: The file " + outFilePath_ + " may be already opened by another process\n";
         }
         logFile_ << logFileLine_;
     }
