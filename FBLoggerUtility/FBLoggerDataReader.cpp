@@ -170,34 +170,6 @@ FBLoggerDataReader::~FBLoggerDataReader()
     }
 }
 
-void FBLoggerDataReader::FillSensorValuesWithTestVoltages()
-{
-    if (configurationType_ == "F")
-    {
-        status_.sensorReadingValue[0] = 18.05; // This is temperature
-        status_.sensorReadingValue[1] = 1.43; // FID(V)
-        status_.sensorReadingValue[2] = 2.4; // This is the voltage used for pressure
-        status_.sensorReadingValue[3] = 0.0; // NA
-        status_.sensorReadingValue[4] = 0.0; // NA
-        status_.sensorReadingValue[5] = 0.0; // NA
-        status_.sensorReadingValue[6] = 0.0; // NA
-        status_.sensorReadingValue[7] = 0.0; // NA
-        status_.sensorReadingValue[8] = 17.1; // Panel Temp
-    }
-    else if (configurationType_ == "H")
-    {
-        status_.sensorReadingValue[0] = 20.05; // This is temperature
-        status_.sensorReadingValue[1] = 19.43; // This is temperature
-        status_.sensorReadingValue[2] = 1.21; // P(V)
-        status_.sensorReadingValue[3] = 1.16; // P(V)
-        status_.sensorReadingValue[4] = 1.01; // P(V)
-        status_.sensorReadingValue[5] = 1.23; // HF(V)
-        status_.sensorReadingValue[6] = -0.50; // HFT(V)
-        status_.sensorReadingValue[7] = 0.00; // NA
-        status_.sensorReadingValue[8] = 16.2; // Panel Temp
-    }
-}
-
 void FBLoggerDataReader::ProcessSingleDataFile()
 {
     int codepage = CP_UTF8;
@@ -233,11 +205,17 @@ void FBLoggerDataReader::ProcessSingleDataFile()
             // Get the size of the data file in bytes
             const char* cStringFilePath = inDataFilePath_.c_str();
             struct stat results;
+
+            // Clear file content vector 
+            inputFileContents_.clear();
+            // Store input file in RAWM
+            StoreInputFileContentsToRAM(inFile);
+
             if (stat(cStringFilePath, &results) == 0)
             {
                 fileSizeInBytes_ = results.st_size;
 
-                bool headerFound = GetFirstHeader(inFile);
+                bool headerFound = GetFirstHeader();
 
                 if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
                 {
@@ -250,7 +228,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     SetLoggerDataOutFilePath(infileName);
 
                     ofstream outFile(outFilePath_, std::ios::out);
-                   
+
                     if (printRaw_)
                     {
                         rawOutFile.open(rawOutFilePath_, std::ios::out);
@@ -286,16 +264,41 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                         {
                             PrintHeader(rawOutFile, OutFileType::RAW);
                         }
-                        while (status_.pos < (fileSizeInBytes_ - BYTES_READ_PER_ITERATION))
+                        while (status_.pos < inputFileContents_.size())
                         {
-                            ReadNextHeaderOrNumber(inFile, outFile);
+                            //ReadNextHeaderOrNumber(inFile, outFile);
+                            ReadNextHeaderOrNumber();
+
+                            if (status_.headerFound)
+                            {
+                                // Reset record and sensor reading count
+                                status_.recordNumber = 0;
+                                status_.sensorReadingCounter = 0;
+
+                                // Store current time as end time for current logging session
+                                StoreSessionEndTime();
+
+                                // Get header data and print it to file
+                                GetHeader();
+                                ParseHeader();
+
+                                // Store new header time as start time for next logging session
+                                StoreSessionStartTime();
+
+                                PrintHeader(outFile, OutFileType::PROCESSED);
+                                if (printRaw_)
+                                {
+                                    PrintHeader(outFile, OutFileType::RAW);
+                                }
+                            }
+
                             UpdateSensorMaxAndMin();
                             if (status_.sensorReadingCounter == 9)
                             {
                                 // An entire row of sensor data has been read in
                                 status_.recordNumber++;
                                 PerformSanityChecksOnValues(SanityChecks::RAW);
-                                if(printRaw_)
+                                if (printRaw_)
                                 {
                                     PrintSensorDataOutput(rawOutFile);
                                 }
@@ -311,7 +314,6 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                             }
                         }
                     }
-
                     // Close the file streams
                     inFile.close();
                     outFile.close();
@@ -484,7 +486,7 @@ void FBLoggerDataReader::PerformNeededDataConversions()
         }
         else
         {
-            status_.sensorReadingValue[FIDPackageIndex::PRESSURE_VOLTAGE] = -99999999999.0;
+            status_.sensorReadingValue[FIDPackageIndex::PRESSURE_VOLTAGE] = 9999.0;
         }
     }
     else if (configurationType_ == "H")
@@ -524,7 +526,6 @@ void FBLoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTy
 {
     double minForSanityCheck = 0.0;
     double maxForSanityCheck = 0.0;
-    //unsigned int currentIndex = status_.sensorReadingCounter;
 
     for (unsigned int currentIndex = 0; currentIndex < NUM_SENSOR_READINGS; currentIndex++)
     {
@@ -606,6 +607,16 @@ void FBLoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTy
             }
         }
     }
+}
+
+void FBLoggerDataReader::StoreInputFileContentsToRAM(ifstream & inFile)
+{
+    std::string contents((std::istreambuf_iterator<char>(inFile)),
+        std::istreambuf_iterator<char>());
+
+    std::vector<char> v(contents.begin(), contents.end());
+    inputFileContents_.reserve(contents.size());
+    inputFileContents_ = v;
 }
 
 void FBLoggerDataReader::ReadConfig()
@@ -928,8 +939,6 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
         if (extension == ".DAT" || extension == ".dat")
         {
             std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
-            //pInFile_ = &inFile;
-
             // Check for input file's existence
             if (inFile.fail())
             {
@@ -941,14 +950,11 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
             }
             else
             {
-                // Get the size of the data file in bytes             
-                const char* cStringFileName = inDataFilePath_.c_str();
-                if (stat(cStringFileName, &results) == 0)
+                inputFileContents_.clear();
+                StoreInputFileContentsToRAM(inFile);
+                if (inputFileContents_.size() > 0)
                 {
-                    // The size of the file in bytes
-                    fileSizeInBytes_ = results.st_size;
-
-                    bool headerFound = GetFirstHeader(inFile);
+                    bool headerFound = GetFirstHeader();
                     int serialNumber = atoi(headerData_.serialNumberString.c_str());
                     if ((headerFound) && (configMap_.find(serialNumber) == configMap_.end()) || configMap_.find(serialNumber)->second == "")
                     {
@@ -1025,8 +1031,8 @@ void FBLoggerDataReader::ResetCurrentFileStats()
     {
         currentFileStats_.columnFailedSanityCheckRaw[i] = false;
         currentFileStats_.columnFailedSanityCheckFinal[i] = false;
-        currentFileStats_.columnMin[i] = 99999.0;
-        currentFileStats_.columnMax[i] = -99999.0;
+        currentFileStats_.columnMin[i] = 9999.0;
+        currentFileStats_.columnMax[i] = -9999.0;
     }
     currentFileStats_.isFailedSanityCheckFinal = false;
     currentFileStats_.isFailedSanityCheckRaw = false;
@@ -1241,6 +1247,42 @@ void FBLoggerDataReader::UpdateStatsFileMap()
     statsFileMap_.insert(pair<int, StatsFileData>(serialNumber_, currentFileStats_));
 }
 
+void FBLoggerDataReader::StoreSessionStartTime()
+{
+    startTimeForSession_.year = headerData_.year;
+    startTimeForSession_.yearString = headerData_.yearString;
+    startTimeForSession_.month = headerData_.month;
+    startTimeForSession_.monthString = headerData_.monthString;
+    startTimeForSession_.day = headerData_.day;
+    startTimeForSession_.dayString = headerData_.dayString;
+    startTimeForSession_.hours = headerData_.hours;
+    startTimeForSession_.hourString = headerData_.hourString;
+    startTimeForSession_.minutes = headerData_.minutes;
+    startTimeForSession_.minuteString = headerData_.minuteString;
+    startTimeForSession_.seconds = headerData_.seconds;
+    startTimeForSession_.secondString = headerData_.secondString;
+    startTimeForSession_.milliseconds = headerData_.milliseconds;
+    startTimeForSession_.millisecondString = headerData_.millisecondString;
+}
+
+void FBLoggerDataReader::StoreSessionEndTime()
+{
+    endTimeForSession_.year = headerData_.year;
+    endTimeForSession_.yearString = headerData_.yearString;
+    endTimeForSession_.month = headerData_.month;
+    endTimeForSession_.monthString = headerData_.monthString;
+    endTimeForSession_.day = headerData_.day;
+    endTimeForSession_.dayString = headerData_.dayString;
+    endTimeForSession_.hours = headerData_.hours;
+    endTimeForSession_.hourString = headerData_.hourString;
+    endTimeForSession_.minutes = headerData_.minutes;
+    endTimeForSession_.minuteString = headerData_.minuteString;
+    endTimeForSession_.seconds = headerData_.seconds;
+    endTimeForSession_.secondString = headerData_.secondString;
+    endTimeForSession_.milliseconds = headerData_.milliseconds;
+    endTimeForSession_.millisecondString = headerData_.millisecondString;
+}
+
 void FBLoggerDataReader::SetPrintRaw(bool option)
 {
     printRaw_ = option;
@@ -1326,21 +1368,18 @@ bool FBLoggerDataReader::IsDoneReadingDataFiles()
     return(currentFileIndex_ >= inputFilesNameList_.size());
 }
 
-bool FBLoggerDataReader::GetFirstHeader(ifstream& inFile)
+bool FBLoggerDataReader::GetFirstHeader()
 {
     ResetInFileReadingStatus();
     ResetHeaderData();
 
-    status_.pos = (int)inFile.tellg();
-    uint32_t filePositionLimit = fileSizeInBytes_ - BYTES_READ_PER_ITERATION;
+    status_.pos = 0;
+    uint32_t filePositionLimit = inputFileContents_.size() - BYTES_READ_PER_ITERATION;
 
     // Keep grabbing bytes until header is found or end of file is reached
     while (!status_.headerFound && (status_.pos < filePositionLimit))
     {
-        GetRawNumber(inFile);
-
-        // Update file reading position
-        status_.pos = (int)inFile.tellg();
+        GetRawNumber();
     }
     if (status_.headerFound)
     {
@@ -1348,38 +1387,21 @@ bool FBLoggerDataReader::GetFirstHeader(ifstream& inFile)
         status_.recordNumber = 0;
         status_.sensorReadingCounter = 0;
         // Get header data and print it to file
-        GetHeader(inFile);
+        GetHeader();
         ParseHeader();
 
         // Store new header time as start time for next logging session
-        startTimeForSession_.year = headerData_.year;
-        startTimeForSession_.yearString = headerData_.yearString;
-        startTimeForSession_.month = headerData_.month;
-        startTimeForSession_.monthString = headerData_.monthString;
-        startTimeForSession_.day = headerData_.day;
-        startTimeForSession_.dayString = headerData_.dayString;
-        startTimeForSession_.hours = headerData_.hours;
-        startTimeForSession_.hourString = headerData_.hourString;
-        startTimeForSession_.minutes = headerData_.minutes;
-        startTimeForSession_.minuteString = headerData_.minuteString;
-        startTimeForSession_.seconds = headerData_.seconds;
-        startTimeForSession_.secondString = headerData_.secondString;
-        startTimeForSession_.milliseconds = headerData_.milliseconds;
-        startTimeForSession_.millisecondString = headerData_.millisecondString;
-
-        // Update file reading position
-        status_.pos = (int)inFile.tellg();
+        StoreSessionStartTime();
     }
 
     return status_.headerFound;
 }
 
-void FBLoggerDataReader::ReadNextHeaderOrNumber(ifstream& inFile, ofstream& outFile)
+void FBLoggerDataReader::ReadNextHeaderOrNumber()
 {
     status_.headerFound = false;
-    status_.pos = (int)inFile.tellg();
-
-    GetRawNumber(inFile);
+   
+    GetRawNumber();
     CheckForHeader();
     if (!status_.headerFound)
     {
@@ -1390,54 +1412,6 @@ void FBLoggerDataReader::ReadNextHeaderOrNumber(ifstream& inFile, ofstream& outF
             status_.sensorReadingValue[parsedNumericData_.channelNumber - 1] = parsedNumericData_.parsedIEEENumber;
             // increment sensor reading for next iteration
             status_.sensorReadingCounter++;
-        }
-    }
-    else if (status_.headerFound)
-    {
-        // Reset record and sensor reading count
-        status_.recordNumber = 0;
-        status_.sensorReadingCounter = 0;
-
-        // Store current time as end time for latest logging session
-        endTimeForSession_.year = headerData_.year;
-        endTimeForSession_.yearString = headerData_.yearString;
-        endTimeForSession_.month = headerData_.month;
-        endTimeForSession_.monthString = headerData_.monthString;
-        endTimeForSession_.day = headerData_.day;
-        endTimeForSession_.dayString = headerData_.dayString;
-        endTimeForSession_.hours = headerData_.hours;
-        endTimeForSession_.hourString = headerData_.hourString;
-        endTimeForSession_.minutes = headerData_.minutes;
-        endTimeForSession_.minuteString = headerData_.minuteString;
-        endTimeForSession_.seconds = headerData_.seconds;
-        endTimeForSession_.secondString = headerData_.secondString;
-        endTimeForSession_.milliseconds = headerData_.milliseconds;
-        endTimeForSession_.millisecondString = headerData_.millisecondString;
-        
-        // Get header data and print it to file
-        GetHeader(inFile);
-        ParseHeader();
-
-        // Store new header time as start time for next logging session
-        startTimeForSession_.year = headerData_.year;
-        startTimeForSession_.yearString = headerData_.yearString;
-        startTimeForSession_.month = headerData_.month;
-        startTimeForSession_.monthString = headerData_.monthString;
-        startTimeForSession_.day = headerData_.day;
-        startTimeForSession_.dayString = headerData_.dayString;
-        startTimeForSession_.hours = headerData_.hours;
-        startTimeForSession_.hourString = headerData_.hourString;
-        startTimeForSession_.minutes = headerData_.minutes;
-        startTimeForSession_.minuteString = headerData_.minuteString;
-        startTimeForSession_.seconds = headerData_.seconds;
-        startTimeForSession_.secondString = headerData_.secondString;
-        startTimeForSession_.milliseconds = headerData_.milliseconds;
-        startTimeForSession_.millisecondString = headerData_.millisecondString;
-
-        PrintHeader(outFile, OutFileType::PROCESSED);
-        if (printRaw_)
-        {
-            PrintHeader(outFile, OutFileType::RAW);
         }
     }
 }
@@ -1453,11 +1427,10 @@ uint32_t FBLoggerDataReader::GetIntFromByteArray(uint8_t byteArray[4])
     return integerValue;
 }
 
-void FBLoggerDataReader::GetRawNumber(ifstream& inFile)
+void FBLoggerDataReader::GetRawNumber()
 {
     uint8_t byte;
-    char rawByte[2];
-    rawByte[1] = '\0';
+    char rawByte;
     uint8_t *pRawByte;
     int index = 0;
     status_.headerFound = false;
@@ -1465,19 +1438,17 @@ void FBLoggerDataReader::GetRawNumber(ifstream& inFile)
     // Always read in 4 bytes, then check if those 4 bytes contain the header signature
     for (int i = 0; i < 4; i++)
     {
-        inFile.read(rawByte, 1);
-        pRawByte = (uint8_t *)(&rawByte);
-        byte = *pRawByte;
-        parsedNumericData_.rawHexNumber[i] = byte;
+        parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.pos];
+        status_.pos++;
     }
+
     CheckForHeader();
     // If it is not a header, read in 1 more byte for channel number
     if (!status_.headerFound)
     {
-        inFile.read(rawByte, 1);
-        pRawByte = (uint8_t *)(&rawByte);
-        parsedNumericData_.channelNumber = *pRawByte;
-        if (parsedNumericData_.channelNumber == 0) 
+        parsedNumericData_.channelNumber = inputFileContents_[status_.pos];
+        status_.pos++;
+        if (parsedNumericData_.channelNumber == 0)
         {
             // Make panel temp's channel number 9, as it is printed last
             parsedNumericData_.channelNumber = 9;
@@ -1559,7 +1530,7 @@ string FBLoggerDataReader::GetMyLocalDateTimeString()
         MakeStringWidthTwoFromInt(systemTime.wSecond) + ":" + MakeStringWidthThreeFromInt(systemTime.wMilliseconds);
 }
 
-void FBLoggerDataReader::GetHeader(ifstream& inFile)
+void FBLoggerDataReader::GetHeader()
 {
     uint8_t byte = 0;
     ResetHeaderData();
@@ -1568,10 +1539,13 @@ void FBLoggerDataReader::GetHeader(ifstream& inFile)
     {
         headerData_.rawHeader[i] = parsedNumericData_.rawHexNumber[i];
     }
-    for (unsigned int i = 4; i < 48; i++)
+    unsigned int currentPos = status_.pos;
+    for (unsigned int i = currentPos; i < currentPos + 44; i++)
     {
-            inFile >> byte;
-            headerData_.rawHeader += byte;
+        byte = inputFileContents_[i];
+        headerData_.rawHeader += byte;
+        // update reading position
+        status_.pos++;
     }
 }
 

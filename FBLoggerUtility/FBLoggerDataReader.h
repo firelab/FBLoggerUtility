@@ -233,7 +233,6 @@ private:
         return std::abs(a - b) < epsilon;
     }
 
-    void FillSensorValuesWithTestVoltages(); // Debug use only!
     double CalculateHeatFlux(double rawVoltage);
     double CalculateHeatFluxTemperature(double rawVoltage);
     int CalculateHeatFluxComponentVelocities(double temperatureOne, double temperatureTwo,
@@ -242,18 +241,19 @@ private:
     double CalculateTCTemperature(double rawVoltage);
     void PerformNeededDataConversions();
     void PerformSanityChecksOnValues(SanityChecks::SanityCheckTypeEnum sanityCheckType);
+    void StoreInputFileContentsToRAM(ifstream& inFile);
 	void ReadConfig();
     void ParseTokensFromLineOfConfigFile(string& line);
     void ProcessErrorsInLineOfConfigFile();
     void CheckConfigForAllFiles();
-    bool GetFirstHeader(ifstream& inFile);
-    void ReadNextHeaderOrNumber(ifstream& inFile, ofstream& outFile);
+    bool GetFirstHeader();
+    void ReadNextHeaderOrNumber();
     uint32_t GetIntFromByteArray(uint8_t arr[4]);
-    void GetRawNumber(ifstream& inFile);
+    void GetRawNumber();
 	void CheckForHeader();
     void UpdateTime();
     string GetMyLocalDateTimeString();
-    void GetHeader(ifstream& inFile);
+    void GetHeader();
     void ParseHeader();
     void SetLoggerDataOutFilePath(string inFileName);
     void PrintCarryBugToLog();
@@ -271,6 +271,8 @@ private:
     void SetConfigDependentValues();
     void PrintFinalReportToLog();
     void UpdateStatsFileMap();
+    void StoreSessionStartTime();
+    void StoreSessionEndTime();
 
     // Private data members
     static const unsigned int NUM_SENSOR_READINGS = 9;
@@ -320,6 +322,8 @@ private:
     SanityChecks sanityChecks_;
     convertVelocity convertVelocity_;
     StatsFileData currentFileStats_;
+
+    vector<char> inputFileContents_;
 
     clock_t startClock_;
     double totalTimeInSeconds_;
