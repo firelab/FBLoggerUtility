@@ -32,6 +32,7 @@ public:
     void CheckConfig();
     void ReportAbort();
     bool CheckConfigFileFormatIsValid(ifstream& configFile);
+    void PrintFinalReportToLog();
 
     void SetPrintRaw(bool option);
     void SetDataPath(string dataPath);
@@ -269,7 +270,6 @@ private:
     void ResetInFileReadingStatus();
     void ResetCurrentFileStats();
     void SetConfigDependentValues();
-    void PrintFinalReportToLog();
     void UpdateStatsFileMap();
     void StoreSessionStartTime();
     void StoreSessionEndTime();

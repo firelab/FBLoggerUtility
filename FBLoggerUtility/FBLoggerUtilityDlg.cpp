@@ -294,6 +294,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                     }
                 }
             }
+            loggerDataReader.PrintFinalReportToLog();
         }
     }
   

@@ -159,10 +159,7 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
 }
 
 FBLoggerDataReader::~FBLoggerDataReader()
-{  
-    totalTimeInSeconds_ = (clock() - startClock_) / (double)CLOCKS_PER_SEC;
-    PrintFinalReportToLog();
-  
+{   
     if (logFile_.fail())
     {
         logFile_.close();
@@ -925,7 +922,6 @@ void FBLoggerDataReader::ProcessErrorsInLineOfConfigFile()
 void FBLoggerDataReader::CheckConfigForAllFiles()
 {
     int codepage = CP_UTF8;
-    struct stat results;
     std::wstring extensionW;
     string extension;
 
@@ -1223,6 +1219,7 @@ void FBLoggerDataReader::PrintStatsFile()
 
 void FBLoggerDataReader::PrintFinalReportToLog()
 {
+    totalTimeInSeconds_ = (clock() - startClock_) / (double)CLOCKS_PER_SEC;
     string dataPathOutput = dataPath_.substr(0, dataPath_.size() - 1);
     if (logFile_.good() && logFileLine_ == "" && invalidInputFileList_.empty())
     {
@@ -1374,7 +1371,7 @@ bool FBLoggerDataReader::GetFirstHeader()
     ResetHeaderData();
 
     status_.pos = 0;
-    uint32_t filePositionLimit = inputFileContents_.size() - BYTES_READ_PER_ITERATION;
+    size_t filePositionLimit = inputFileContents_.size() - BYTES_READ_PER_ITERATION;
 
     // Keep grabbing bytes until header is found or end of file is reached
     while (!status_.headerFound && (status_.pos < filePositionLimit))
@@ -1429,9 +1426,6 @@ uint32_t FBLoggerDataReader::GetIntFromByteArray(uint8_t byteArray[4])
 
 void FBLoggerDataReader::GetRawNumber()
 {
-    uint8_t byte;
-    char rawByte;
-    uint8_t *pRawByte;
     int index = 0;
     status_.headerFound = false;
 
