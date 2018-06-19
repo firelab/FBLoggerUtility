@@ -57,8 +57,10 @@ private:
         string serialNumberString = "00000";
         string latitudeDegreesString = "00";
         string latitudeDecimalMinutesString = "00000000";
+        string northOrSouthHemisphere = "0";
         string longitudeDegreesString = "000";
         string longitudeDecimalMinutesString = "00000000";
+        string eastOrWestHemishere = "0";
         string dayString = "00";
         string monthString = "00";
         string yearString = "2000";
@@ -75,6 +77,8 @@ private:
         unsigned int seconds = 0;
         unsigned int milliseconds = 0;
         unsigned int sampleInterval = 0;
+        double decimalDegreesLatitude = 0;
+        double decimalDegreesLongitude = 0;
     };
 
     struct ParsedNumericData
@@ -88,6 +92,7 @@ private:
     struct InFileReadingStatus
     {
         uint8_t sensorReadingCounter = 0;
+        uint8_t loggingSession = 0;
         uint32_t pos = 0;
         uint32_t recordNumber = 0;
         string configColumnTextLine;
@@ -256,9 +261,11 @@ private:
     string GetMyLocalDateTimeString();
     void GetHeader();
     void ParseHeader();
-    void SetLoggerDataOutFilePath(string inFileName);
+    void SetOutFilePaths(string inFileName);
     void PrintCarryBugToLog();
     void PrintConfigErrorsToLog();
+    void PrintGPSFileHeader();
+    void PrintGPSFileLine();
     void PrintLogFileLine();
     void PrintHeader(ofstream& pOutFile, OutFileType::OutFileTypeEnum outFileType);
     string MakeStringWidthTwoFromInt(int headerData);
@@ -273,6 +280,10 @@ private:
     void UpdateStatsFileMap();
     void StoreSessionStartTime();
     void StoreSessionEndTime();
+
+    void DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData);
+
+    string FormatPlacemark(string name, string description, double longitude, double latitude);
 
     // Private data members
     static const unsigned int NUM_SENSOR_READINGS = 9;
@@ -296,12 +307,14 @@ private:
     unsigned int numFilesProcessed_;
     unsigned int numInvalidInputFiles_;
     unsigned int numInvalidOutputFiles_;
-    unsigned int fileSizeInBytes_;
 
     string inDataFilePath_;
-    string outFilePath_;
-    string rawOutFilePath_;
-    string outputLine_;
+    string outDataFilePath_;
+    string rawOutDataFilePath_;
+    string gpsFilePath_;
+    string gpsFileLine_;
+    string kmlFilePath_;
+    string outDataLine_;
     string appPath_;
     string dataPath_;
     string logFilePath_;
@@ -310,6 +323,8 @@ private:
     string configFilePath_;
     string configurationType_;
 
+    ofstream kmlFile_;
+    ofstream gpsFile_;
     ofstream logFile_;
     stringstream lineStream_;
 

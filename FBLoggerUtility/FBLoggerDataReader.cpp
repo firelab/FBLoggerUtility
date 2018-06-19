@@ -16,7 +16,11 @@
 
 FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     :logFilePath_(dataPath + "\\log_file.txt"),
-    logFile_(logFilePath_, std::ios::out)
+    logFile_(logFilePath_, std::ios::out),
+    gpsFilePath_(dataPath + "\\gps_file.txt"),
+    gpsFile_(gpsFilePath_, std::ios::out),
+    kmlFilePath_(dataPath + "\\burn.kml"),
+    kmlFile_(kmlFilePath_, std::ios::out)
 {
     startClock_ = clock();
 
@@ -26,7 +30,8 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     currentFileIndex_ = 0;
     numErrors_ = 0;
     serialNumber_ = -1;
-    outputLine_ = "";
+    outDataLine_ = "";
+    gpsFileLine_ = "";
     dataPath_ = "";
     appPath_ = "";
 
@@ -35,6 +40,9 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     outputsAreGood_ = false;
     lineStream_.str("");
     lineStream_.clear();
+
+    outDataFilePath_ = "";
+    rawOutDataFilePath_ = "";
 
     inputFilesNameList_.clear();
     invalidInputFileList_.clear();
@@ -182,11 +190,14 @@ void FBLoggerDataReader::ProcessSingleDataFile()
 
         std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
 
-        outputLine_ = "";
+        outDataLine_ = "";
         configurationType_ = "";
         status_.isGoodOutput = true;
 
         ResetCurrentFileStats();
+
+        string placemarkName = "";
+        string placemarkDescription = "";
 
         // Check for input file's existence
         if (inFile.fail())
@@ -197,23 +208,20 @@ void FBLoggerDataReader::ProcessSingleDataFile()
             PrintLogFileLine();
         }
         else
-        {
-            ofstream rawOutFile;
+        { 
             // Get the size of the data file in bytes
             const char* cStringFilePath = inDataFilePath_.c_str();
-            struct stat results;
 
             // Clear file content vector 
             inputFileContents_.clear();
             // Store input file in RAWM
             StoreInputFileContentsToRAM(inFile);
 
-            if (stat(cStringFilePath, &results) == 0)
+            if (inputFileContents_.size() > 0)
             {
-                fileSizeInBytes_ = results.st_size;
-
+                ResetInFileReadingStatus();
                 bool headerFound = GetFirstHeader();
-
+                DegreesDecimalMinutesToDecimalDegrees(headerData_);
                 if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
                 {
                     configurationType_ = configMap_.find(atoi(headerData_.serialNumberString.c_str()))->second;
@@ -221,32 +229,34 @@ void FBLoggerDataReader::ProcessSingleDataFile()
 
                 if ((headerFound) && (configurationType_ != ""))
                 {
+                    status_.loggingSession++;
                     currentFileStats_.fileName = infileName;
-                    SetLoggerDataOutFilePath(infileName);
+                    SetOutFilePaths(infileName);
 
-                    ofstream outFile(outFilePath_, std::ios::out);
+                    ofstream outDataFile(outDataFilePath_, std::ios::out);
+                    ofstream rawOutDataFile;
 
                     if (printRaw_)
                     {
-                        rawOutFile.open(rawOutFilePath_, std::ios::out);
+                        rawOutDataFile.open(rawOutDataFilePath_, std::ios::out);
                     }
 
                     // Check for output file's existence and is not open by another process
-                    if (outFile.fail())
+                    if (outDataFile.fail())
                     {
                         inFile.close();
-                        outFile.close();
+                        outDataFile.close();
                         // Report error
-                        logFileLine_ = "ERROR: Unable to open " + outFilePath_ + "\n";
+                        logFileLine_ = "ERROR: Unable to open " + outDataFilePath_ + "\n";
                         PrintLogFileLine();
                         status_.isGoodOutput = false;
                     }
 
-                    if (printRaw_ && rawOutFile.fail())
+                    if (printRaw_ && rawOutDataFile.fail())
                     {
-                        rawOutFile.close();
+                        rawOutDataFile.close();
                         // Report error
-                        logFileLine_ = "ERROR: Unable to open " + rawOutFilePath_ + "\n";
+                        logFileLine_ = "ERROR: Unable to open " + rawOutDataFilePath_ + "\n";
                         PrintLogFileLine();
                         status_.isGoodOutput = false;
                     }
@@ -256,14 +266,22 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     {
                         status_.isGoodOutput = true;
                         SetConfigDependentValues();
-                        PrintHeader(outFile, OutFileType::PROCESSED);
+                        PrintHeader(outDataFile, OutFileType::PROCESSED);
+                        // If this is the first file processed, print out gps and kml file headers
+                        if (numFilesProcessed_ == 0)
+                        {
+                            // Write to the KML file:
+                            kmlFile_ << "<?xml version='1.0' encoding='utf-8'?>\n";
+                            kmlFile_ << "<kml xmlns='http://www.opengis.net/kml/2.2'>\n";
+                            kmlFile_ << "<Document>\n";
+                            PrintGPSFileHeader();
+                        }
                         if (printRaw_)
                         {
-                            PrintHeader(rawOutFile, OutFileType::RAW);
+                            PrintHeader(rawOutDataFile, OutFileType::RAW);
                         }
                         while (status_.pos < inputFileContents_.size())
                         {
-                            //ReadNextHeaderOrNumber(inFile, outFile);
                             ReadNextHeaderOrNumber();
 
                             if (status_.headerFound)
@@ -271,21 +289,23 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                                 // Reset record and sensor reading count
                                 status_.recordNumber = 0;
                                 status_.sensorReadingCounter = 0;
-
                                 // Store current time as end time for current logging session
                                 StoreSessionEndTime();
-
                                 // Get header data and print it to file
                                 GetHeader();
-                                ParseHeader();
-
+                                DegreesDecimalMinutesToDecimalDegrees(headerData_);
+                                // Print gps data from header to gps and kml files
+                                PrintGPSFileLine();
+                                placemarkName = infileName + "_session_" + to_string(status_.loggingSession);
+                                placemarkDescription = "test";
+                                kmlFile_ << FormatPlacemark(placemarkName, placemarkDescription, headerData_.decimalDegreesLongitude, headerData_.decimalDegreesLatitude);
+                                status_.loggingSession++;
                                 // Store new header time as start time for next logging session
                                 StoreSessionStartTime();
-
-                                PrintHeader(outFile, OutFileType::PROCESSED);
+                                PrintHeader(outDataFile, OutFileType::PROCESSED);
                                 if (printRaw_)
                                 {
-                                    PrintHeader(outFile, OutFileType::RAW);
+                                    PrintHeader(outDataFile, OutFileType::RAW);
                                 }
                             }
 
@@ -297,12 +317,12 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                                 PerformSanityChecksOnValues(SanityChecks::RAW);
                                 if (printRaw_)
                                 {
-                                    PrintSensorDataOutput(rawOutFile);
+                                    PrintSensorDataOutput(rawOutDataFile);
                                 }
                                 PerformNeededDataConversions();
                                 PerformSanityChecksOnValues(SanityChecks::FINAL);
                                 UpdateStatsFileMap();
-                                PrintSensorDataOutput(outFile);
+                                PrintSensorDataOutput(outDataFile);
                                 // Reset sensor reading counter 
                                 status_.sensorReadingCounter = 0;
                                 // Update time for next set of sensor readings
@@ -311,12 +331,22 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                             }
                         }
                     }
+
+                    // Get last session end time
+                    StoreSessionEndTime();
+                    // Print to gps file
+                    PrintGPSFileLine();
+                    // Print to kml file
+                    placemarkName = infileName + "_session_" + to_string(status_.loggingSession);
+                    placemarkDescription = "test";
+                    kmlFile_ << FormatPlacemark(placemarkName, placemarkDescription, headerData_.decimalDegreesLongitude, headerData_.decimalDegreesLatitude);
+
                     // Close the file streams
                     inFile.close();
-                    outFile.close();
+                    outDataFile.close();
                     if (printRaw_)
                     {
-                        rawOutFile.close();
+                        rawOutDataFile.close();
                     }
                 }
             }
@@ -347,6 +377,14 @@ void FBLoggerDataReader::ProcessSingleDataFile()
 
     numFilesProcessed_++;
     currentFileIndex_++;
+
+    if (numFilesProcessed_ == inputFilesNameList_.size())
+    {
+        // close the kml file
+        kmlFile_ << "</Document>\n";
+        kmlFile_ << "</kml>\n";
+        kmlFile_.close();
+    }
 }
 
 void FBLoggerDataReader::CheckConfig()
@@ -494,9 +532,15 @@ void FBLoggerDataReader::PerformNeededDataConversions()
         double temperatureVoltageTwo = status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_TWO];
         status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_TWO] = CalculateTCTemperature(temperatureVoltageTwo);
 
-        double heatFlux = CalculateHeatFlux(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE]);
-        double heatFluxTemperature = CalculateHeatFluxTemperature(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE]);
+        double heatFluxVoltage = status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE];
+        bool heatFluxVoltageGood = ((heatFluxVoltage <= sanityChecks_.heatFluxVoltageMax) && (heatFluxVoltage >= sanityChecks_.heatFluxVoltageMin));
+        double heatFlux = 9999;
+        if (heatFluxVoltageGood)
+        {
+            heatFlux = CalculateHeatFlux(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE]);
+        }
 
+        double heatFluxTemperature = CalculateHeatFluxTemperature(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE]);
         double bearing = sensorBearingMap_.find(serialNumber_)->second;
         status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE] = heatFlux;
         status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_TEMPERATURE_VOLTAGE] = heatFluxTemperature;
@@ -950,6 +994,7 @@ void FBLoggerDataReader::CheckConfigForAllFiles()
                 StoreInputFileContentsToRAM(inFile);
                 if (inputFileContents_.size() > 0)
                 {
+                    ResetInFileReadingStatus();
                     bool headerFound = GetFirstHeader();
                     int serialNumber = atoi(headerData_.serialNumberString.c_str());
                     if ((headerFound) && (configMap_.find(serialNumber) == configMap_.end()) || configMap_.find(serialNumber)->second == "")
@@ -1010,7 +1055,8 @@ void FBLoggerDataReader::ResetInFileReadingStatus()
     status_.sensorReadingCounter = 0;
     status_.pos = 0;
     status_.recordNumber = 0;
-    status_.configColumnTextLine;
+    status_.configColumnTextLine = "";
+    status_.loggingSession = 0;
 
     for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
@@ -1280,6 +1326,43 @@ void FBLoggerDataReader::StoreSessionEndTime()
     endTimeForSession_.millisecondString = headerData_.millisecondString;
 }
 
+void FBLoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData)
+{
+    // latitude
+    double inputLatitudeDegrees = atof(headerData.latitudeDegreesString.c_str());
+    double inputLatitudeDecimalMinutes = atof(headerData.latitudeDecimalMinutesString.c_str());
+    headerData.decimalDegreesLatitude = inputLatitudeDegrees + (inputLatitudeDecimalMinutes / 60.0);
+    if (headerData.northOrSouthHemisphere == "S")
+    {
+        headerData.decimalDegreesLatitude *= -1;
+    }
+
+    // longitude
+    double inputLongitudeDegrees = atof(headerData.longitudeDegreesString.c_str());
+    double inputLongitudeDecimalMinutes = atof(headerData.longitudeDecimalMinutesString.c_str());
+    headerData.decimalDegreesLongitude = inputLongitudeDegrees + (inputLongitudeDecimalMinutes / 60.0);
+    if (headerData.eastOrWestHemishere == "W")
+    {
+        headerData.decimalDegreesLatitude *= -1;
+    }
+}
+
+string FBLoggerDataReader::FormatPlacemark(string name, string description, double longitude, double latitude)
+{
+    std::ostringstream ss;
+    ss << "<Placemark>\n"
+        << "<name>" << name << "</name>\n"
+        << "<description>" << description << "</description>\n"
+        << "<Point>\n"
+        << "<coordinates>"
+        << longitude << "," << latitude << ",0"
+        << "</coordinates>\n"
+        << "</Point>\n"
+        << "</Placemark>\n";
+
+    return ss.str();
+}
+
 void FBLoggerDataReader::SetPrintRaw(bool option)
 {
     printRaw_ = option;
@@ -1367,7 +1450,6 @@ bool FBLoggerDataReader::IsDoneReadingDataFiles()
 
 bool FBLoggerDataReader::GetFirstHeader()
 {
-    ResetInFileReadingStatus();
     ResetHeaderData();
 
     status_.pos = 0;
@@ -1541,6 +1623,8 @@ void FBLoggerDataReader::GetHeader()
         // update reading position
         status_.pos++;
     }
+
+    ParseHeader();
 }
 
 void FBLoggerDataReader::ParseHeader()
@@ -1561,9 +1645,9 @@ void FBLoggerDataReader::ParseHeader()
     {
         headerData_.latitudeDecimalMinutesString[i - 9] = headerData_.rawHeader[i];
     }
-    temp = headerData_.latitudeDecimalMinutesString[7];
+    headerData_.northOrSouthHemisphere = headerData_.latitudeDecimalMinutesString[7];
     headerData_.latitudeDecimalMinutesString[7] = '\'';
-    headerData_.latitudeDecimalMinutesString += " " + temp;
+    headerData_.latitudeDecimalMinutesString += " " + headerData_.northOrSouthHemisphere;
     //Get the longitude
     for (int i = 17; i < 20; i++)
     {
@@ -1574,9 +1658,10 @@ void FBLoggerDataReader::ParseHeader()
     {
         headerData_.longitudeDecimalMinutesString[i - 20] = headerData_.rawHeader[i];
     }
-    temp = headerData_.longitudeDecimalMinutesString[7];
+    headerData_.eastOrWestHemishere = headerData_.longitudeDecimalMinutesString[7];
     headerData_.longitudeDecimalMinutesString[7] = '\'';
-    headerData_.longitudeDecimalMinutesString += " " + temp;
+    headerData_.longitudeDecimalMinutesString += " " + headerData_.eastOrWestHemishere;
+    
     for (int i = 28; i < 30; i++)
     {
         headerData_.yearString[i - 26] = headerData_.rawHeader[i];
@@ -1652,7 +1737,7 @@ void FBLoggerDataReader::ParseHeader()
     }
 }
 
-void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
+void FBLoggerDataReader::SetOutFilePaths(string infileName)
 {
     string firstDateString;
     string firstTimeString;
@@ -1667,28 +1752,28 @@ void FBLoggerDataReader::SetLoggerDataOutFilePath(string infileName)
 
     if (infileIntValue == serialNumber_ && IsOnlyDigits(infileName))
     {
-        outFilePath_ = dataPath_ + "SN" + headerData_.serialNumberString.c_str();
+        outDataFilePath_ = dataPath_ + "SN" + headerData_.serialNumberString.c_str();
         if (printRaw_)
         {
-            rawOutFilePath_ = outFilePath_;
+            rawOutDataFilePath_ = outDataFilePath_;
         }
     }
     else
     {
-        outFilePath_ = dataPath_ + infileName + "_" + "SN" + headerData_.serialNumberString.c_str();
+        outDataFilePath_ = dataPath_ + infileName + "_" + "SN" + headerData_.serialNumberString.c_str();
         if (printRaw_)
         {
-            rawOutFilePath_ = outFilePath_;
+            rawOutDataFilePath_ = outDataFilePath_;
         }
     }
 
-    outFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString;
+    outDataFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString;
     if (printRaw_)
     {
-        rawOutFilePath_ = outFilePath_;
-        rawOutFilePath_ += "_RAW.csv";
+        rawOutDataFilePath_ = outDataFilePath_;
+        rawOutDataFilePath_ += "_RAW.csv";
     }
-    outFilePath_ += ".csv";
+    outDataFilePath_ += ".csv";
 }
 
 void FBLoggerDataReader::PrintCarryBugToLog()
@@ -1720,11 +1805,62 @@ void FBLoggerDataReader::PrintConfigErrorsToLog()
         }
         else if (invalidInputFileErrorType_[i] == InvalidInputFileErrorType::ALREADY_OPEN)
         {
-            logFileLine_ += "ERROR: The file " + outFilePath_ + " may be already opened by another process\n";
+            logFileLine_ += "ERROR: The file " + outDataFilePath_ + " may be already opened by another process\n";
         }
         logFile_ << logFileLine_;
     }
     logFileLine_ = "";
+}
+
+void FBLoggerDataReader::PrintGPSFileHeader()
+{
+    gpsFileLine_ = "file_name, logger_id, logging_session_number, configuration_type, longitude, latitude, start_time, end_time\n";
+    gpsFile_ << gpsFileLine_;
+}
+
+void FBLoggerDataReader::PrintGPSFileLine()
+{
+    string dayString;
+    string monthString;
+    string yearString;
+    string hourString;
+    string minuteString;
+    string secondString;
+    string millisecondsString;
+    string recordString;
+
+    // file, logger unit, and gps data
+    gpsFileLine_ = "\"" + currentFileStats_.fileName + "\",\"SN" + headerData_.serialNumberString + "\",\"" + to_string(status_.loggingSession) + 
+        "\",\"" + configurationType_ + "\",\"" + headerData_.latitudeDegreesString + " " + headerData_.latitudeDecimalMinutesString + "\",\"" +
+        headerData_.longitudeDegreesString + " " + headerData_.longitudeDecimalMinutesString + "\",";
+
+    yearString = MakeStringWidthTwoFromInt(startTimeForSession_.year);
+    monthString = MakeStringWidthTwoFromInt(startTimeForSession_.month);
+    dayString = MakeStringWidthTwoFromInt(startTimeForSession_.day);
+    hourString = MakeStringWidthTwoFromInt(startTimeForSession_.hours);
+    minuteString = MakeStringWidthTwoFromInt(startTimeForSession_.minutes);
+    secondString = MakeStringWidthTwoFromInt(startTimeForSession_.seconds);
+    millisecondsString = MakeStringWidthThreeFromInt(startTimeForSession_.milliseconds);
+
+    // start time information for session
+    gpsFileLine_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
+        hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString +
+        "\",";
+
+    yearString = MakeStringWidthTwoFromInt(endTimeForSession_.year);
+    monthString = MakeStringWidthTwoFromInt(endTimeForSession_.month);
+    dayString = MakeStringWidthTwoFromInt(endTimeForSession_.day);
+    hourString = MakeStringWidthTwoFromInt(endTimeForSession_.hours);
+    minuteString = MakeStringWidthTwoFromInt(endTimeForSession_.minutes);
+    secondString = MakeStringWidthTwoFromInt(endTimeForSession_.seconds);
+    millisecondsString = MakeStringWidthThreeFromInt(endTimeForSession_.milliseconds);
+
+    // end time information for session
+    gpsFileLine_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
+        hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString + "\"\n";
+
+    // print to file
+    gpsFile_ << gpsFileLine_;
 }
 
 void FBLoggerDataReader::PrintLogFileLine()
@@ -1738,28 +1874,28 @@ void FBLoggerDataReader::PrintLogFileLine()
 
 void FBLoggerDataReader::PrintHeader(ofstream& outFile, OutFileType::OutFileTypeEnum outFileType)
 {
-    outputLine_ += "\"SN" + headerData_.serialNumberString + "\"," + "\"" + headerData_.latitudeDegreesString + " " +
+    outDataLine_ += "\"SN" + headerData_.serialNumberString + "\"," + "\"" + headerData_.latitudeDegreesString + " " +
         headerData_.latitudeDecimalMinutesString + "\",\"" + headerData_.longitudeDegreesString + " " +
         headerData_.longitudeDecimalMinutesString + "\", " + headerData_.sampleIntervalString + "\n";
 
     // Print header data to file
     if (outFile.good())
     {
-        outFile << outputLine_;
+        outFile << outDataLine_;
 
         // Print column header data to file
         if (outFileType == OutFileType::RAW)
         {
-            outputLine_ = status_.rawConfigColumnTextLine;
+            outDataLine_ = status_.rawConfigColumnTextLine;
         }
         else
         {
-            outputLine_ = status_.configColumnTextLine;
+            outDataLine_ = status_.configColumnTextLine;
         }
-        outFile << outputLine_;
+        outFile << outDataLine_;
 
         // Clear out output buffer for next function call
-        outputLine_ = "";
+        outDataLine_ = "";
     }
 }
 
@@ -1822,7 +1958,7 @@ void FBLoggerDataReader::PrintSensorDataOutput(ofstream& outFile)
     string millisecondsString;
     string recordString;
 
-    outputLine_ = "";
+    outDataLine_ = "";
 
     for (int i = 0; i < NUM_SENSOR_READINGS; i++)
     {
@@ -1837,7 +1973,7 @@ void FBLoggerDataReader::PrintSensorDataOutput(ofstream& outFile)
             millisecondsString = MakeStringWidthThreeFromInt(headerData_.milliseconds);
             recordString = MakeStringWidthThreeFromInt(status_.recordNumber);
             // Print out time information parsed from the header
-            outputLine_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
+            outDataLine_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
                 hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString +
                 "\"," + recordString + ",";
         }
@@ -1846,43 +1982,43 @@ void FBLoggerDataReader::PrintSensorDataOutput(ofstream& outFile)
         {
             if ((sanityChecks_.FFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.FFinalMax[i] != sanityChecks_.NAMax))
             {
-                outputLine_ += std::to_string(status_.sensorReadingValue[i]);
+                outDataLine_ += std::to_string(status_.sensorReadingValue[i]);
             }
             else
             {
-                outputLine_ += std::to_string(0.0);
+                outDataLine_ += std::to_string(0.0);
             }
         }
         else if (configurationType_ == "H")
         {
             if ((sanityChecks_.HFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.HFinalMax[i] != sanityChecks_.NAMax))
             {
-                outputLine_ += std::to_string(status_.sensorReadingValue[i]);
+                outDataLine_ += std::to_string(status_.sensorReadingValue[i]);
             }
             else
             {
-                outputLine_ += std::to_string(0.0);
+                outDataLine_ += std::to_string(0.0);
             }
         }
         else if(configurationType_ == "T")
         {
-            outputLine_ += std::to_string(status_.sensorReadingValue[i]);
+            outDataLine_ += std::to_string(status_.sensorReadingValue[i]);
         }
 
         if (i < 8)
         {
-            outputLine_ += ",";
+            outDataLine_ += ",";
         }
         else
         {
-            outputLine_ += "\n";
+            outDataLine_ += "\n";
 
             // Print to file
             if (outFile.good())
             {
-                outFile << outputLine_;
+                outFile << outDataLine_;
                 // Clear out output buffer for next function call
-                outputLine_ = "";
+                outDataLine_ = "";
             }
         }
     }

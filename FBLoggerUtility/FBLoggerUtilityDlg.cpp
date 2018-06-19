@@ -228,17 +228,17 @@ BOOL CFBLoggerUtilityDlg::OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult)
     // Handle conditionally for both UNICODE and non-UNICODE apps
 #ifndef _UNICODE
     if (pNMHDR->code == TTN_NEEDTEXTA)
-        lstrcpyn(pTTTA->szText, strTipText, _countof(pTTTA->szText));
+        lstrcpyn(pTTTA->szText, strTipText, ::std::size(pTTTA->szText));
     else
-        _mbstowcsz(pTTTW->szText, strTipText, _countof(pTTTW->szText));
+        _mbstowcsz(pTTTW->szText, strTipText, ::std::size(pTTTW->szText));
 #else
     if (pNMHDR->code == TTN_NEEDTEXTA)
     {
-        _wcstombsz(pTTTA->szText, strTipText, _countof(pTTTA->szText));
+        _wcstombsz(pTTTA->szText, strTipText, ::std::size(pTTTA->szText));
     }
     else
     {
-        lstrcpyn(pTTTW->szText, strTipText, _countof(pTTTW->szText));
+        lstrcpyn(pTTTW->szText, strTipText, ::std::size(pTTTW->szText));
     }
 #endif
 
