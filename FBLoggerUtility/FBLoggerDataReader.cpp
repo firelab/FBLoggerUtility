@@ -13,6 +13,7 @@
 #include <math.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <iomanip>
 
 FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     :logFilePath_(dataPath + "\\log_file.txt"),
@@ -221,7 +222,6 @@ void FBLoggerDataReader::ProcessSingleDataFile()
             {
                 ResetInFileReadingStatus();
                 bool headerFound = GetFirstHeader();
-                DegreesDecimalMinutesToDecimalDegrees(headerData_);
                 if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
                 {
                     configurationType_ = configMap_.find(atoi(headerData_.serialNumberString.c_str()))->second;
@@ -291,14 +291,14 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                                 status_.sensorReadingCounter = 0;
                                 // Store current time as end time for current logging session
                                 StoreSessionEndTime();
-                                // Get header data and print it to file
-                                GetHeader();
                                 DegreesDecimalMinutesToDecimalDegrees(headerData_);
                                 // Print gps data from header to gps and kml files
                                 PrintGPSFileLine();
                                 placemarkName = infileName + "_session_" + to_string(status_.loggingSession);
                                 placemarkDescription = "test";
                                 kmlFile_ << FormatPlacemark(placemarkName, placemarkDescription, headerData_.decimalDegreesLongitude, headerData_.decimalDegreesLatitude);
+                                // Get header data and print it to file
+                                GetHeader();
                                 status_.loggingSession++;
                                 // Store new header time as start time for next logging session
                                 StoreSessionStartTime();
@@ -337,6 +337,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     // Print to gps file
                     PrintGPSFileLine();
                     // Print to kml file
+                    DegreesDecimalMinutesToDecimalDegrees(headerData_);
                     placemarkName = infileName + "_session_" + to_string(status_.loggingSession);
                     placemarkDescription = "test";
                     kmlFile_ << FormatPlacemark(placemarkName, placemarkDescription, headerData_.decimalDegreesLongitude, headerData_.decimalDegreesLatitude);
@@ -412,6 +413,15 @@ void FBLoggerDataReader::ReportAbort()
         logFile_ << logFileLine_;
     }
     logFileLine_ = "";
+
+    if (gpsFile_.is_open())
+    {
+        gpsFile_.close();
+    }
+    if (kmlFile_.is_open())
+    {
+        kmlFile_.close();
+    }
 }
 
 double FBLoggerDataReader::CalculateHeatFlux(double rawVoltage)
@@ -1350,6 +1360,7 @@ void FBLoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& heade
 string FBLoggerDataReader::FormatPlacemark(string name, string description, double longitude, double latitude)
 {
     std::ostringstream ss;
+    ss << setprecision(10) << fixed;
     ss << "<Placemark>\n"
         << "<name>" << name << "</name>\n"
         << "<description>" << description << "</description>\n"
@@ -1636,6 +1647,8 @@ void FBLoggerDataReader::ParseHeader()
         headerData_.serialNumberString[i - 2] = headerData_.rawHeader[i];
     }
     // Get the latitude
+    headerData_.latitudeDegreesString = "00";
+    headerData_.latitudeDecimalMinutesString = "00000000";
     for (int i = 7; i < 9; i++)
     {
         headerData_.latitudeDegreesString[i - 7] = headerData_.rawHeader[i];
@@ -1649,6 +1662,8 @@ void FBLoggerDataReader::ParseHeader()
     headerData_.latitudeDecimalMinutesString[7] = '\'';
     headerData_.latitudeDecimalMinutesString += " " + headerData_.northOrSouthHemisphere;
     //Get the longitude
+    headerData_.longitudeDegreesString = "000";
+    headerData_.longitudeDecimalMinutesString = "00000000";
     for (int i = 17; i < 20; i++)
     {
         headerData_.longitudeDegreesString[i - 17] = headerData_.rawHeader[i];
