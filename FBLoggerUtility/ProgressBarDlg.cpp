@@ -119,10 +119,10 @@ void CProgressBarDlg::OnTimer(UINT_PTR nIDEvent)
 	ApplicationHours = (Difference / (3600 * 999)) % 24;
 	ApplicationMinutes = (Difference / (60 * 999)) % 60;
 	ApplicationSeconds = (Difference / 999) % 60;
-	CString val2;	
-	val2.Format(_T("%d:%d:%d"),
+	CString val;	
+	val.Format(_T("%d:%d:%d"),
 	ApplicationHours, ApplicationMinutes, ApplicationSeconds);	
-	m_ApplicationTime.SetWindowTextW(val2);
+	m_ApplicationTime.SetWindowTextW(val);
 	UpdateData(FALSE);
 	CDialogEx::OnTimer(nIDEvent);
 }
@@ -130,10 +130,10 @@ void CProgressBarDlg::OnTimer(UINT_PTR nIDEvent)
 LRESULT CProgressBarDlg::OnUpdateProgressBar(WPARAM wparam, LPARAM lparam)
 {
 	m_ProgressBar.SetPos((int)wparam);
-	CString val2;
-	val2.Format(_T("%d "),wparam);
-	val2 += _T("% ");
-	m_Progress.SetWindowTextW(val2);
+	CString val;
+	val.Format(_T("%d "),wparam);
+	val += _T("% ");
+	m_Progress.SetWindowTextW(val);
 	return 0;
 }
 

@@ -23,6 +23,10 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath)
     kmlFilePath_(dataPath + "\\burn.kml"),
     kmlFile_(kmlFilePath_, std::ios::out)
 {
+    logFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+    gpsFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+    kmlFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+
     startClock_ = clock();
 
     numFilesProcessed_ = 0;
@@ -1724,8 +1728,7 @@ void FBLoggerDataReader::ParseHeader()
         // due to an arithmetic error in which 1 was added to the ones place
         // but was not carried over to the tens
         status_.carryBugEncountered_ = true;
-        numErrors_++;
-
+  
         // Correct the seconds string
         char tensSecondsChar = headerData_.secondString[0];
         string  tensSecondsString(1, tensSecondsChar);
@@ -1796,6 +1799,7 @@ void FBLoggerDataReader::PrintCarryBugToLog()
 {
     if (logFile_.good() && status_.carryBugEncountered_)
     {
+        numErrors_++;
         logFileLine_ = "Error: File " + currentFileStats_.fileName + " has failure to carry the one in header\n";
         logFile_ << logFileLine_;
     }
