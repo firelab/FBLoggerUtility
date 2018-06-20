@@ -222,6 +222,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
             {
                 ResetInFileReadingStatus();
                 bool headerFound = GetFirstHeader();
+                DegreesDecimalMinutesToDecimalDegrees(headerData_);
                 if (configMap_.find(atoi(headerData_.serialNumberString.c_str())) != configMap_.end())
                 {
                     configurationType_ = configMap_.find(atoi(headerData_.serialNumberString.c_str()))->second;
@@ -335,9 +336,9 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     // Get last session end time
                     StoreSessionEndTime();
                     // Print to gps file
+                    DegreesDecimalMinutesToDecimalDegrees(headerData_);
                     PrintGPSFileLine();
                     // Print to kml file
-                    DegreesDecimalMinutesToDecimalDegrees(headerData_);
                     placemarkName = infileName + "_session_" + to_string(status_.loggingSession);
                     placemarkDescription = "test";
                     kmlFile_ << FormatPlacemark(placemarkName, placemarkDescription, headerData_.decimalDegreesLongitude, headerData_.decimalDegreesLatitude);
@@ -1281,7 +1282,7 @@ void FBLoggerDataReader::PrintFinalReportToLog()
     {
         if ((numFilesProcessed_ > 0) && (numErrors_ == 0))
         {
-            logFileLine_ = "Successfully processed " + std::to_string(numFilesProcessed_) + " DAT files in " + std::to_string(totalTimeInSeconds_) + " seconds in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
+            logFileLine_ = "Successfully processed " + std::to_string(numFilesProcessed_) + " DAT files in " + std::to_string(totalTimeInSeconds_) + " seconds into \"" + dataPathOutput + "\" " + GetMyLocalDateTimeString() + "\n";
         }
         else if ((numFilesProcessed_ > 0) && (numErrors_ > 0))
         {
@@ -1845,9 +1846,9 @@ void FBLoggerDataReader::PrintGPSFileLine()
     string recordString;
 
     // file, logger unit, and gps data
-    gpsFileLine_ = "\"" + currentFileStats_.fileName + "\",\"SN" + headerData_.serialNumberString + "\",\"" + to_string(status_.loggingSession) + 
-        "\",\"" + configurationType_ + "\",\"" + headerData_.latitudeDegreesString + " " + headerData_.latitudeDecimalMinutesString + "\",\"" +
-        headerData_.longitudeDegreesString + " " + headerData_.longitudeDecimalMinutesString + "\",";
+    gpsFileLine_ = currentFileStats_.fileName + ",SN" + headerData_.serialNumberString + "," + to_string(status_.loggingSession) + 
+        "," + configurationType_ + "," + to_string(headerData_.decimalDegreesLongitude) + "," +
+        to_string(headerData_.decimalDegreesLatitude) + ",";
 
     yearString = MakeStringWidthTwoFromInt(startTimeForSession_.year);
     monthString = MakeStringWidthTwoFromInt(startTimeForSession_.month);
@@ -1858,9 +1859,9 @@ void FBLoggerDataReader::PrintGPSFileLine()
     millisecondsString = MakeStringWidthThreeFromInt(startTimeForSession_.milliseconds);
 
     // start time information for session
-    gpsFileLine_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
+    gpsFileLine_ += yearString + "-" + monthString + "-" + dayString + " " +
         hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString +
-        "\",";
+        ",";
 
     yearString = MakeStringWidthTwoFromInt(endTimeForSession_.year);
     monthString = MakeStringWidthTwoFromInt(endTimeForSession_.month);
@@ -1871,8 +1872,8 @@ void FBLoggerDataReader::PrintGPSFileLine()
     millisecondsString = MakeStringWidthThreeFromInt(endTimeForSession_.milliseconds);
 
     // end time information for session
-    gpsFileLine_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
-        hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString + "\"\n";
+    gpsFileLine_ += yearString + "-" + monthString + "-" + dayString + " " +
+        hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString + "\n";
 
     // print to file
     gpsFile_ << gpsFileLine_;
