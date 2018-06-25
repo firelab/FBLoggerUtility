@@ -54,8 +54,12 @@ public:
     afx_msg LRESULT OnCancelProcessing(WPARAM, LPARAM);
     afx_msg LRESULT OnWorkerThreadRunning(WPARAM, LPARAM);
     afx_msg LRESULT OnWorkerThreadDone(WPARAM, LPARAM);
+    afx_msg void OnBnClickedCheck1();
 
     BOOL OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult);
+    CButton m_btnConvert;
+    CButton m_ctlCheckRaw;
+  
     CMFCEditBrowseCtrl m_dataDirBrowser;
     CMFCEditBrowseCtrl m_configFileBrowser;
 
@@ -78,7 +82,4 @@ private:
 
     atomic<bool> m_waitForWorkerThread;
     atomic<int> m_workerThreadCount;
-public:
-    CButton m_btnConvert;
-    afx_msg void OnBnClickedCheck1();
 };

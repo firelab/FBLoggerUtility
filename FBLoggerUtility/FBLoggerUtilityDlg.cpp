@@ -76,6 +76,7 @@ void CFBLoggerUtilityDlg::DoDataExchange(CDataExchange* pDX)
     DDX_Control(pDX, IDC_DATADIRBROWSE, m_dataDirBrowser);
     DDX_Control(pDX, IDC_CONFIGFILEBROWSE, m_configFileBrowser);
     DDX_Control(pDX, IDCONVERT, m_btnConvert);
+    DDX_Control(pDX, IDC_CHECKRAW, m_ctlCheckRaw);
 }
 
 BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
@@ -91,7 +92,7 @@ BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
     ON_MESSAGE(CANCEL_PROCESSING, &CFBLoggerUtilityDlg::OnCancelProcessing)
     ON_MESSAGE(WORKER_THREAD_RUNNING, &CFBLoggerUtilityDlg::OnWorkerThreadRunning)
     ON_MESSAGE(WORKER_THREAD_DONE, &CFBLoggerUtilityDlg::OnWorkerThreadDone)
-    ON_BN_CLICKED(IDC_CHECK1, &CFBLoggerUtilityDlg::OnBnClickedCheck1)
+    ON_BN_CLICKED(IDC_CHECKRAW, &CFBLoggerUtilityDlg::OnBnClickedCheck1)
 END_MESSAGE_MAP()
 
 BOOL CFBLoggerUtilityDlg::OnInitDialog()
@@ -453,22 +454,21 @@ void CFBLoggerUtilityDlg::ProcessIniFile()
             }
             if (token == "fb_create_raw")
             {
-                CButton *m_ctlCheck1 = (CButton*)GetDlgItem(IDC_CHECK1);
                 getline(lineStream, token);
                 
                 if (token == "true")
                 {
-                    m_ctlCheck1->SetCheck(1);
+                    m_ctlCheckRaw.SetCheck(TRUE);
                 }
                 else if (token == "false")
                 {
-                    m_ctlCheck1->SetCheck(0);
+                    m_ctlCheckRaw.SetCheck(FALSE);
                     m_createRawTicked = false;
                 }
                 else
                 {
-                    m_ctlCheck1->SetCheck(1);
-                    m_createRawTicked = true;
+                    m_ctlCheckRaw.SetCheck(FALSE);
+                    m_createRawTicked = false;
                 }
             }
         }
@@ -801,22 +801,19 @@ LRESULT CFBLoggerUtilityDlg::OnCancelProcessing(WPARAM, LPARAM)
 LRESULT CFBLoggerUtilityDlg::OnWorkerThreadRunning(WPARAM, LPARAM)
 {
     m_btnConvert.ShowWindow(FALSE);
-    CButton *m_ctlCheck1 = (CButton*)GetDlgItem(IDC_CHECK1);
-    m_ctlCheck1->ShowWindow(FALSE);
+    m_ctlCheckRaw.ShowWindow(FALSE);
     return 0;
 }
 
 LRESULT CFBLoggerUtilityDlg::OnWorkerThreadDone(WPARAM, LPARAM)
 {
     m_btnConvert.ShowWindow(TRUE);
-    CButton *m_ctlCheck1 = (CButton*)GetDlgItem(IDC_CHECK1);
-    m_ctlCheck1->ShowWindow(TRUE);
+    m_ctlCheckRaw.ShowWindow(TRUE);
     return 0;
 }
 
 void CFBLoggerUtilityDlg::OnBnClickedCheck1()
 {
     // TODO: Add your control notification handler code here
-    CButton *m_ctlCheck1 = (CButton*)GetDlgItem(IDC_CHECK1);
-    m_createRawTicked = (m_ctlCheck1->GetCheck() == 1) ? true : false;
+    m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
 }
