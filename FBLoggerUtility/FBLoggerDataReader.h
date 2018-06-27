@@ -23,7 +23,7 @@ class FBLoggerDataReader
 {
 public:
     // Public interface
-    FBLoggerDataReader(string dataPath);
+    FBLoggerDataReader(string dataPath, string burnName);
     ~FBLoggerDataReader();
 
     //void PrepareToReadDataFiles();

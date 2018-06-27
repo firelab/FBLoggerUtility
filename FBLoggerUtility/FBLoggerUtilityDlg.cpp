@@ -7,6 +7,7 @@
 #include "FBLoggerUtilityDlg.h"
 #include "afxdialogex.h"
 #include "StringUtility.h"
+#include "FileNameUtility.h"
 #include "DirectoryReaderUtility.h"
 
 #include <algorithm>
@@ -77,6 +78,7 @@ void CFBLoggerUtilityDlg::DoDataExchange(CDataExchange* pDX)
     DDX_Control(pDX, IDC_CONFIGFILEBROWSE, m_configFileBrowser);
     DDX_Control(pDX, IDCONVERT, m_btnConvert);
     DDX_Control(pDX, IDC_CHECKRAW, m_ctlCheckRaw);
+    DDX_Control(pDX, IDC_BURNNAMEEDIT, m_burnNameEdit);
 }
 
 BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
@@ -92,7 +94,8 @@ BEGIN_MESSAGE_MAP(CFBLoggerUtilityDlg, CDialogEx)
     ON_MESSAGE(CANCEL_PROCESSING, &CFBLoggerUtilityDlg::OnCancelProcessing)
     ON_MESSAGE(WORKER_THREAD_RUNNING, &CFBLoggerUtilityDlg::OnWorkerThreadRunning)
     ON_MESSAGE(WORKER_THREAD_DONE, &CFBLoggerUtilityDlg::OnWorkerThreadDone)
-    ON_BN_CLICKED(IDC_CHECKRAW, &CFBLoggerUtilityDlg::OnBnClickedCheck1)
+    ON_BN_CLICKED(IDC_CHECKRAW, &CFBLoggerUtilityDlg::OnBnClickedCreateRaw)
+    ON_EN_CHANGE(IDC_BURNNAMEEDIT, &CFBLoggerUtilityDlg::OnEnChangeBurnNameEdit)
 END_MESSAGE_MAP()
 
 BOOL CFBLoggerUtilityDlg::OnInitDialog()
@@ -260,7 +263,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
     PostMessage(WORKER_THREAD_RUNNING, 0, 0);
 
-    FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath));
+    FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
     loggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
     int totalNumberOfFiles = 0;
     // Check log file, check config file, process input files, create output files 
@@ -605,7 +608,6 @@ void CFBLoggerUtilityDlg::OnEnChangeConfigFileBrowse()
 
     // update config file path
     m_configFileBrowser.GetWindowTextW(m_configFilePath);
-    CT2CA pszConvertedAnsiString(m_configFilePath);
 }
 
 void CFBLoggerUtilityDlg::OnBnClickedConvert()
@@ -616,6 +618,16 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
     {
         m_waitForWorkerThread.store(true);
         ResetEvent(m_hKillEvent); // Don't kill Worker thread
+
+        if (m_burnName == "")
+        {
+            m_burnName = "burn";
+        }
+        else
+        {
+            ReplaceIllegalCharacters(m_burnName);
+        }
+
         if (PathFileExists(m_dataPath))
         {
             std::ofstream outfile(m_appIniPath);
@@ -669,7 +681,7 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
             if (configFileExists && m_workerThreadCount.load() < 1)
             {
                 std::ifstream configFile(m_configFilePath, std::ios::in | std::ios::binary);
-                FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath));
+                FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
                 bool configIsValid = loggerDataReader.CheckConfigFileFormatIsValid(configFile);
 
                 if (configIsValid)
@@ -812,8 +824,20 @@ LRESULT CFBLoggerUtilityDlg::OnWorkerThreadDone(WPARAM, LPARAM)
     return 0;
 }
 
-void CFBLoggerUtilityDlg::OnBnClickedCheck1()
+void CFBLoggerUtilityDlg::OnBnClickedCreateRaw()
 {
     // TODO: Add your control notification handler code here
     m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
+}
+
+
+void CFBLoggerUtilityDlg::OnEnChangeBurnNameEdit()
+{
+    // TODO:  If this is a RICHEDIT control, the control will not
+    // send this notification unless you override the CDialogEx::OnInitDialog()
+    // function and call CRichEditCtrl().SetEventMask()
+    // with the ENM_CHANGE flag ORed into the mask.
+
+    // TODO:  Add your control notification handler code here
+    m_burnNameEdit.GetWindowTextW(m_burnName);
 }

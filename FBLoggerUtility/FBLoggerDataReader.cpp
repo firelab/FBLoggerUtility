@@ -15,12 +15,12 @@
 #include <errno.h>
 #include <iomanip>
 
-FBLoggerDataReader::FBLoggerDataReader(string dataPath)
+FBLoggerDataReader::FBLoggerDataReader(string dataPath, string burnName)
     :logFilePath_(dataPath + "\\log_file.txt"),
     logFile_(logFilePath_, std::ios::out),
-    gpsFilePath_(dataPath + "\\gps_file.txt"),
+    gpsFilePath_(dataPath + "\\" + burnName + "_gps.txt"),
     gpsFile_(gpsFilePath_, std::ios::out),
-    kmlFilePath_(dataPath + "\\burn.kml"),
+    kmlFilePath_(dataPath + "\\" + burnName + ".kml"),
     kmlFile_(kmlFilePath_, std::ios::out)
 {
     logFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);
@@ -1349,7 +1349,7 @@ void FBLoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& heade
     headerData.decimalDegreesLatitude = inputLatitudeDegrees + (inputLatitudeDecimalMinutes / 60.0);
     if (headerData.northOrSouthHemisphere == "S")
     {
-        headerData.decimalDegreesLatitude *= -1;
+        headerData.decimalDegreesLatitude *= -1.0;
     }
 
     // longitude
@@ -1358,7 +1358,7 @@ void FBLoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& heade
     headerData.decimalDegreesLongitude = inputLongitudeDegrees + (inputLongitudeDecimalMinutes / 60.0);
     if (headerData.eastOrWestHemishere == "W")
     {
-        headerData.decimalDegreesLatitude *= -1;
+        headerData.decimalDegreesLongitude *= -1.0;
     }
 }
 

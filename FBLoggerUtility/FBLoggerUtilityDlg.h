@@ -47,14 +47,16 @@ protected:
     HANDLE m_hKillEvent;
 
 public:
-    afx_msg void OnEnChangeDataDirBrowse();
-    afx_msg void OnEnChangeConfigFileBrowse();
-    afx_msg void OnBnClickedConvert();
-    afx_msg void OnBnClickedCancel();
+   
     afx_msg LRESULT OnCancelProcessing(WPARAM, LPARAM);
-    afx_msg LRESULT OnWorkerThreadRunning(WPARAM, LPARAM);
     afx_msg LRESULT OnWorkerThreadDone(WPARAM, LPARAM);
-    afx_msg void OnBnClickedCheck1();
+    afx_msg LRESULT OnWorkerThreadRunning(WPARAM, LPARAM);
+    afx_msg void OnBnClickedCancel();
+    afx_msg void OnBnClickedConvert();
+    afx_msg void OnBnClickedCreateRaw();
+    afx_msg void OnEnChangeBurnNameEdit();
+    afx_msg void OnEnChangeConfigFileBrowse();
+    afx_msg void OnEnChangeDataDirBrowse();
 
     BOOL OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult);
     CButton m_btnConvert;
@@ -62,6 +64,7 @@ public:
   
     CMFCEditBrowseCtrl m_dataDirBrowser;
     CMFCEditBrowseCtrl m_configFileBrowser;
+    CEdit m_burnNameEdit;
 
     UINT ProcessAllDatFiles();
 
@@ -72,6 +75,7 @@ private:
     CString m_appPath;
     CString m_appIniPath;
     CString m_dataPath;
+    CString m_burnName;
     CString m_configFilePath;
 
     int m_numFilesProcessed;
