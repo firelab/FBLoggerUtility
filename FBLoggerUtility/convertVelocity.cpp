@@ -19,9 +19,9 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 {
 	temperatureK = temperature + 273.15;	//convert to Kelvin
 
-	pressureX = (pressureXvoltage - 1.250) * 0.9517 * 249.09;	//convert from voltage to pascals
-	pressureY = (pressureYvoltage - 1.250) * 0.9517 * 249.09;	//convert from voltage to pascals
-	pressureZ = (pressureZvoltage - 1.250) * 0.9517 * 249.09;	//convert from voltage to pascals
+	pressureX = (pressureXvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
+	pressureY = (pressureYvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
+	pressureZ = (pressureZvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
 
 	//start with assumed pressure coefficient of one
 	cpx = 1.0;
@@ -101,7 +101,12 @@ double convertVelocity::getCp(double angle, double ReynoldsNumber)
 
 	if (angle > 90.0)	//calibration data is only good for 0-90, cp doesn't care about sign of wind (at least here)
 		angle = 180.0 - angle;
+	if (ReynoldsNumber < 0.0)
+		ReynoldsNumber = -1.0 * ReynoldsNumber;
 
 	//return 1.099 + 9.311e-03*angle - 2.424e-04*angle*angle + 7.536e-07*ReynoldsNumber - 7.091e-13*ReynoldsNumber*ReynoldsNumber - 3.061e-09*angle*ReynoldsNumber;  //old conversion which had an error where Re number was incorrectly computed
-	return -1.185e-01*exp(2.804e-02*angle) + 2.487e+00 + 2.883e-07*ReynoldsNumber - 1.0;
+	double CpValue = -1.591e-01*exp(2.702e-02*angle) + 2.490e+00 + 1.010e-05*ReynoldsNumber - 1.0;
+	if (CpValue < 0.0)	//Don't let Cp go less than zero, which can happen with the current curve fit near angles of 90.
+		CpValue = 0.0;
+	return CpValue;
 }
