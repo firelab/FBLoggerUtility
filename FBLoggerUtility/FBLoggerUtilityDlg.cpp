@@ -201,9 +201,10 @@ void CFBLoggerUtilityDlg::InitProgressBarDlg()
 
 void CFBLoggerUtilityDlg::UpdateIniFile()
 {
-    if (PathFileExists(m_dataPath))
+    if (PathFileExists(m_appIniPath))
     {
         std::ofstream outfile(m_appIniPath);
+        outfile.exceptions(std::ofstream::failbit | std::ofstream::badbit);
         // convert a TCHAR string to a LPCSTR
         CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
         // construct a std::string using the LPCSTR input
