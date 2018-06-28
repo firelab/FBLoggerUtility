@@ -47,7 +47,6 @@ protected:
     HANDLE m_hKillEvent;
 
 public:
-   
     afx_msg LRESULT OnCancelProcessing(WPARAM, LPARAM);
     afx_msg LRESULT OnWorkerThreadDone(WPARAM, LPARAM);
     afx_msg LRESULT OnWorkerThreadRunning(WPARAM, LPARAM);
@@ -71,6 +70,7 @@ public:
 private:
     void ProcessIniFile();
     void InitProgressBarDlg();
+    void UpdateIniFile();
 
     CString m_appPath;
     CString m_appIniPath;

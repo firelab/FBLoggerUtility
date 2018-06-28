@@ -199,6 +199,51 @@ void CFBLoggerUtilityDlg::InitProgressBarDlg()
     m_pProgressBarDlg->CenterWindow(AfxGetMainWnd());
 }
 
+void CFBLoggerUtilityDlg::UpdateIniFile()
+{
+    if (PathFileExists(m_dataPath))
+    {
+        std::ofstream outfile(m_appIniPath);
+        // convert a TCHAR string to a LPCSTR
+        CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
+        // construct a std::string using the LPCSTR input
+        std::string strStdDataPath(pszConvertedAnsiStringDataPath);
+        // convert a TCHAR string to a LPCSTR
+        CT2CA pszConvertedAnsiStringConfigFilePath(_T("fb_config_file=") + m_configFilePath);
+        // construct a std::string using the LPCSTR input
+        std::string strStdConfigFilePath(pszConvertedAnsiStringConfigFilePath);
+
+        if (PathFileExists(m_dataPath))
+        {
+            outfile << strStdDataPath << "\n";
+        }
+        else
+        {
+            outfile << "fb_data_path=\n";
+        }
+
+        if (PathFileExists(m_configFilePath))
+        {
+            outfile << strStdConfigFilePath << "\n";
+        }
+        else
+        {
+            outfile << "fb_config_file=\n";
+        }
+
+        if (m_createRawTicked)
+        {
+            outfile << "fb_create_raw=true";
+        }
+        else
+        {
+            outfile << "fb_create_raw=false";
+        }
+
+        outfile.close();
+    }
+}
+
 // CFBLoggerGUIDlg message handlers
 BOOL CFBLoggerUtilityDlg::OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult)
 {
@@ -265,6 +310,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
     FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
     loggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
+    m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
+    loggerDataReader.SetPrintRaw(m_createRawTicked);
     int totalNumberOfFiles = 0;
     // Check log file, check config file, process input files, create output files 
     if (loggerDataReader.IsLogFileGood())
@@ -274,7 +321,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         {
             totalNumberOfFiles = loggerDataReader.GetNumberOfInputFiles();
             float flProgress = 0;
-            loggerDataReader.SetPrintRaw(m_createRawTicked);
+              
             for(int i = 0; i < totalNumberOfFiles; i++)
             {
                 // check kill
@@ -505,44 +552,7 @@ void CFBLoggerUtilityDlg::OnSysCommand(UINT nID, LPARAM lParam)
             DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
         }
 
-        std::ofstream outfile(m_appIniPath);
-        // convert a TCHAR string to a LPCSTR
-        CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
-        // construct a std::string using the LPCSTR input
-        std::string strStdDataPath(pszConvertedAnsiStringDataPath);
-        // convert a TCHAR string to a LPCSTR
-        CT2CA pszConvertedAnsiStringConfigFilePath(_T("fb_config_file=") + m_configFilePath);
-        // construct a std::string using the LPCSTR input
-        std::string strStdConfigFilePath(pszConvertedAnsiStringConfigFilePath);
-
-        if (PathFileExists(m_dataPath))
-        {
-            outfile << strStdDataPath << "\n";
-        }
-        else
-        {
-            outfile << "fb_data_path=\n";
-        }
-
-        if (PathFileExists(m_configFilePath))
-        {
-            outfile << strStdConfigFilePath << "\n";
-        }
-        else
-        {
-            outfile << "fb_config_file=\n";
-        }
-
-        if (m_createRawTicked)
-        {
-            outfile << "fb_create_raw=true";
-        }
-        else
-        {
-            outfile << "fb_create_raw=false";
-        }
-
-        outfile.close();
+        UpdateIniFile();
 
         PostQuitMessage(0);
     }
@@ -628,25 +638,12 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
             ReplaceIllegalCharacters(m_burnName);
         }
 
+        UpdateIniFile();
+
         if (PathFileExists(m_dataPath))
         {
-            std::ofstream outfile(m_appIniPath);
-
-            // convert a TCHAR string to a LPCSTR
-            CT2CA pszConvertedAnsiStringDataPath(_T("fb_data_path=") + m_dataPath);
-            // construct a std::string using the LPCSTR input
-            std::string strStdDataPath(pszConvertedAnsiStringDataPath);
-
-            outfile << strStdDataPath << "\n";
-
-            // convert a TCHAR string to a LPCSTR
-            CT2CA pszConvertedAnsiStringConfigFilePath(_T("fb_config_file=") + m_configFilePath);
-            // construct a std::string using the LPCSTR input
-            std::string strStdConfigFilePath(pszConvertedAnsiStringConfigFilePath);
-
             if (PathFileExists(m_configFilePath))
             {
-                outfile << strStdConfigFilePath << "\n";
                 configFileExists = true;
             }
             else
@@ -667,19 +664,9 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 MessageBox(text, caption, MB_OK);
             }
 
-            if (m_createRawTicked)
-            {
-                outfile << "fb_create_raw=true";
-            }
-            else
-            {
-                outfile << "fb_create_raw=false";
-            }
-
-            outfile.close();
-
             if (configFileExists && m_workerThreadCount.load() < 1)
             {
+
                 std::ifstream configFile(m_configFilePath, std::ios::in | std::ios::binary);
                 FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
                 bool configIsValid = loggerDataReader.CheckConfigFileFormatIsValid(configFile);
@@ -715,38 +702,12 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
             }
             CString caption("Error: Invalid Directory Entry");
 
-            std::ofstream outfile(m_appIniPath);
-
-            outfile << "fb_data_path=\n";
-            if (PathFileExists(m_configFilePath))
-            {
-                // convert a TCHAR string to a LPCSTR
-                CT2CA pszConvertedAnsiStringConfigFilePath(_T("fb_config_file=") + m_configFilePath);
-                // construct a std::string using the LPCSTR input
-                std::string strStdConfigFilePath(pszConvertedAnsiStringConfigFilePath);
-                outfile << strStdConfigFilePath << "\n";
-                configFileExists = true;
-            }
-            else
-            {
-                outfile << "fb_data_path=\n";
-            }
-            
-            if(m_createRawTicked)
-            {
-                outfile << "fb_create_raw=true";
-            }
-            else
-            {
-                outfile << "fb_create_raw=false";
-            }
-          
-            outfile.close();
             m_dataDirBrowser.SetWindowTextW(NULL);
             m_waitForWorkerThread.store(false);
             MessageBox(text, caption, MB_OK);
         }
     }
+    m_burnNameEdit.SetWindowTextW(NULL);
 }
 
 void CFBLoggerUtilityDlg::OnBnClickedCancel()
