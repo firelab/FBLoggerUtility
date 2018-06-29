@@ -275,10 +275,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                         // If this is the first file processed, print out gps and kml file headers
                         if (numFilesProcessed_ == 0)
                         {
-                            // Write to the KML file:
-                            kmlFile_ << "<?xml version='1.0' encoding='utf-8'?>\n";
-                            kmlFile_ << "<kml xmlns='http://www.opengis.net/kml/2.2'>\n";
-                            kmlFile_ << "<Document>\n";
+                            BeginKMLFile();
                             PrintGPSFileHeader();
                         }
                         if (printRaw_)
@@ -387,9 +384,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
 
     if (numFilesProcessed_ == inputFilesNameList_.size())
     {
-        // close the kml file
-        kmlFile_ << "</Document>\n";
-        kmlFile_ << "</kml>\n";
+        EndKMLFile();
         kmlFile_.close();
     }
 }
@@ -426,6 +421,7 @@ void FBLoggerDataReader::ReportAbort()
     }
     if (kmlFile_.is_open())
     {
+        EndKMLFile();
         kmlFile_.close();
     }
 }
@@ -1363,9 +1359,36 @@ void FBLoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& heade
     }
 }
 
+void FBLoggerDataReader::BeginKMLFile()
+{
+    kmlFile_ << "<?xml version='1.0' encoding='utf-8'?>\n";
+    kmlFile_ << "<kml xmlns='http://www.opengis.net/kml/2.2'>\n";
+    kmlFile_ << "<Document>\n";
+}
+
 string FBLoggerDataReader::FormatPlacemark(string name, string description, double longitude, double latitude)
 {
     std::ostringstream ss;
+
+    string iconUrl = "";
+    string iconColor = "";
+
+    if (configurationType_ == "F")
+    {
+        iconUrl = iconsUrls_.fid;
+        iconColor = "ff00ff00"; // Green Icon
+    }
+    else if (configurationType_ == "H")
+    {
+        iconUrl = iconsUrls_.heatFlux;
+        iconColor = "ff0000ff"; // Red Icon
+    }
+    else if (configurationType_ == "T")
+    {
+        iconUrl = iconsUrls_.temperature;
+        iconColor = "ff00ffff"; // Code for Yellow, produces Orange as icon is Red 
+    }
+
     ss << setprecision(10) << fixed;
     ss << "<Placemark>\n"
         << "<name>" << name << "</name>\n"
@@ -1375,9 +1398,23 @@ string FBLoggerDataReader::FormatPlacemark(string name, string description, doub
         << longitude << "," << latitude << ",0"
         << "</coordinates>\n"
         << "</Point>\n"
+        << "<Style>"
+        << "<IconStyle>"
+        << "<color>" + iconColor + "</color>"
+        << "<Icon>"
+        << "<href>" + iconUrl + "</href>"
+        << "</Icon> "
+        << "</IconStyle>"
+        << "</Style>"
         << "</Placemark>\n";
 
     return ss.str();
+}
+
+void FBLoggerDataReader::EndKMLFile()
+{
+    kmlFile_ << "</Document>\n";
+    kmlFile_ << "</kml>\n";
 }
 
 void FBLoggerDataReader::SetPrintRaw(bool option)

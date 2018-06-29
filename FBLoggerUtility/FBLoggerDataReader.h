@@ -80,6 +80,13 @@ private:
         double decimalDegreesLatitude = 0;
         double decimalDegreesLongitude = 0;
     };
+    
+    struct IconUrls
+    {
+        const string fid = "http://maps.google.com/mapfiles/kml/paddle/F.png";
+        const string heatFlux = "http://maps.google.com/mapfiles/kml/paddle/H.png";
+        const string temperature = "http://maps.google.com/mapfiles/kml/paddle/T.png";
+    };
 
     struct ParsedNumericData
     {
@@ -283,7 +290,9 @@ private:
 
     void DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData);
 
+    void BeginKMLFile();
     string FormatPlacemark(string name, string description, double longitude, double latitude);
+    void EndKMLFile();
 
     // Private data members
     static const unsigned int NUM_SENSOR_READINGS = 9;
@@ -337,6 +346,7 @@ private:
     SanityChecks sanityChecks_;
     convertVelocity convertVelocity_;
     StatsFileData currentFileStats_;
+    IconUrls iconsUrls_;
 
     vector<char> inputFileContents_;
 
