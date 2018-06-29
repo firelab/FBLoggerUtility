@@ -294,19 +294,19 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                                 // Reset record and sensor reading count
                                 status_.recordNumber = 0;
                                 status_.sensorReadingCounter = 0;
-                                // Store current time as end time for current logging session
-                                StoreSessionEndTime();
                                 DegreesDecimalMinutesToDecimalDegrees(headerData_);
                                 // Print gps data from header to gps and kml files
                                 PrintGPSFileLine();
-                                placemarkName = infileName + "_session_" + to_string(status_.loggingSession);
+                                int serial = atoi(headerData_.serialNumberString.c_str());
+                                placemarkName = to_string(serial) + "_s" + to_string(status_.loggingSession);
                                 placemarkDescription = "test";
                                 kmlFile_ << FormatPlacemark(placemarkName, placemarkDescription, headerData_.decimalDegreesLongitude, headerData_.decimalDegreesLatitude);
                                 // Get header data and print it to file
                                 GetHeader();
                                 status_.loggingSession++;
-                                // Store new header time as start time for next logging session
+                                // Store new header time as start time (and possible end time) for next logging session
                                 StoreSessionStartTime();
+                                StoreSessionEndTime();
                                 PrintHeader(outDataFile, OutFileType::PROCESSED);
                                 if (printRaw_)
                                 {
@@ -330,6 +330,8 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                                 PrintSensorDataOutput(outDataFile);
                                 // Reset sensor reading counter 
                                 status_.sensorReadingCounter = 0;
+                                // Get (possible) session end time
+                                StoreSessionEndTime();
                                 // Update time for next set of sensor readings
                                 headerData_.milliseconds += headerData_.sampleInterval;
                                 UpdateTime();
@@ -337,13 +339,12 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                         }
                     }
 
-                    // Get last session end time
-                    StoreSessionEndTime();
                     // Print to gps file
                     DegreesDecimalMinutesToDecimalDegrees(headerData_);
                     PrintGPSFileLine();
                     // Print to kml file
-                    placemarkName = infileName + "_session_" + to_string(status_.loggingSession);
+                    int serial = atoi(headerData_.serialNumberString.c_str());
+                    placemarkName = to_string(serial) + "_s" + to_string(status_.loggingSession);
                     placemarkDescription = "test";
                     kmlFile_ << FormatPlacemark(placemarkName, placemarkDescription, headerData_.decimalDegreesLongitude, headerData_.decimalDegreesLatitude);
 
