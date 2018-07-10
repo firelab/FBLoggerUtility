@@ -291,7 +291,7 @@ private:
     void DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData);
 
     void BeginKMLFile();
-    string FormatPlacemark(string name, string description, double longitude, double latitude);
+    string FormatPlacemark();
     void EndKMLFile();
 
     // Private data members

@@ -293,11 +293,8 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                                 status_.sensorReadingCounter = 0;
                                 DegreesDecimalMinutesToDecimalDegrees(headerData_);
                                 // Print gps data from header to gps and kml files
-                                PrintGPSFileLine();
-                                int serial = atoi(headerData_.serialNumberString.c_str());
-                                placemarkName = to_string(serial) + "_s" + to_string(status_.loggingSession);
-                                placemarkDescription = "test";
-                                kmlFile_ << FormatPlacemark(placemarkName, placemarkDescription, headerData_.decimalDegreesLongitude, headerData_.decimalDegreesLatitude);
+                                PrintGPSFileLine(); 
+                                kmlFile_ << FormatPlacemark();
                                 // Get header data and print it to file
                                 GetHeader();
                                 status_.loggingSession++;
@@ -343,7 +340,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
                     int serial = atoi(headerData_.serialNumberString.c_str());
                     placemarkName = to_string(serial) + "_s" + to_string(status_.loggingSession);
                     placemarkDescription = "test";
-                    kmlFile_ << FormatPlacemark(placemarkName, placemarkDescription, headerData_.decimalDegreesLongitude, headerData_.decimalDegreesLatitude);
+                    kmlFile_ << FormatPlacemark();
 
                     // Close the file streams
                     inFile.close();
@@ -1318,6 +1315,15 @@ void FBLoggerDataReader::StoreSessionStartTime()
     startTimeForSession_.secondString = headerData_.secondString;
     startTimeForSession_.milliseconds = headerData_.milliseconds;
     startTimeForSession_.millisecondString = headerData_.millisecondString;
+
+    startTimeForSession_.yearString = MakeStringWidthTwoFromInt(startTimeForSession_.year);
+    startTimeForSession_.monthString = MakeStringWidthTwoFromInt(startTimeForSession_.month);
+    startTimeForSession_.dayString = MakeStringWidthTwoFromInt(startTimeForSession_.day);
+    startTimeForSession_.hourString = MakeStringWidthTwoFromInt(startTimeForSession_.hours);
+    startTimeForSession_.minuteString = MakeStringWidthTwoFromInt(startTimeForSession_.minutes);
+    startTimeForSession_.secondString = MakeStringWidthTwoFromInt(startTimeForSession_.seconds);
+    startTimeForSession_.millisecondString = MakeStringWidthThreeFromInt(startTimeForSession_.milliseconds);
+
 }
 
 void FBLoggerDataReader::StoreSessionEndTime()
@@ -1336,6 +1342,14 @@ void FBLoggerDataReader::StoreSessionEndTime()
     endTimeForSession_.secondString = headerData_.secondString;
     endTimeForSession_.milliseconds = headerData_.milliseconds;
     endTimeForSession_.millisecondString = headerData_.millisecondString;
+
+    endTimeForSession_.yearString = MakeStringWidthTwoFromInt(endTimeForSession_.year);
+    endTimeForSession_.monthString = MakeStringWidthTwoFromInt(endTimeForSession_.month);
+    endTimeForSession_.dayString = MakeStringWidthTwoFromInt(endTimeForSession_.day);
+    endTimeForSession_.hourString = MakeStringWidthTwoFromInt(endTimeForSession_.hours);
+    endTimeForSession_.minuteString = MakeStringWidthTwoFromInt(endTimeForSession_.minutes);
+    endTimeForSession_.secondString = MakeStringWidthTwoFromInt(endTimeForSession_.seconds);
+    endTimeForSession_.millisecondString = MakeStringWidthThreeFromInt(endTimeForSession_.milliseconds);
 }
 
 void FBLoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData)
@@ -1366,12 +1380,18 @@ void FBLoggerDataReader::BeginKMLFile()
     kmlFile_ << "<Document>\n";
 }
 
-string FBLoggerDataReader::FormatPlacemark(string name, string description, double longitude, double latitude)
+string FBLoggerDataReader::FormatPlacemark()
 {
     std::ostringstream ss;
 
     string iconUrl = "";
     string iconColor = "";
+
+    int serial = atoi(headerData_.serialNumberString.c_str());
+    string serialString = to_string(serial);
+    string sessionNumberString = to_string(status_.loggingSession);
+    string placemarkName = serialString + "_s" + sessionNumberString;
+    string description = "test";
 
     if (configurationType_ == "F")
     {
@@ -1391,18 +1411,29 @@ string FBLoggerDataReader::FormatPlacemark(string name, string description, doub
 
     ss << setprecision(10) << fixed;
     ss << "<Placemark>\n"
-        << "<name>" << name << "</name>\n"
-        << "<description>" << description << "</description>\n"
+        << "<name>" << placemarkName << "</name>\n"
+        << "<description>" 
+        << "Logger Serial: SN" << headerData_.serialNumberString << "\n"
+        << "Longitude (DD): " << headerData_.decimalDegreesLongitude << "\n"
+        << "Latitude (DD):  " << headerData_.decimalDegreesLatitude << "\n"
+        << "Logging Session Number: " << sessionNumberString << "\n"
+        << "Start Time (GMT): " << startTimeForSession_.yearString << "-" << startTimeForSession_.monthString 
+        << "-" << startTimeForSession_.dayString <<" " << startTimeForSession_.hourString << ":" << startTimeForSession_.minuteString 
+        << ":" << startTimeForSession_.secondString << "." << startTimeForSession_.millisecondString << "\n"
+        << "End Time (GMT):   " << endTimeForSession_.yearString << "-" + endTimeForSession_.monthString << "-" << endTimeForSession_.dayString << " "
+        << endTimeForSession_.hourString << ":" << endTimeForSession_.minuteString << ":" << endTimeForSession_.secondString << "."
+        << endTimeForSession_.millisecondString << "\n"
+        << "</description>\n"
         << "<Point>\n"
         << "<coordinates>"
-        << longitude << "," << latitude << ",0"
+        << headerData_.decimalDegreesLongitude << "," << headerData_.decimalDegreesLatitude << ",0"
         << "</coordinates>\n"
         << "</Point>\n"
         << "<Style>"
         << "<IconStyle>"
-        << "<color>" + iconColor + "</color>"
+        << "<color>" << iconColor << "</color>"
         << "<Icon>"
-        << "<href>" + iconUrl + "</href>"
+        << "<href>" << iconUrl << "</href>"
         << "</Icon> "
         << "</IconStyle>"
         << "</Style>"
@@ -1878,44 +1909,19 @@ void FBLoggerDataReader::PrintGPSFileHeader()
 
 void FBLoggerDataReader::PrintGPSFileLine()
 {
-    string dayString;
-    string monthString;
-    string yearString;
-    string hourString;
-    string minuteString;
-    string secondString;
-    string millisecondsString;
-    string recordString;
-
     // file, logger unit, and gps data
     gpsFileLine_ = currentFileStats_.fileName + ",SN" + headerData_.serialNumberString + "," + to_string(status_.loggingSession) + 
         "," + configurationType_ + "," + to_string(headerData_.decimalDegreesLongitude) + "," +
         to_string(headerData_.decimalDegreesLatitude) + ",";
 
-    yearString = MakeStringWidthTwoFromInt(startTimeForSession_.year);
-    monthString = MakeStringWidthTwoFromInt(startTimeForSession_.month);
-    dayString = MakeStringWidthTwoFromInt(startTimeForSession_.day);
-    hourString = MakeStringWidthTwoFromInt(startTimeForSession_.hours);
-    minuteString = MakeStringWidthTwoFromInt(startTimeForSession_.minutes);
-    secondString = MakeStringWidthTwoFromInt(startTimeForSession_.seconds);
-    millisecondsString = MakeStringWidthThreeFromInt(startTimeForSession_.milliseconds);
-
     // start time information for session
-    gpsFileLine_ += yearString + "-" + monthString + "-" + dayString + " " +
-        hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString +
+    gpsFileLine_ += startTimeForSession_.yearString + "-" + startTimeForSession_.monthString + "-" + startTimeForSession_.dayString + " " +
+        startTimeForSession_.hourString + ":" + startTimeForSession_.minuteString + ":" + startTimeForSession_.secondString + "." + startTimeForSession_.millisecondString +
         ",";
 
-    yearString = MakeStringWidthTwoFromInt(endTimeForSession_.year);
-    monthString = MakeStringWidthTwoFromInt(endTimeForSession_.month);
-    dayString = MakeStringWidthTwoFromInt(endTimeForSession_.day);
-    hourString = MakeStringWidthTwoFromInt(endTimeForSession_.hours);
-    minuteString = MakeStringWidthTwoFromInt(endTimeForSession_.minutes);
-    secondString = MakeStringWidthTwoFromInt(endTimeForSession_.seconds);
-    millisecondsString = MakeStringWidthThreeFromInt(endTimeForSession_.milliseconds);
-
     // end time information for session
-    gpsFileLine_ += yearString + "-" + monthString + "-" + dayString + " " +
-        hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString + "\n";
+    gpsFileLine_ += endTimeForSession_.yearString + "-" + endTimeForSession_.monthString + "-" + endTimeForSession_.dayString + " " +
+        endTimeForSession_.hourString + ":" + endTimeForSession_.minuteString + ":" + endTimeForSession_.secondString + "." + endTimeForSession_.millisecondString + "\n";
 
     // print to file
     gpsFile_ << gpsFileLine_;
