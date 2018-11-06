@@ -324,7 +324,6 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
     loggerDataReader.SetPrintRaw(m_createRawTicked);
     int totalNumberOfFiles = 0;
-;
     // Check log file, check config file, process input files, create output files 
     if (loggerDataReader.IsLogFileGood())
     {
@@ -337,10 +336,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         {
             totalNumberOfFiles = loggerDataReader.GetNumberOfInputFiles();
             float flProgress = 0;
-              
 
-
-            for(int i = 0; i < totalNumberOfFiles; i++)
+            for (int i = 0; i < totalNumberOfFiles; i++)
             {
                 // check kill
                 DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
@@ -352,8 +349,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                     break;
                 }
                 else
-                {             
-                    loggerDataReader.ProcessSingleDataFile();    
+                {
+                    loggerDataReader.ProcessSingleDataFile();
                     flProgress = (static_cast<float>(i) / totalNumberOfFiles) * (static_cast<float>(100.0));
                     ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
                     if (i == totalNumberOfFiles - 1)
@@ -365,7 +362,10 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
             }
             loggerDataReader.PrintFinalReportToLog();
         }
-        
+        else
+        {
+            ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+        }
     }
   
     if (!aborted)
