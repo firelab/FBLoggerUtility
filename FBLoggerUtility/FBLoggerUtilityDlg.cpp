@@ -132,13 +132,23 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
     GetModuleFileName(NULL, buffer, MAX_PATH);
     m_appPath = buffer;
     m_appPath = m_appPath.Left(m_appPath.ReverseFind(_T('\\')));
+    m_appPath = m_appPath + _T("\\");
+    CT2CA pszConvertedAnsiStringAppPath(m_appPath); // Convert a TCHAR string to a LPCSTR
+    std::string strAppPath(pszConvertedAnsiStringAppPath);
+   
+    m_appIniPath = m_appPath + _T("FBLoggerUtility.ini");
 
-    // Convert a TCHAR string to a LPCSTR
-    CT2CA pszConvertedAnsiString(m_appPath);
-    std::string strAppPath(pszConvertedAnsiString);
+    CString windTunnelDataTablePathTempCString = m_appPath + _T("TG201809251030.txt");
+    CT2CA pszConvertedAnsiStringWindTunnelDataTablePath(windTunnelDataTablePathTempCString);
+    std::string windTunnelDataTablePathTempStdString(pszConvertedAnsiStringWindTunnelDataTablePath);
+    m_windTunnelDataTablePath = windTunnelDataTablePathTempStdString;
 
-    m_appIniPath = m_appPath + _T("\\FBLoggerUtility.ini");
-
+    if (!PathFileExists(windTunnelDataTablePathTempCString))
+    {
+        AfxMessageBox(_T("Fatal Error: Missing file TG201809251030.txt\nContact RMRS Fire Lab for support\n Exiting application"));
+        PostQuitMessage(0);
+    }
+   
     if (!PathFileExists(m_appIniPath))
     {
         std::ofstream outfile(m_appIniPath);
@@ -306,7 +316,7 @@ BOOL CFBLoggerUtilityDlg::OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult)
 UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 {
     bool aborted = false;
-
+    bool isGoodWindTunnelTable = false;
     PostMessage(WORKER_THREAD_RUNNING, 0, 0);
 
     FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
@@ -314,15 +324,22 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
     loggerDataReader.SetPrintRaw(m_createRawTicked);
     int totalNumberOfFiles = 0;
+;
     // Check log file, check config file, process input files, create output files 
     if (loggerDataReader.IsLogFileGood())
     {
         loggerDataReader.CheckConfig();
-        if (loggerDataReader.IsConfigFileValid())
+        // Load data in from wind tunnel data table
+        loggerDataReader.SetWindTunnelDataTablePath(m_windTunnelDataTablePath);
+        isGoodWindTunnelTable = loggerDataReader.CreateWindTunnelDataVectors();
+
+        if (loggerDataReader.IsConfigFileValid() && isGoodWindTunnelTable)
         {
             totalNumberOfFiles = loggerDataReader.GetNumberOfInputFiles();
             float flProgress = 0;
               
+
+
             for(int i = 0; i < totalNumberOfFiles; i++)
             {
                 // check kill
@@ -348,6 +365,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
             }
             loggerDataReader.PrintFinalReportToLog();
         }
+        
     }
   
     if (!aborted)
@@ -364,6 +382,12 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
         CString text = _T("");
         CString caption = _T("");
+
+        if (!isGoodWindTunnelTable)
+        {
+            text = _T("There are errors in the wind tunnel data table file");
+            caption = ("Error: Invalid wind tunnel data table file");
+        }
 
         if (!loggerDataReader.IsConfigFileValid())
         {
@@ -628,6 +652,7 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
     if (!m_waitForWorkerThread.load())
     {
         m_waitForWorkerThread.store(true);
+
         ResetEvent(m_hKillEvent); // Don't kill Worker thread
 
         if (m_burnName == "")

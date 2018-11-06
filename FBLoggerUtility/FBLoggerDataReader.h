@@ -18,6 +18,11 @@ using std::stringstream;
 using std::pair;
 using std::map;
 
+template<typename T>
+std::vector<std::vector<T>> make_2d_vector(std::size_t rows, std::size_t cols)
+{
+    return std::vector<std::vector<T>>(rows, std::vector<T>(cols));
+}
 
 class FBLoggerDataReader
 {
@@ -36,6 +41,7 @@ public:
 
     void SetPrintRaw(bool option);
     void SetDataPath(string dataPath);
+    void SetWindTunnelDataTablePath(string windTunnelDataTablePath);
     void SetAppPath(string appPath);
     void SetConfigFile(string configFileFullPath);
     string GetDataPath();
@@ -48,6 +54,8 @@ public:
     bool IsConfigFileValid();
     bool IsLogFileGood();
     bool IsDoneReadingDataFiles();
+
+    bool CreateWindTunnelDataVectors();
 
 private:
     // Internal data structures
@@ -331,6 +339,7 @@ private:
     string statsFilePath_;
     string configFilePath_;
     string configurationType_;
+    string windTunnelDataPath_;
 
     ofstream kmlFile_;
     ofstream gpsFile_;
@@ -349,6 +358,10 @@ private:
     IconUrls iconsUrls_;
 
     vector<char> inputFileContents_;
+
+    vector<double> angles_;
+    vector<double> ReynloldsNumbers_;
+    vector<vector<double>> pressureCoeeffiencts_; // 2D vector of pressure coefficients with angle and Reynolds number as indices
 
     clock_t startClock_;
     double totalTimeInSeconds_;

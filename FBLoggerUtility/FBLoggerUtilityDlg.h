@@ -78,6 +78,8 @@ private:
     CString m_burnName;
     CString m_configFilePath;
 
+    string m_windTunnelDataTablePath;
+
     int m_numFilesProcessed;
     int m_numInvalidFiles;
     int m_numFilesConverted;

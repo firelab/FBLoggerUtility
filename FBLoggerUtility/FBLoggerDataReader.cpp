@@ -467,7 +467,7 @@ int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureO
         return -1;
     }
 
-    if (convertVelocity_.convert(temperature, pressureVoltageU, pressureVoltageV, pressureVoltageW, sensorBearing) == true)
+    if (convertVelocity_.convert(temperature, pressureVoltageU, pressureVoltageV, pressureVoltageW, sensorBearing, pressureCoeeffiencts_, angles_, ReynloldsNumbers_) == true)
     {
         status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U] = convertVelocity_.u;
         status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V] = convertVelocity_.v;
@@ -1352,6 +1352,61 @@ void FBLoggerDataReader::StoreSessionEndTime()
     endTimeForSession_.millisecondString = MakeStringWidthThreeFromInt(endTimeForSession_.milliseconds);
 }
 
+bool FBLoggerDataReader::CreateWindTunnelDataVectors()
+{
+    std::ifstream windTunnelDataFile(windTunnelDataPath_, std::ios::in);
+    string line;
+
+    double angle, ReynoldsNumber, pressureCoeffienct;
+    
+    
+    pressureCoeeffiencts_.resize(100);
+   
+    for (int i = 0; i < 100; i++)
+    {
+        pressureCoeeffiencts_[i].resize(10);
+    }
+
+    int lineCount = 0;
+    if (windTunnelDataFile.good())
+    {
+        pressureCoeeffiencts_ = make_2d_vector<double>(100, 10);
+        for (int j = 0; j < 10; j++)
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                getline(windTunnelDataFile, line);
+                lineCount++;
+                std::istringstream iss(line);
+                iss >> angle >> ReynoldsNumber >> pressureCoeffienct;
+
+                if (angles_.size() < 100)
+                {
+                    angles_.push_back(angle);
+                }
+
+                if (i == 0)
+                {
+                    ReynloldsNumbers_.push_back(ReynoldsNumber);
+                }
+                pressureCoeeffiencts_[i][j] = pressureCoeffienct;
+            }
+        }
+        if (lineCount == 1000)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else
+    {
+        return false;
+    }
+}
+
 void FBLoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData)
 {
     // latitude
@@ -1471,6 +1526,11 @@ void FBLoggerDataReader::SetDataPath(string dataPath)
     {
         dataPath_ = "";
     }
+}
+
+void FBLoggerDataReader::SetWindTunnelDataTablePath(string windTunnelDataTablePath)
+{
+    windTunnelDataPath_ = windTunnelDataTablePath;
 }
 
 void FBLoggerDataReader::SetAppPath(string appPath)
