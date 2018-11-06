@@ -15,7 +15,8 @@ convertVelocity::~convertVelocity()
 
 }
 
-bool convertVelocity::convert(double &temperature, double &pressureXvoltage, double &pressureYvoltage, double &pressureZvoltage, double &sensorBearing)
+bool convertVelocity::convert(double &temperature, double &pressureXvoltage, double &pressureYvoltage, double &pressureZvoltage, double &sensorBearing, const std::vector<std::vector<double>> &lookupTablePressureCoefficient, const std::vector<double> &lookupTableAngle, const std::vector<double> &lookupTableReynoldsNumber)
+
 {
 	temperatureK = temperature + 273.15;	//convert to Kelvin
 
@@ -50,17 +51,17 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 
 		//get new cp from calibration curve using a very large Reynold's number
 		//    use a relaxation method to update value to ensure smooth convergence
-		cpx = relaxCp * getCp(xAngle, ReLarge) + (1.0 - relaxCp) * cpx;
-		cpy = relaxCp * getCp(yAngle, ReLarge) + (1.0 - relaxCp) * cpy;
-		cpz = relaxCp * getCp(zAngle, ReLarge) + (1.0 - relaxCp) * cpz;
+		cpx = relaxCp * getCp(xAngle, ReLarge, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpx;
+		cpy = relaxCp * getCp(yAngle, ReLarge, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpy;
+		cpz = relaxCp * getCp(zAngle, ReLarge, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpz;
 
 		//compute Reynold's number and new cp from calibration curve for each disk
 		Re = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureX, cpx) * diskDiameter / air.get_mu(temperatureK);
-		cpx = getCp(xAngle, Re);
+		cpx = getCp(xAngle, Re, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
 		Re = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureY, cpy) * diskDiameter / air.get_mu(temperatureK);
-		cpy = getCp(yAngle, Re);
+		cpy = getCp(yAngle, Re, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
 		Re = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureZ, cpz) * diskDiameter / air.get_mu(temperatureK);
-		cpz = getCp(zAngle, Re);
+		cpz = getCp(zAngle, Re, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
 
 		//compute revised velocity estimates based on the revised pressure coefficients
 		u = getVelocity(temperatureK, pressureX, cpx);
@@ -92,7 +93,7 @@ double convertVelocity::getVelocityResidual()
 	return sqrt((u - uOld)*(u - uOld) + (v - vOld)*(v - vOld) + (w - wOld)*(w - wOld));
 }
 
-double convertVelocity::getCp(double angle, double ReynoldsNumber)
+double convertVelocity::getCp(double angle, double ReynoldsNumber, const std::vector<std::vector<double>> &lookupTablePressureCoefficient, const std::vector<double> &lookupTableAngle, const std::vector<double> &lookupTableReynoldsNumber)
 {
 	//if (angle <= 90.0)
 	//	return -1.0/90.0 * angle + 1.0;
@@ -104,8 +105,43 @@ double convertVelocity::getCp(double angle, double ReynoldsNumber)
 	if (ReynoldsNumber < 0.0)
 		ReynoldsNumber = -1.0 * ReynoldsNumber;
 
-	//return 1.099 + 9.311e-03*angle - 2.424e-04*angle*angle + 7.536e-07*ReynoldsNumber - 7.091e-13*ReynoldsNumber*ReynoldsNumber - 3.061e-09*angle*ReynoldsNumber;  //old conversion which had an error where Re number was incorrectly computed
-	double CpValue = -1.591e-01*exp(2.702e-02*angle) + 2.490e+00 + 1.010e-05*ReynoldsNumber - 1.0;
+	double CpValue;
+	//CpValue = 1.099 + 9.311e-03*angle - 2.424e-04*angle*angle + 7.536e-07*ReynoldsNumber - 7.091e-13*ReynoldsNumber*ReynoldsNumber - 3.061e-09*angle*ReynoldsNumber;  //old conversion which had an error where Re number was incorrectly computed
+	//CpValue = -1.591e-01*exp(2.702e-02*angle) + 2.490e+00 + 1.010e-05*ReynoldsNumber - 1.0;	//Curve fit from Isaac, not great
+
+	int row = -1;
+	int col = -1;
+	for (int i = 0; i < lookupTableAngle.size(); i++)
+	{
+		if (angle < lookupTableAngle[i])
+		{
+			row = i - 1;
+			break;
+		}
+	}
+
+	for (int i = 0; i < lookupTableReynoldsNumber.size(); i++)
+	{
+		if (ReynoldsNumber < lookupTableReynoldsNumber[i])
+		{
+			col = i - 1;
+			break;
+		}
+	}
+
+	//handle case where values are equal to high side of arrays
+	if (row < 0)	//if wasn't set above
+		row = lookupTableAngle.size() - 2;
+	if (col < 0)	//if wasn't set above
+		col = lookupTableReynoldsNumber.size() - 2;
+
+	double t, u;
+
+	t = (angle - lookupTableAngle[row]) / (lookupTableAngle[row+1] - lookupTableAngle[row]);
+	u = (ReynoldsNumber - lookupTableReynoldsNumber[col]) / (lookupTableReynoldsNumber[col + 1] - lookupTableReynoldsNumber[col]);
+
+	CpValue = (1.0 - t) * (1.0 - u) * lookupTablePressureCoefficient[row][col] + t * (1.0 - u)*lookupTablePressureCoefficient[row][col + 1] + t * u*lookupTablePressureCoefficient[row + 1][col + 1] + (1.0 - t)*u*lookupTablePressureCoefficient[row + 1][col];
+
 	if (CpValue < 0.0)	//Don't let Cp go less than zero, which can happen with the current curve fit near angles of 90.
 		CpValue = 0.0;
 	return CpValue;

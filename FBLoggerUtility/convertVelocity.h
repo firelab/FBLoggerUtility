@@ -2,6 +2,7 @@
 
 #include "air.h"
 #include <math.h>
+#include <vector>
 
 #define PI 3.14159265
 
@@ -10,7 +11,7 @@ class convertVelocity
 public:
 	convertVelocity();
 	~convertVelocity();
-	bool convert(double &temperature, double &pressureXvoltage, double &pressureYvoltage, double &pressureZvoltage, double &sensorBearing);
+	bool convert(double &temperature, double &pressureXvoltage, double &pressureYvoltage, double &pressureZvoltage, double &sensorBearing, const std::vector<std::vector<double>> &lookupTablePressureCoefficient, const std::vector<double> &lookupTableAngle, const std::vector<double> &lookupTableReynoldsNumber);
 
 	double u;			//X component of velocity (m/s)
 	double v;			//Y component of velocity (m/s)
@@ -19,7 +20,7 @@ public:
 private:
 	double getVelocity(double &temperature, double &pressure, double &cp);
 	double getVelocityResidual();
-	double getCp(double angle, double ReynoldsNumber);
+	double getCp(double angle, double ReynoldsNumber, const std::vector<std::vector<double>> &lookupTablePressureCoefficient, const std::vector<double> &lookupTableAngle, const std::vector<double> &lookupTableReynoldsNumber);
 
 	Air air;
 	double pressureX;	//X direction differential pressure (Pascals)
