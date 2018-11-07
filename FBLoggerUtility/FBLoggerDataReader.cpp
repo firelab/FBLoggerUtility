@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <iomanip>
+#include <ctype.h>
 
 FBLoggerDataReader::FBLoggerDataReader(string dataPath, string burnName)
     :logFilePath_(dataPath + "\\log_file.txt"),
@@ -690,8 +691,14 @@ void FBLoggerDataReader::ReadConfig()
         {
             while (getline(configFile, line))
             {
-                ParseTokensFromLineOfConfigFile(line);
-                ProcessErrorsInLineOfConfigFile();
+                line.erase(std::remove_if(line.begin(), line.end(),
+                    [](char c) { return (isspace(c) || !(isalnum(c) || ',')); }),
+                    line.end());
+                if (line != "")
+                {
+                    ParseTokensFromLineOfConfigFile(line);
+                    ProcessErrorsInLineOfConfigFile();
+                }
             }
         }
     }
