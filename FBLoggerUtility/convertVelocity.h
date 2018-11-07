@@ -39,9 +39,12 @@ private:
 	double yAngle;		//velocity angle relative to normal of y direction probe (degrees) [0 - 180]
 	double zAngle;		//velocity angle relative to normal of z direction probe (degrees) [0 - 180]
 	double velocityMagnitude;	//velocity magnitude (m/s)
-	double Re;			//Reynold's number
+	double ReX;			//Reynold's number for x-direction
+	double ReY;			//Reynold's number for y-direction
+	double ReZ;			//Reynold's number for z-direction
 	double ReLarge;		//Large Reynold's number, sufficiently on flat part of cp(angle,Re) curve
 	double relaxCp;		//cp relaxation value to ensure smooth convergence [0 - 1]
 	double diskDiameter;	//diameter of probe disk, used in Reynold's number calculation (m)
 	double temperatureK;	//air temperature (K)
+	double velocityResidual;	//change in velocity from last iteration
 };

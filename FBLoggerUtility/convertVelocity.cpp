@@ -4,7 +4,7 @@
 convertVelocity::convertVelocity()
 {
 	maxIters = 100;
-	velocityTolerance = 0.01;
+	velocityTolerance = 0.1;
 	ReLarge = 20000;
 	relaxCp = 0.8;
 	diskDiameter = 0.04445;
@@ -24,6 +24,17 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 	pressureY = (pressureYvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
 	pressureZ = (pressureZvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
 
+/////////////TEST VALUES///////////////////////////
+
+//	pressureX = 2.49;
+//	pressureY = 6.21;
+//	pressureZ = 0.249;
+//	diskDiameter = 0.0254;
+//	temperatureK = 300.0;
+
+//////////////////////////////////////////////////
+
+
 	//start with assumed pressure coefficient of one
 	cpx = 1.0;
 	cpy = 1.0;
@@ -33,6 +44,11 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 	u = getVelocity(temperatureK, pressureX, cpx);
 	v = getVelocity(temperatureK, pressureY, cpy);
 	w = getVelocity(temperatureK, pressureZ, cpz);
+
+	ReX = ReLarge;
+	ReY = ReLarge;
+	ReZ = ReLarge;
+
 	iters = 0;
 	do {
 		iters += 1;
@@ -49,31 +65,33 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 		yAngle = acos(v / velocityMagnitude) * 180.0 / PI;
 		zAngle = acos(w / velocityMagnitude) * 180.0 / PI;
 
-		//get new cp from calibration curve using a very large Reynold's number
+		//get new cp from calibration curve using latest Reynold's numbers
 		//    use a relaxation method to update value to ensure smooth convergence
-		cpx = relaxCp * getCp(xAngle, ReLarge, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpx;
-		cpy = relaxCp * getCp(yAngle, ReLarge, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpy;
-		cpz = relaxCp * getCp(zAngle, ReLarge, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpz;
+		cpx = relaxCp * getCp(xAngle, ReX, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpx;
+		cpy = relaxCp * getCp(yAngle, ReY, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpy;
+		cpz = relaxCp * getCp(zAngle, ReZ, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpz;
 
 		//compute Reynold's number and new cp from calibration curve for each disk
-		Re = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureX, cpx) * diskDiameter / air.get_mu(temperatureK);
-		cpx = getCp(xAngle, Re, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
-		Re = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureY, cpy) * diskDiameter / air.get_mu(temperatureK);
-		cpy = getCp(yAngle, Re, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
-		Re = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureZ, cpz) * diskDiameter / air.get_mu(temperatureK);
-		cpz = getCp(zAngle, Re, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
+		ReX = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureX, cpx) * diskDiameter / air.get_mu(temperatureK);
+		cpx = getCp(xAngle, ReX, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
+		ReY = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureY, cpy) * diskDiameter / air.get_mu(temperatureK);
+		cpy = getCp(yAngle, ReY, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
+		ReZ = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureZ, cpz) * diskDiameter / air.get_mu(temperatureK);
+		cpz = getCp(zAngle, ReZ, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
 
 		//compute revised velocity estimates based on the revised pressure coefficients
 		u = getVelocity(temperatureK, pressureX, cpx);
 		v = getVelocity(temperatureK, pressureY, cpy);
 		w = getVelocity(temperatureK, pressureZ, cpz);
 
-	} while (getVelocityResidual() > velocityTolerance && iters < maxIters);
+		velocityResidual = getVelocityResidual();
+
+	} while (velocityResidual > velocityTolerance && iters < maxIters);
 
 	//rotate to "north" coordinate system....  someday....?  Currently stay in local sensor coordinate system
 
 
-	if (getVelocityResidual() > velocityTolerance)
+	if (velocityResidual > velocityTolerance)
 		return false;
 	else
 		return true;
@@ -81,10 +99,14 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 
 double convertVelocity::getVelocity(double &temperature, double &pressure, double &cp)
 {
+	if (cp <= 0.1)	//cp of zero means velocity must be zero.  Negative cp may be possible, if the cp(angle,Re) gives that for high angles and low Re.
+		return 0.0;
 	if(pressure > 0)	//make sure pressure is positive for square root
 		return sqrt(pressure / (0.5*air.get_rho(temperature)*cp));
+//		return sqrt(pressure / (0.5*1.2*cp));
 	else
 		return -sqrt(-pressure / (0.5*air.get_rho(temperature)*cp));
+//		return -sqrt(-pressure / (0.5*1.2*cp));
 }
 
 double convertVelocity::getVelocityResidual()
