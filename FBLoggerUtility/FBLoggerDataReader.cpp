@@ -16,6 +16,12 @@
 #include <iomanip>
 #include <ctype.h>
 
+template<typename T>
+std::vector<std::vector<T>> make_2d_vector(std::size_t rows, std::size_t cols)
+{
+    return std::vector<std::vector<T>>(rows, std::vector<T>(cols));
+}
+
 FBLoggerDataReader::FBLoggerDataReader(string dataPath, string burnName)
     :logFilePath_(dataPath + "\\log_file.txt"),
     logFile_(logFilePath_, std::ios::out),
@@ -461,10 +467,10 @@ int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureO
     }
     else
     {
-        // Error
-        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U] = 9999;
-        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V] = 9999;
-        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_W] = 9999;
+        // Error in logger data
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U] = SanityChecks::INVALID_SENSOR_READING;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V] = SanityChecks::INVALID_SENSOR_READING;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_W] = SanityChecks::INVALID_SENSOR_READING;
         return -1;
     }
 
@@ -476,10 +482,10 @@ int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureO
     }
     else
     {
-        // Error
-        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U] = 9999;
-        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V] = 9999;
-        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_W] = 9999;
+        // Error in velocity conversion
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U] = SanityChecks::INVALID_VELCOCITY_CONVERSION;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V] = SanityChecks::INVALID_VELCOCITY_CONVERSION;
+        status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_W] = SanityChecks::INVALID_VELCOCITY_CONVERSION;
         return -1;
     }
     return 0; // success
@@ -531,7 +537,7 @@ void FBLoggerDataReader::PerformNeededDataConversions()
         }
         else
         {
-            status_.sensorReadingValue[FIDPackageIndex::PRESSURE_VOLTAGE] = 9999.0;
+            status_.sensorReadingValue[FIDPackageIndex::PRESSURE_VOLTAGE] = SanityChecks::INVALID_SENSOR_READING;
         }
     }
     else if (configurationType_ == "H")
@@ -544,7 +550,7 @@ void FBLoggerDataReader::PerformNeededDataConversions()
 
         double heatFluxVoltage = status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE];
         bool heatFluxVoltageGood = ((heatFluxVoltage <= sanityChecks_.heatFluxVoltageMax) && (heatFluxVoltage >= sanityChecks_.heatFluxVoltageMin));
-        double heatFlux = 9999;
+        double heatFlux = SanityChecks::INVALID_SENSOR_READING;;
         if (heatFluxVoltageGood)
         {
             heatFlux = CalculateHeatFlux(status_.sensorReadingValue[HeatFluxIndex::HEAT_FLUX_VOLTAGE]);
@@ -691,9 +697,12 @@ void FBLoggerDataReader::ReadConfig()
         {
             while (getline(configFile, line))
             {
-                line.erase(std::remove_if(line.begin(), line.end(),
-                    [](char c) { return (isspace(c) || !(isalnum(c) || ',')); }),
-                    line.end());
+                // remove any whitespace or control chars from line
+                line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
+                line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+                line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+                line.erase(std::remove(line.begin(), line.end(), '\r\n'), line.end());
+                line.erase(std::remove(line.begin(), line.end(), '\t'), line.end());
                 if (line != "")
                 {
                     ParseTokensFromLineOfConfigFile(line);
@@ -745,13 +754,6 @@ void FBLoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
 
     while (getline(lineStream_, token, ','))
     {
-        // remove any whitespace or control chars from token
-        token.erase(std::remove(token.begin(), token.end(), ' '), token.end());
-        token.erase(std::remove(token.begin(), token.end(), '\n'), token.end());
-        token.erase(std::remove(token.begin(), token.end(), '\r'), token.end());
-        token.erase(std::remove(token.begin(), token.end(), '\r\n'), token.end());
-        token.erase(std::remove(token.begin(), token.end(), '\t'), token.end());
-
         int testSerial = atoi(token.c_str());
 
         switch (tokenCounter)
@@ -852,7 +854,7 @@ void FBLoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
     }
     if (tokenCounter > 4)
     {
-        logFileLine_ = "Error: The entry in in config file at " + configFilePath_ + " has more than the required 4 columns with first invalid entry at line " + std::to_string(status_.configFileLineNumber) + " " + GetMyLocalDateTimeString() + "\n";
+        logFileLine_ = "Error: The entry in config file at " + configFilePath_ + " has more than the required 4 columns with first invalid entry at line " + std::to_string(status_.configFileLineNumber) + " " + GetMyLocalDateTimeString() + "\n";
         isConfigFileValid_ = false;
         numErrors_++;
     }
@@ -1089,8 +1091,8 @@ void FBLoggerDataReader::ResetCurrentFileStats()
     {
         currentFileStats_.columnFailedSanityCheckRaw[i] = false;
         currentFileStats_.columnFailedSanityCheckFinal[i] = false;
-        currentFileStats_.columnMin[i] = 9999.0;
-        currentFileStats_.columnMax[i] = -9999.0;
+        currentFileStats_.columnMin[i] = SanityChecks::INITIAL_MIN;
+        currentFileStats_.columnMax[i] = SanityChecks::INITIAL_MAX;
     }
     currentFileStats_.isFailedSanityCheckFinal = false;
     currentFileStats_.isFailedSanityCheckRaw = false;
@@ -1366,52 +1368,47 @@ bool FBLoggerDataReader::CreateWindTunnelDataVectors()
 
     double angle, ReynoldsNumber, pressureCoeffienct;
     
-    
-    pressureCoeeffiencts_.resize(100);
-   
-    for (int i = 0; i < 100; i++)
-    {
-        pressureCoeeffiencts_[i].resize(10);
-    }
+    const int NUM_ANGLES = 100;
+    const int NUM_REYNOLDS_NUMBERS = 10;
+    const int NUM_DATA_LINES = NUM_ANGLES * NUM_REYNOLDS_NUMBERS;
 
+    bool isSuccessful = false;
+    angles_.clear();
+    angles_.reserve(NUM_ANGLES);
+    ReynloldsNumbers_.clear();
+    ReynloldsNumbers_.reserve(NUM_REYNOLDS_NUMBERS);
     int lineCount = 0;
     if (windTunnelDataFile.good())
     {
-        pressureCoeeffiencts_ = make_2d_vector<double>(100, 10);
-        for (int j = 0; j < 10; j++)
+        pressureCoeeffiencts_ = make_2d_vector<double>(NUM_ANGLES, NUM_REYNOLDS_NUMBERS);
+        for (int ReynoldsNumberIndex = 0; ReynoldsNumberIndex < NUM_REYNOLDS_NUMBERS; ReynoldsNumberIndex++)
         {
-            for (int i = 0; i < 100; i++)
+            for (int angleIndex = 0; angleIndex < NUM_ANGLES; angleIndex++)
             {
                 getline(windTunnelDataFile, line);
                 lineCount++;
                 std::istringstream iss(line);
                 iss >> angle >> ReynoldsNumber >> pressureCoeffienct;
 
-                if (angles_.size() < 100)
+                if (angles_.size() < NUM_ANGLES)
                 {
                     angles_.push_back(angle);
                 }
 
-                if (i == 0)
+                if (angleIndex == 0)
                 {
                     ReynloldsNumbers_.push_back(ReynoldsNumber);
                 }
-                pressureCoeeffiencts_[i][j] = pressureCoeffienct;
+                pressureCoeeffiencts_[angleIndex][ReynoldsNumberIndex] = pressureCoeffienct;
             }
         }
-        if (lineCount == 1000)
+        if (lineCount == NUM_DATA_LINES)
         {
-            return true;
-        }
-        else
-        {
-            return false;
+            isSuccessful = true;
         }
     }
-    else
-    {
-        return false;
-    }
+    
+    return isSuccessful;
 }
 
 void FBLoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData)

@@ -18,12 +18,6 @@ using std::stringstream;
 using std::pair;
 using std::map;
 
-template<typename T>
-std::vector<std::vector<T>> make_2d_vector(std::size_t rows, std::size_t cols)
-{
-    return std::vector<std::vector<T>>(rows, std::vector<T>(cols));
-}
-
 class FBLoggerDataReader
 {
 public:
@@ -200,11 +194,14 @@ private:
         enum SanityCheckTypeEnum
         {
             RAW = 0,
-            FINAL = 1
+            FINAL = 1,
+            IGNORE_MIN = -999999,
+            IGNORE_MAX = 999999,
+            INVALID_SENSOR_READING = 9999,
+            INVALID_VELCOCITY_CONVERSION = -9999,
+            INITIAL_MIN = 9999,
+            INITIAL_MAX = -9999
         };
-
-        const double IGNORE_MIN = -999999.0;
-        const double IGNORE_MAX = 999999.0;
 
         const double FIDVoltageMin = 0.0;
         const double FIDVoltageMax = 2.5;
