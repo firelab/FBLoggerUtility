@@ -219,6 +219,9 @@
   <ItemGroup>
     <Image Include="res\FBLoggerUtility.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="wind_tunnel_data\TG201811071345.txt" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

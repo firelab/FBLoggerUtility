@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Wind Tunnel Data">
+      <UniqueIdentifier>{097a10b7-0d57-4465-9c8a-84bb0983c2ec}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FBLoggerUtility.h">
@@ -95,5 +98,10 @@
     <Image Include="res\FBLoggerUtility.ico">
       <Filter>Resource Files</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="wind_tunnel_data\TG201811071345.txt">
+      <Filter>Wind Tunnel Data</Filter>
+    </Text>
   </ItemGroup>
 </Project>

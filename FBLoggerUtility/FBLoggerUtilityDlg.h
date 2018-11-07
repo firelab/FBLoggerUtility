@@ -77,6 +77,7 @@ private:
     CString m_dataPath;
     CString m_burnName;
     CString m_configFilePath;
+    CString m_windTunnelDataFileName;
 
     string m_windTunnelDataTablePath;
 

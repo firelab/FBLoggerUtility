@@ -138,14 +138,17 @@ BOOL CFBLoggerUtilityDlg::OnInitDialog()
    
     m_appIniPath = m_appPath + _T("FBLoggerUtility.ini");
 
-    CString windTunnelDataTablePathTempCString = m_appPath + _T("TG201809251030.txt");
+    m_windTunnelDataFileName = "TG201811071345.txt";
+
+    CString windTunnelDataTablePathTempCString = m_appPath + m_windTunnelDataFileName;
     CT2CA pszConvertedAnsiStringWindTunnelDataTablePath(windTunnelDataTablePathTempCString);
     std::string windTunnelDataTablePathTempStdString(pszConvertedAnsiStringWindTunnelDataTablePath);
     m_windTunnelDataTablePath = windTunnelDataTablePathTempStdString;
 
     if (!PathFileExists(windTunnelDataTablePathTempCString))
     {
-        AfxMessageBox(_T("Fatal Error: Missing file TG201809251030.txt\nContact RMRS Fire Lab for support\n Exiting application"));
+        CString missingWindTunnelFileText = _T("Fatal Error: Missing file ") + m_windTunnelDataFileName + _T("\nContact RMRS Fire Lab for support\nExiting application");
+        AfxMessageBox(missingWindTunnelFileText);
         PostQuitMessage(0);
     }
    
