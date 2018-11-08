@@ -1750,7 +1750,7 @@ string FBLoggerDataReader::GetMyLocalDateTimeString()
     SYSTEMTIME systemTime;
     GetLocalTime(&systemTime);
 
-    return MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+    return std::to_string(systemTime.wYear) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + MakeStringWidthTwoFromInt(systemTime.wDay) +
         " " + MakeStringWidthTwoFromInt(systemTime.wHour) + ":" + MakeStringWidthTwoFromInt(systemTime.wMinute) + ":" +
         MakeStringWidthTwoFromInt(systemTime.wSecond) + ":" + MakeStringWidthThreeFromInt(systemTime.wMilliseconds);
 }
