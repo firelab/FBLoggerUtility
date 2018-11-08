@@ -1894,8 +1894,8 @@ void FBLoggerDataReader::SetOutFilePaths(string infileName)
     string firstDateString;
     string firstTimeString;
 
-    firstDateString = headerData_.dayString + "-" + headerData_.monthString + "-" + headerData_.yearString.at(2) + headerData_.yearString.at(3);
-    firstTimeString = headerData_.hourString + headerData_.minuteString;
+    firstDateString = headerData_.yearString + "-" + headerData_.monthString  + "-" + headerData_.dayString;
+    firstTimeString = headerData_.hourString + "H" + headerData_.minuteString + "M";
 
     infileName = RemoveFileExtension(infileName);
 
@@ -1919,7 +1919,7 @@ void FBLoggerDataReader::SetOutFilePaths(string infileName)
         }
     }
 
-    outDataFilePath_ += "_" + configurationType_ + "_" + firstDateString + "_" + firstTimeString;
+    outDataFilePath_ += "_" + configurationType_ + "_" + firstDateString + "-" + firstTimeString;
     if (printRaw_)
     {
         rawOutDataFilePath_ = outDataFilePath_;
