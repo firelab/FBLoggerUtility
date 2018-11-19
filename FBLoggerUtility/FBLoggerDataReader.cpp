@@ -61,6 +61,8 @@ FBLoggerDataReader::FBLoggerDataReader(string dataPath, string burnName)
     invalidInputFileErrorType_.clear();
     configMap_.clear();
 
+    totalTimeInSeconds_ = 0.0;
+
     printRaw_ = false;
 
     // Initialize F Config Sanity Checks
@@ -474,7 +476,7 @@ int FBLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureO
         return -1;
     }
 
-    if (convertVelocity_.convert(temperature, pressureVoltageU, pressureVoltageV, pressureVoltageW, sensorBearing, pressureCoeeffiencts_, angles_, ReynloldsNumbers_) == true)
+    if (convertVelocity_.convert(temperature, pressureVoltageU, pressureVoltageV, pressureVoltageW, sensorBearing, pressureCoefficients_, angles_, ReynloldsNumbers_) == true)
     {
         status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_U] = convertVelocity_.u;
         status_.sensorReadingValue[HeatFluxIndex::PRESSURE_SENSOR_V] = convertVelocity_.v;
@@ -1283,7 +1285,7 @@ void FBLoggerDataReader::PrintStatsFile()
 
 void FBLoggerDataReader::PrintFinalReportToLog()
 {
-    totalTimeInSeconds_ = (clock() - startClock_) / (double)CLOCKS_PER_SEC;
+    totalTimeInSeconds_ = ((double)clock() - (double)startClock_) / (double)CLOCKS_PER_SEC;
     string dataPathOutput = dataPath_.substr(0, dataPath_.size() - 1);
     if (logFile_.good() && logFileLine_ == "" && invalidInputFileList_.empty())
     {
@@ -1366,7 +1368,7 @@ bool FBLoggerDataReader::CreateWindTunnelDataVectors()
     std::ifstream windTunnelDataFile(windTunnelDataPath_, std::ios::in);
     string line;
 
-    double angle, ReynoldsNumber, pressureCoeffienct;
+    double angle, ReynoldsNumber, pressureCoefficient;
     
     const int NUM_ANGLES = 100;
     const int NUM_REYNOLDS_NUMBERS = 10;
@@ -1380,7 +1382,7 @@ bool FBLoggerDataReader::CreateWindTunnelDataVectors()
     int lineCount = 0;
     if (windTunnelDataFile.good())
     {
-        pressureCoeeffiencts_ = make_2d_vector<double>(NUM_ANGLES, NUM_REYNOLDS_NUMBERS);
+        pressureCoefficients_ = make_2d_vector<double>(NUM_ANGLES, NUM_REYNOLDS_NUMBERS);
         for (int ReynoldsNumberIndex = 0; ReynoldsNumberIndex < NUM_REYNOLDS_NUMBERS; ReynoldsNumberIndex++)
         {
             for (int angleIndex = 0; angleIndex < NUM_ANGLES; angleIndex++)
@@ -1388,7 +1390,7 @@ bool FBLoggerDataReader::CreateWindTunnelDataVectors()
                 getline(windTunnelDataFile, line);
                 lineCount++;
                 std::istringstream iss(line);
-                iss >> angle >> ReynoldsNumber >> pressureCoeffienct;
+                iss >> angle >> ReynoldsNumber >> pressureCoefficient;
 
                 if (angles_.size() < NUM_ANGLES)
                 {
@@ -1399,7 +1401,7 @@ bool FBLoggerDataReader::CreateWindTunnelDataVectors()
                 {
                     ReynloldsNumbers_.push_back(ReynoldsNumber);
                 }
-                pressureCoeeffiencts_[angleIndex][ReynoldsNumberIndex] = pressureCoeffienct;
+                pressureCoefficients_[angleIndex][ReynoldsNumberIndex] = pressureCoefficient;
             }
         }
         if (lineCount == NUM_DATA_LINES)

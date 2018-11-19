@@ -356,9 +356,10 @@ private:
 
     vector<char> inputFileContents_;
 
+    // The three angles_, ReynoldsNumbers_ and pressureCoefficients_ below are populated from the wind tunnel data file 
     vector<double> angles_;
     vector<double> ReynloldsNumbers_;
-    vector<vector<double>> pressureCoeeffiencts_; // 2D vector of pressure coefficients with angle and Reynolds number as indices
+    vector<vector<double>> pressureCoefficients_; // 2D vector of pressure coefficients with angle and Reynolds number as indices
 
     clock_t startClock_;
     double totalTimeInSeconds_;
