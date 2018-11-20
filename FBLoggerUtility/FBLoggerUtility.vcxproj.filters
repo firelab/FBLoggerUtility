@@ -100,8 +100,6 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="wind_tunnel_data\TG201811071345.txt">
-      <Filter>Wind Tunnel Data</Filter>
-    </Text>
+    <CopyFileToFolders Include="wind_tunnel_data\TG201811071345.txt" />
   </ItemGroup>
 </Project>

@@ -68,6 +68,13 @@ CFBLoggerUtilityDlg::CFBLoggerUtilityDlg(CWnd* pParent /*=NULL*/)
     : CDialogEx(CFBLoggerUtilityDlg::IDD, pParent),
     m_pProgressBarDlg(NULL)
 {
+    m_workerThread = NULL;
+    m_ThreadID = NULL;
+    m_numInvalidFiles = 0;
+    m_numFilesProcessed = 0;
+    m_numFilesConverted = 0;
+    m_hKillEvent = NULL;
+    m_createRawTicked = false;
     m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
 
@@ -297,11 +304,11 @@ BOOL CFBLoggerUtilityDlg::OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult)
 #else
     if (pNMHDR->code == TTN_NEEDTEXTA)
     {
-        _wcstombsz(pTTTA->szText, strTipText, ::std::size(pTTTA->szText));
+        _wcstombsz(pTTTA->szText, strTipText, (ULONG)::std::size(pTTTA->szText));
     }
     else
     {
-        lstrcpyn(pTTTW->szText, strTipText, ::std::size(pTTTW->szText));
+        lstrcpyn(pTTTW->szText, strTipText, (int)::std::size(pTTTW->szText));
     }
 #endif
 

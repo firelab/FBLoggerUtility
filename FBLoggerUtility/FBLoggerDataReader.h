@@ -120,13 +120,13 @@ private:
 
     struct StatsFileData
     {
-        double columnMin[9];
-        double columnMax[9];
-        bool columnFailedSanityCheckRaw[9];
-        bool columnFailedSanityCheckFinal[9];
-        bool isFailedSanityCheckRaw;
-        bool isFailedSanityCheckFinal;
-        string fileName;
+        double columnMin[9] = { 0,0,0,0,0,0,0,0,0 };
+        double columnMax[9] = { 0,0,0,0,0,0,0,0,0 };
+        bool columnFailedSanityCheckRaw[9] = { false,false,false,false,false,false,false,false,false };
+        bool columnFailedSanityCheckFinal[9] = { false,false,false,false,false,false,false,false,false };
+        bool isFailedSanityCheckRaw = false;
+        bool isFailedSanityCheckFinal = false;
+        string fileName = "";
     };
 
     struct InvalidInputFileErrorType

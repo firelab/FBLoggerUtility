@@ -153,9 +153,9 @@ double convertVelocity::getCp(double angle, double ReynoldsNumber, const std::ve
 
 	//handle case where values are equal to high side of arrays
 	if (row < 0)	//if wasn't set above
-		row = lookupTableAngle.size() - 2;
+		row = (int)lookupTableAngle.size() - 2;
 	if (col < 0)	//if wasn't set above
-		col = lookupTableReynoldsNumber.size() - 2;
+		col = (int)lookupTableReynoldsNumber.size() - 2;
 
 	double t, u;
 

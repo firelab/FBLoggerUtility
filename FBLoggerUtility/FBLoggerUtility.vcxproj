@@ -197,10 +197,19 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="air.cpp" />
-    <ClCompile Include="convertVelocity.cpp" />
-    <ClCompile Include="FBLoggerDataReader.cpp" />
+    <ClCompile Include="convertVelocity.cpp">
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/wd26451 /wd26495 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/wd26451 /wd26495 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="FBLoggerDataReader.cpp">
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/wd26451 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/wd26451 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="FBLoggerUtility.cpp" />
-    <ClCompile Include="FBLoggerUtilityDlg.cpp" />
+    <ClCompile Include="FBLoggerUtilityDlg.cpp">
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/wd6031 /wd26454 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/wd6031 /wd26454 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="fluid.cpp" />
     <ClCompile Include="ProgressBarDlg.cpp" />
     <ClCompile Include="stdafx.cpp">
