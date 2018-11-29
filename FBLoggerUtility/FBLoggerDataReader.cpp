@@ -222,10 +222,7 @@ void FBLoggerDataReader::ProcessSingleDataFile()
             PrintLogFileLine();
         }
         else
-        { 
-            // Get the size of the data file in bytes
-            const char* cStringFilePath = inDataFilePath_.c_str();
-
+        {
             // Clear file content vector 
             inputFileContents_.clear();
             // Store input file in RAWM
@@ -670,12 +667,13 @@ void FBLoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTy
 
 void FBLoggerDataReader::StoreInputFileContentsToRAM(ifstream & inFile)
 {
-    std::string contents((std::istreambuf_iterator<char>(inFile)),
-        std::istreambuf_iterator<char>());
+    // Get size of file in bytes
+    inFile.seekg(0, ios::end);
+    unsigned int fileSizeInBytes = (unsigned int)inFile.tellg();
+    inFile.seekg(0, ios::beg);
 
-    std::vector<char> v(contents.begin(), contents.end());
-    inputFileContents_.reserve(contents.size());
-    inputFileContents_ = v;
+    inputFileContents_.reserve(fileSizeInBytes);
+    inputFileContents_.assign(std::istreambuf_iterator<char>(inFile), std::istreambuf_iterator<char>());
 }
 
 void FBLoggerDataReader::ReadConfig()
