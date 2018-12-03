@@ -4,7 +4,8 @@
 #pragma once
 
 #include "afxeditbrowsectrl.h"
-#include "FBLoggerDataReader.h"
+#include "LoggerDataReader.h"
+#include "FBLoggerLogFile.h"
 #include "ProgressBarDlg.h"
 
 #include <atomic>

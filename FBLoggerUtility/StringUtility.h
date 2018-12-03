@@ -54,7 +54,7 @@ static inline std::string Utf8_encode(const std::wstring &wstr)
     return strTo;
 }
 
-static bool IsOnlyDigits(const std::string &str)
+static inline bool IsOnlyDigits(const std::string &str)
 {
     if (str == "")
     {
@@ -64,4 +64,46 @@ static bool IsOnlyDigits(const std::string &str)
     {
         return std::all_of(str.begin(), str.end(), ::isdigit);
     }
+}
+
+string inline MakeStringWidthTwoFromInt(int data)
+{
+    string formattedString;
+    if (data > 9)
+    {
+        formattedString = std::to_string(data);
+    }
+    else
+    {
+        formattedString = "0" + std::to_string(data);
+    }
+    return formattedString;
+}
+
+string inline MakeStringWidthThreeFromInt(int data)
+{
+    string formattedString;
+    if (data > 99)
+    {
+        formattedString = std::to_string(data);
+    }
+    else if (data > 9)
+    {
+        formattedString = "0" + std::to_string(data);
+    }
+    else
+    {
+        formattedString = "00" + std::to_string(data);
+    }
+    return formattedString;
+}
+
+string inline GetMyLocalDateTimeString()
+{
+    SYSTEMTIME systemTime;
+    GetLocalTime(&systemTime);
+
+    return std::to_string(systemTime.wYear) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + MakeStringWidthTwoFromInt(systemTime.wDay) +
+        " " + MakeStringWidthTwoFromInt(systemTime.wHour) + ":" + MakeStringWidthTwoFromInt(systemTime.wMinute) + ":" +
+        MakeStringWidthTwoFromInt(systemTime.wSecond) + ":" + MakeStringWidthThreeFromInt(systemTime.wMilliseconds);
 }

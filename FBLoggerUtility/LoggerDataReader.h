@@ -13,45 +13,35 @@
 using std::string;
 using std::vector;
 using std::ifstream;
-using std::ofstream;
 using std::stringstream;
 using std::pair;
 using std::map;
 
-class FBLoggerDataReader
+struct StatsFileData
 {
-public:
-    // Public interface
-    FBLoggerDataReader(string dataPath, string burnName);
-    ~FBLoggerDataReader();
+    double columnMin[9] = { 0,0,0,0,0,0,0,0,0 };
+    double columnMax[9] = { 0,0,0,0,0,0,0,0,0 };
+    bool columnFailedSanityCheckRaw[9] = { false,false,false,false,false,false,false,false,false };
+    bool columnFailedSanityCheckFinal[9] = { false,false,false,false,false,false,false,false,false };
+    bool isFailedSanityCheckRaw = false;
+    bool isFailedSanityCheckFinal = false;
+    string fileName = "";
+};
 
-    //void PrepareToReadDataFiles();
-    void ProcessSingleDataFile();
-    void PrintStatsFile();
-    void CheckConfig();
-    void ReportAbort();
-    bool CheckConfigFileFormatIsValid(ifstream& configFile);
-    void PrintFinalReportToLog();
+struct SharedData
+{
+    string dataPath = "";
+    map<int, string>* configMap = NULL;
+    map<int, double>* sensorBearingMap = NULL;
+    map<int, StatsFileData>* statsFileMap = NULL;
+    vector<double>* angles = NULL;
+    vector<double>* ReynloldsNumbers = NULL;
+    vector<vector<double>>* pressureCoefficients = NULL;
+    vector<string>* inputFilesNameList = NULL;
+};
 
-    void SetPrintRaw(bool option);
-    void SetDataPath(string dataPath);
-    void SetWindTunnelDataTablePath(string windTunnelDataTablePath);
-    void SetAppPath(string appPath);
-    void SetConfigFile(string configFileFullPath);
-    string GetDataPath();
-    string GetLogFilePath();
-    string GetStatsFilePath();
-    unsigned int GetNumberOfInputFiles();
-    unsigned int GetNumFilesProcessed();
-    unsigned int GetNumInvalidFiles();
-  
-    bool IsConfigFileValid();
-    bool IsLogFileGood();
-    bool IsDoneReadingDataFiles();
-
-    bool CreateWindTunnelDataVectors();
-
-private:
+class LoggerDataReader
+{
     // Internal data structures
     struct HeaderData
     {
@@ -82,7 +72,7 @@ private:
         double decimalDegreesLatitude = 0;
         double decimalDegreesLongitude = 0;
     };
-    
+
     struct IconUrls
     {
         const string fid = "http://maps.google.com/mapfiles/kml/paddle/F.png";
@@ -116,17 +106,6 @@ private:
         bool isGoodOutput = true;
         bool carryBugEncountered_ = false;
         unsigned int configFileLineNumber = 0;
-    };
-
-    struct StatsFileData
-    {
-        double columnMin[9] = { 0,0,0,0,0,0,0,0,0 };
-        double columnMax[9] = { 0,0,0,0,0,0,0,0,0 };
-        bool columnFailedSanityCheckRaw[9] = { false,false,false,false,false,false,false,false,false };
-        bool columnFailedSanityCheckFinal[9] = { false,false,false,false,false,false,false,false,false };
-        bool isFailedSanityCheckRaw = false;
-        bool isFailedSanityCheckFinal = false;
-        string fileName = "";
     };
 
     struct InvalidInputFileErrorType
@@ -245,11 +224,49 @@ private:
         double sensorBearingValue = 0.0;
     };
 
+public:
+    // Public interface
+    LoggerDataReader(string dataPath, string burnName);
+    LoggerDataReader(const SharedData& sharedData);
+    ~LoggerDataReader();
+
+    void GetSharedData(SharedData& sharedData);
+
+    void ProcessSingleDataFile(int fileIndex);
+    //void PrintStatsFile();
+    void CheckConfig();
+    void ReportAbort();
+    bool CheckConfigFileFormatIsValid(ifstream& configFile);
+    //void PrintGPSFileLine();
+    string GetLogFileLines();
+    void AddToGlobalLogFileLines(const string& logFileLines);
+    void SetTotalTime(const double totalTimeInSeconds);
+
+    void SetPrintRaw(bool option);
+    void SetDataPath(string dataPath);
+    void SetWindTunnelDataTablePath(string windTunnelDataTablePath);
+    void SetAppPath(string appPath);
+    void SetConfigFile(string configFileFullPath);
+    string GetDataPath();
+    string GetStatsFilePath();
+    unsigned int GetNumberOfInputFiles();
+    unsigned int GetNumFilesProcessed();
+    unsigned int GetNumInvalidFiles();
+    unsigned int GetNumErrors();
+
+    bool IsConfigFileValid();
+    bool IsDoneReadingDataFiles();
+
+    bool CreateWindTunnelDataVectors();
+
+private:
     // Private methods
     static inline bool double_equals(double a, double b, double epsilon = 0.000001)
     {
         return std::abs(a - b) < epsilon;
     }
+
+    void SetSharedData(const SharedData& sharedData);
 
     double CalculateHeatFlux(double rawVoltage);
     double CalculateHeatFluxTemperature(double rawVoltage);
@@ -270,20 +287,18 @@ private:
     void GetRawNumber();
 	void CheckForHeader();
     void UpdateTime();
-    string GetMyLocalDateTimeString();
     void GetHeader();
     void ParseHeader();
     void SetOutFilePaths(string inFileName);
+    void PrintOutDataLinesToFile(ofstream& outFile, const string& outFileDataLines);
     void PrintCarryBugToLog();
     void PrintConfigErrorsToLog();
-    void PrintGPSFileHeader();
-    void PrintGPSFileLine();
-    void PrintLogFileLine();
-    void PrintHeader(ofstream& pOutFile, OutFileType::OutFileTypeEnum outFileType);
-    string MakeStringWidthTwoFromInt(int headerData);
-    string MakeStringWidthThreeFromInt(int headerData);
+    //void PrintGPSFileHeader();
+ 
+    void PrintHeader(OutFileType::OutFileTypeEnum outFileType);
+
     void UpdateSensorMaxAndMin();
-    void PrintSensorDataOutput(ofstream& pOutFile);
+    void PrintSensorDataOutput(OutFileType::OutFileTypeEnum outFileType);
     float UnsignedIntToIEEEFloat(uint32_t binaryNumber);
     void ResetHeaderData();
     void ResetInFileReadingStatus();
@@ -295,9 +310,9 @@ private:
 
     void DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData);
 
-    void BeginKMLFile();
-    string FormatPlacemark();
-    void EndKMLFile();
+    //void BeginKMLFile();
+    //string FormatPlacemark();
+    //void EndKMLFile();
 
     // Private data members
     static const unsigned int NUM_SENSOR_READINGS = 9;
@@ -328,19 +343,18 @@ private:
     string gpsFilePath_;
     string gpsFileLine_;
     string kmlFilePath_;
-    string outDataLine_;
+    string outDataLines_;
+    string rawOutDataLines_;
     string appPath_;
     string dataPath_;
-    string logFilePath_;
-    string logFileLine_;
+    string logFileLines_;
     string statsFilePath_;
     string configFilePath_;
     string configurationType_;
     string windTunnelDataPath_;
 
-    ofstream kmlFile_;
-    ofstream gpsFile_;
-    ofstream logFile_;
+    //ofstream kmlFile_;
+    //ofstream gpsFile_;
     stringstream lineStream_;
 
     HeaderData headerData_;
@@ -361,6 +375,6 @@ private:
     vector<double> ReynloldsNumbers_;
     vector<vector<double>> pressureCoefficients_; // 2D vector of pressure coefficients with angle and Reynolds number as indices
 
-    clock_t startClock_;
+    //clock_t startClock_;
     double totalTimeInSeconds_;
 };

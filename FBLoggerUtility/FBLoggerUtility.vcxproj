@@ -113,8 +113,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <OpenMPSupport>
-      </OpenMPSupport>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -163,6 +162,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -184,11 +184,12 @@
     <ClInclude Include="air.h" />
     <ClInclude Include="convertVelocity.h" />
     <ClInclude Include="DirectoryReaderUtility.h" />
-    <ClInclude Include="FBLoggerDataReader.h" />
     <ClInclude Include="FBLoggerUtility.h" />
     <ClInclude Include="FBLoggerUtilityDlg.h" />
     <ClInclude Include="FileNameUtility.h" />
     <ClInclude Include="fluid.h" />
+    <ClInclude Include="FBLoggerLogFile.h" />
+    <ClInclude Include="LoggerDataReader.h" />
     <ClInclude Include="ProgressBarDlg.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
@@ -201,16 +202,14 @@
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/wd26451 /wd26495 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/wd26451 /wd26495 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
-    <ClCompile Include="FBLoggerDataReader.cpp">
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/wd26451 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/wd26451 %(AdditionalOptions)</AdditionalOptions>
-    </ClCompile>
     <ClCompile Include="FBLoggerUtility.cpp" />
     <ClCompile Include="FBLoggerUtilityDlg.cpp">
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/wd6031 /wd26454 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/wd6031 /wd26454 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="FBLoggerLogFile.cpp" />
     <ClCompile Include="fluid.cpp" />
+    <ClCompile Include="LoggerDataReader.cpp" />
     <ClCompile Include="ProgressBarDlg.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

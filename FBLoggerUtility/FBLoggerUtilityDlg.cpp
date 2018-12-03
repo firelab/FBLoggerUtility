@@ -10,6 +10,8 @@
 #include "FileNameUtility.h"
 #include "DirectoryReaderUtility.h"
 
+#include <omp.h>
+
 #include <algorithm>
 #include <string>
 #include <iostream>
@@ -325,73 +327,114 @@ BOOL CFBLoggerUtilityDlg::OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult)
 
 UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 {
-    bool aborted = false;
+    atomic<bool> aborted = false;
     bool isGoodWindTunnelTable = false;
     PostMessage(WORKER_THREAD_RUNNING, 0, 0);
+    clock_t startClock = clock();
 
-    FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
-    loggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
+    LoggerDataReader globalLoggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
+    globalLoggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
     m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
-    loggerDataReader.SetPrintRaw(m_createRawTicked);
-    int totalNumberOfFiles = 0;
+    globalLoggerDataReader.SetPrintRaw(m_createRawTicked);
+    atomic<int> totalNumberOfFiles = 0;
+    atomic<int> totalInvalidInputFiles = 0;
+    atomic<int> totalFilesProcessed = 0;
+    atomic<int> totalNumErrors = 0;
+
+    FBLoggerLogFile logFile(NarrowCStringToStdString(m_dataPath));
+
     // Check log file, check config file, process input files, create output files 
-    if (loggerDataReader.IsLogFileGood())
+    //if (globalLoggerDataReader.IsLogFileGood())
     {
-        loggerDataReader.CheckConfig();
+        globalLoggerDataReader.CheckConfig();
         // Load data in from wind tunnel data table
-        loggerDataReader.SetWindTunnelDataTablePath(m_windTunnelDataTablePath);
-        isGoodWindTunnelTable = loggerDataReader.CreateWindTunnelDataVectors();
-
-        if (loggerDataReader.IsConfigFileValid() && isGoodWindTunnelTable)
+        globalLoggerDataReader.SetWindTunnelDataTablePath(m_windTunnelDataTablePath);
+        isGoodWindTunnelTable = globalLoggerDataReader.CreateWindTunnelDataVectors();
+        SharedData sharedData;
+        globalLoggerDataReader.GetSharedData(sharedData);
+        if (globalLoggerDataReader.IsConfigFileValid() && isGoodWindTunnelTable)
         {
-            totalNumberOfFiles = loggerDataReader.GetNumberOfInputFiles();
-            float flProgress = 0;
+            totalNumberOfFiles = globalLoggerDataReader.GetNumberOfInputFiles();
+          
 
-            for (int i = 0; i < totalNumberOfFiles; i++)
+            if (totalNumberOfFiles > 0)
             {
-                // check kill
-                DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
-                if (dwRet == WAIT_OBJECT_0)
+                atomic<float> flProgress = 0;
+              
+                int i = 0;
+#pragma omp parallel for schedule(dynamic) shared(i, aborted, totalFilesProcessed, totalNumErrors, globalLoggerDataReader, logFile, totalNumberOfFiles, totalInvalidInputFiles, flProgress)
+                for (i = 0; i < totalNumberOfFiles; i++)
                 {
-                    aborted = true;
-                    ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
-                    loggerDataReader.ReportAbort();
-                    break;
-                }
-                else
-                {
-                    loggerDataReader.ProcessSingleDataFile();
-                    flProgress = (static_cast<float>(i) / totalNumberOfFiles) * (static_cast<float>(100.0));
-                    ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
-                    if (i == totalNumberOfFiles - 1)
+                    // Need to pass needed maps and vectors to a FBLoggerDataReader
+                    LoggerDataReader loggerDataReader(sharedData);
+                    if (!aborted)
                     {
-                        ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
-                        ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+                        loggerDataReader.ProcessSingleDataFile(i);
+                       
+#pragma omp critical(updateLogAndProgress)
+                        {
+                            // critical section
+                            //globalLoggerDataReader.AddToGlobalLogFileLines(loggerDataReader.GetLogFileLines());
+                            totalFilesProcessed += loggerDataReader.GetNumFilesProcessed();
+                            totalInvalidInputFiles = loggerDataReader.GetNumInvalidFiles();
+                            totalNumErrors += loggerDataReader.GetNumErrors();
+                            logFile.AddToLogFile(loggerDataReader.GetLogFileLines());
+
+                            flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
+                            ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
+                            if (i == totalNumberOfFiles - 1)
+                            {
+                                ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
+                                ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+                            }
+
+                            // check kill
+                            DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
+                            if (dwRet == WAIT_OBJECT_0)
+                            {
+                                aborted = true;
+                                ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+                            }
+                        }
+                        // end critical section
                     }
                 }
             }
-            loggerDataReader.PrintFinalReportToLog();
+            else
+            {
+                ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+            }
         }
         else
         {
             ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
         }
     }
-  
-    if (!aborted)
+
+    if (aborted)
     {
-        loggerDataReader.PrintStatsFile();
+        globalLoggerDataReader.ReportAbort();
+    }
+    else
+    {
+        double totalTimeInSeconds = ((double)clock() - (double)startClock) / (double)CLOCKS_PER_SEC;
+
+        globalLoggerDataReader.SetTotalTime(totalTimeInSeconds);
+        //globalLoggerDataReader.PrintFinalReportToLog();
+        //globalLoggerDataReader.PrintStatsFile();
 
         CString numFilesConvertedCString;
         CString numInvalidFilesCString;
-        int numFilesProcessed = loggerDataReader.GetNumFilesProcessed();
-        int numInvalidFiles = loggerDataReader.GetNumInvalidFiles();
-        int numFilesConverted = numFilesProcessed - numInvalidFiles;
-        numFilesConvertedCString.Format(_T("%d"), numFilesConverted);
-        numInvalidFilesCString.Format(_T("%d"), numInvalidFiles);
+        CString totalTimeInSecondsCString;
 
+        int numFilesConverted = totalFilesProcessed - totalInvalidInputFiles;
+        numFilesConvertedCString.Format(_T("%d"), numFilesConverted);
+        numInvalidFilesCString.Format(_T("%d"), (int)totalInvalidInputFiles);
+        totalTimeInSecondsCString.Format(_T("%.2f"), totalTimeInSeconds);
         CString text = _T("");
         CString caption = _T("");
+
+        logFile.PrintFinalReportToLog(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
 
         if (!isGoodWindTunnelTable)
         {
@@ -399,13 +442,13 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
             caption = ("Error: Invalid wind tunnel data table file");
         }
 
-        if (!loggerDataReader.IsConfigFileValid())
+        if (!globalLoggerDataReader.IsConfigFileValid())
         {
             text = _T("There are errors in config file at\n");
             text += m_dataPath + _T("\\config.csv\n\n");
             caption = ("Error: Invalid config file");
         }
-        else if (numFilesProcessed == 0)
+        else if (totalFilesProcessed == 0)
         {
             text = _T("No data (.DAT) files were processed in directory\n\n");
             text += m_dataPath + _T("\n");
@@ -416,15 +459,16 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
             string tempText;
             tempText = "Converted a total of ";
             tempText += NarrowCStringToStdString(numFilesConvertedCString);
-            tempText += " .DAT files to .csv files in\n" + NarrowCStringToStdString(m_dataPath) + "\n\n";
+            tempText += " .DAT files to .csv files to\n" + NarrowCStringToStdString(m_dataPath) + "\n";
+            tempText += " in " + NarrowCStringToStdString(totalTimeInSecondsCString) + " seconds\n\n";
             text += tempText.c_str();
 
             caption = ("Done converting files");
         }
 
-        if (numInvalidFiles > 0)
+        if (totalInvalidInputFiles > 0)
         {
-            if (loggerDataReader.GetNumInvalidFiles() == 1)
+            if (globalLoggerDataReader.GetNumInvalidFiles() == 1)
             {
                 text += numInvalidFilesCString + _T(" invalid file was unable to be converted\n");
             }
@@ -434,13 +478,13 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
             }
         }
 
-        if (numFilesProcessed != 0)
+        if (totalFilesProcessed != 0)
         {
-            CString statsFilePath(loggerDataReader.GetStatsFilePath().c_str());
+            CString statsFilePath(globalLoggerDataReader.GetStatsFilePath().c_str());
             text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
         }
 
-        CString logFilePath(loggerDataReader.GetLogFilePath().c_str());
+        CString logFilePath(logFile.GetLogFilePath().c_str());
         text += _T("A log file was generated at\n") + logFilePath;
 
         MessageBox(text, caption, MB_OK);
@@ -448,7 +492,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
     m_waitForWorkerThread.store(false);
     m_workerThreadCount.fetch_add(-1);
-    
+
     PostMessage(WORKER_THREAD_DONE, 0, 0);
     // normal thread exit
     return 0;
@@ -703,10 +747,10 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
             if (configFileExists && m_workerThreadCount.load() < 1)
             {
 
-                std::ifstream configFile(m_configFilePath, std::ios::in | std::ios::binary);
-                FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
-                bool configIsValid = loggerDataReader.CheckConfigFileFormatIsValid(configFile);
-
+                //std::ifstream configFile(m_configFilePath, std::ios::in | std::ios::binary);
+                //FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
+                //bool configIsValid = loggerDataReader.CheckConfigFileFormatIsValid(configFile);
+                bool configIsValid = true;
                 if (configIsValid)
                 {
                     m_workerThreadCount.fetch_add(1);
