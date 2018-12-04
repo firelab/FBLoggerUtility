@@ -237,10 +237,9 @@ public:
     void CheckConfig();
     void ReportAbort();
     bool CheckConfigFileFormatIsValid(ifstream& configFile);
-    //void PrintGPSFileLine();
+
     string GetLogFileLines();
-    void AddToGlobalLogFileLines(const string& logFileLines);
-    void SetTotalTime(const double totalTimeInSeconds);
+    string GetGPSFileLines();
 
     void SetPrintRaw(bool option);
     void SetDataPath(string dataPath);
@@ -293,8 +292,7 @@ private:
     void PrintOutDataLinesToFile(ofstream& outFile, const string& outFileDataLines);
     void PrintCarryBugToLog();
     void PrintConfigErrorsToLog();
-    //void PrintGPSFileHeader();
- 
+
     void PrintHeader(OutFileType::OutFileTypeEnum outFileType);
 
     void UpdateSensorMaxAndMin();
@@ -340,8 +338,7 @@ private:
     string inDataFilePath_;
     string outDataFilePath_;
     string rawOutDataFilePath_;
-    string gpsFilePath_;
-    string gpsFileLine_;
+    string gpsFileLines_;
     string kmlFilePath_;
     string outDataLines_;
     string rawOutDataLines_;
@@ -374,7 +371,4 @@ private:
     vector<double> angles_;
     vector<double> ReynloldsNumbers_;
     vector<vector<double>> pressureCoefficients_; // 2D vector of pressure coefficients with angle and Reynolds number as indices
-
-    //clock_t startClock_;
-    double totalTimeInSeconds_;
 };

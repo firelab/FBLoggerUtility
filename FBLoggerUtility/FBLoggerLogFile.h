@@ -27,7 +27,7 @@ public:
         return isGood;
     }
 
-    void PrintFinalReportToLog(const double totalTimeInSeconds, const int numInvalidFiles, const int numFilesProcessed_, const int numErrors_);
+    void PrintFinalReportToLogFile(const double totalTimeInSeconds, const int numInvalidFiles, const int numFilesProcessed_, const int numErrors_);
 
     string GetLogFilePath();
 

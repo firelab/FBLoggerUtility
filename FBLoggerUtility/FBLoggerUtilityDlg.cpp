@@ -12,6 +12,8 @@
 
 #include <omp.h>
 
+#include <memory>
+
 #include <algorithm>
 #include <string>
 #include <iostream>
@@ -327,58 +329,63 @@ BOOL CFBLoggerUtilityDlg::OnToolTipText(UINT, NMHDR* pNMHDR, LRESULT* pResult)
 
 UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 {
-    atomic<bool> aborted = false;
+    bool aborted = false;
     bool isGoodWindTunnelTable = false;
     PostMessage(WORKER_THREAD_RUNNING, 0, 0);
     clock_t startClock = clock();
 
-    LoggerDataReader globalLoggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
-    globalLoggerDataReader.SetConfigFile(NarrowCStringToStdString(m_configFilePath));
-    m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
-    globalLoggerDataReader.SetPrintRaw(m_createRawTicked);
-    atomic<int> totalNumberOfFiles = 0;
-    atomic<int> totalInvalidInputFiles = 0;
-    atomic<int> totalFilesProcessed = 0;
-    atomic<int> totalNumErrors = 0;
-
+    unique_ptr<LoggerDataReader> globalLoggerDataReader( new LoggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName)));
     FBLoggerLogFile logFile(NarrowCStringToStdString(m_dataPath));
+    globalLoggerDataReader->SetConfigFile(NarrowCStringToStdString(m_configFilePath));
+    m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
+    globalLoggerDataReader->SetPrintRaw(m_createRawTicked);
+
+    int totalNumberOfFiles = 0;
+
+    // Shared accumulated data
+    int totalInvalidInputFiles = 0;
+    int totalFilesProcessed = 0;
+    int totalNumErrors = 0;
+    float flProgress = 0;
 
     // Check log file, check config file, process input files, create output files 
-    //if (globalLoggerDataReader.IsLogFileGood())
-    {
-        globalLoggerDataReader.CheckConfig();
+    if (logFile.IsLogFileGood())
+    { 
+        globalLoggerDataReader->CheckConfig();
         // Load data in from wind tunnel data table
-        globalLoggerDataReader.SetWindTunnelDataTablePath(m_windTunnelDataTablePath);
-        isGoodWindTunnelTable = globalLoggerDataReader.CreateWindTunnelDataVectors();
+        globalLoggerDataReader->SetWindTunnelDataTablePath(m_windTunnelDataTablePath);
+        isGoodWindTunnelTable = globalLoggerDataReader->CreateWindTunnelDataVectors();
         SharedData sharedData;
-        globalLoggerDataReader.GetSharedData(sharedData);
-        if (globalLoggerDataReader.IsConfigFileValid() && isGoodWindTunnelTable)
+        globalLoggerDataReader->GetSharedData(sharedData);
+        if (globalLoggerDataReader->IsConfigFileValid() && isGoodWindTunnelTable)
         {
-            totalNumberOfFiles = globalLoggerDataReader.GetNumberOfInputFiles();
-          
-
-            if (totalNumberOfFiles > 0)
+            totalNumberOfFiles = globalLoggerDataReader->GetNumberOfInputFiles();
+            int i = 0;
+            // check kill
+            DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
+            if (dwRet == WAIT_OBJECT_0)
             {
-                atomic<float> flProgress = 0;
-              
-                int i = 0;
-#pragma omp parallel for schedule(dynamic) shared(i, aborted, totalFilesProcessed, totalNumErrors, globalLoggerDataReader, logFile, totalNumberOfFiles, totalInvalidInputFiles, flProgress)
+                aborted = true;
+            }
+            if (totalNumberOfFiles > 0)
+            {    
+#pragma omp parallel for schedule(dynamic) shared(i, aborted, totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFile)      
                 for (i = 0; i < totalNumberOfFiles; i++)
                 {
-                    // Need to pass needed maps and vectors to a FBLoggerDataReader
-                    LoggerDataReader loggerDataReader(sharedData);
                     if (!aborted)
                     {
-                        loggerDataReader.ProcessSingleDataFile(i);
+                        // Need to pass needed maps and vectors to a FBLoggerDataReader
+                        unique_ptr<LoggerDataReader> localLoggerDataReader(new LoggerDataReader(sharedData));
+
+                        localLoggerDataReader->ProcessSingleDataFile(i);
                        
+                        // critical section
 #pragma omp critical(updateLogAndProgress)
                         {
-                            // critical section
-                            //globalLoggerDataReader.AddToGlobalLogFileLines(loggerDataReader.GetLogFileLines());
-                            totalFilesProcessed += loggerDataReader.GetNumFilesProcessed();
-                            totalInvalidInputFiles = loggerDataReader.GetNumInvalidFiles();
-                            totalNumErrors += loggerDataReader.GetNumErrors();
-                            logFile.AddToLogFile(loggerDataReader.GetLogFileLines());
+                            totalFilesProcessed += localLoggerDataReader->GetNumFilesProcessed();
+                            totalInvalidInputFiles += localLoggerDataReader->GetNumInvalidFiles();
+                            totalNumErrors += localLoggerDataReader->GetNumErrors();
+                            logFile.AddToLogFile(localLoggerDataReader->GetLogFileLines());
 
                             flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
                             ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
@@ -392,8 +399,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                             DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
                             if (dwRet == WAIT_OBJECT_0)
                             {
-                                aborted = true;
-                                ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+                                aborted = true;        
                             }
                         }
                         // end critical section
@@ -405,21 +411,42 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
             }
         }
-        else
-        {
-            ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
-        }
     }
 
     if (aborted)
     {
-        globalLoggerDataReader.ReportAbort();
+        ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
+
+        double totalTimeInSeconds = ((double)clock() - (double)startClock) / (double)CLOCKS_PER_SEC;
+
+        globalLoggerDataReader->ReportAbort();
+        logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
+        string tempText;
+        string logFilePath(logFile.GetLogFilePath());
+        CString numFilesConvertedCString;
+        CString numInvalidFilesCString;
+        CString totalTimeInSecondsCString;
+
+        int numFilesConverted = totalFilesProcessed - totalInvalidInputFiles;
+        numFilesConvertedCString.Format(_T("%d"), numFilesConverted);
+        numInvalidFilesCString.Format(_T("%d"), (int)totalInvalidInputFiles);
+        totalTimeInSecondsCString.Format(_T("%.2f"), totalTimeInSeconds);
+
+        tempText = "Conversion aborted by user\n";
+        tempText += NarrowCStringToStdString(numFilesConvertedCString);
+        tempText += " .DAT files were converted to .csv files into\n" + NarrowCStringToStdString(m_dataPath) + "\n";
+        tempText += " in " + NarrowCStringToStdString(totalTimeInSecondsCString) + " seconds\n\n";
+        tempText += "A log file was generated at\n" + logFilePath;
+        CString text(tempText.c_str());
+        CString caption = _T("");
+        caption = ("Aborted Conversion");
+
+        MessageBox(text, caption, MB_OK);
     }
     else
     {
         double totalTimeInSeconds = ((double)clock() - (double)startClock) / (double)CLOCKS_PER_SEC;
 
-        globalLoggerDataReader.SetTotalTime(totalTimeInSeconds);
         //globalLoggerDataReader.PrintFinalReportToLog();
         //globalLoggerDataReader.PrintStatsFile();
 
@@ -434,7 +461,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         CString text = _T("");
         CString caption = _T("");
 
-        logFile.PrintFinalReportToLog(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
+        logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
 
         if (!isGoodWindTunnelTable)
         {
@@ -442,7 +469,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
             caption = ("Error: Invalid wind tunnel data table file");
         }
 
-        if (!globalLoggerDataReader.IsConfigFileValid())
+        if (!globalLoggerDataReader->IsConfigFileValid())
         {
             text = _T("There are errors in config file at\n");
             text += m_dataPath + _T("\\config.csv\n\n");
@@ -468,7 +495,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
         if (totalInvalidInputFiles > 0)
         {
-            if (globalLoggerDataReader.GetNumInvalidFiles() == 1)
+            if (globalLoggerDataReader->GetNumInvalidFiles() == 1)
             {
                 text += numInvalidFilesCString + _T(" invalid file was unable to be converted\n");
             }
@@ -480,7 +507,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
         if (totalFilesProcessed != 0)
         {
-            CString statsFilePath(globalLoggerDataReader.GetStatsFilePath().c_str());
+            CString statsFilePath(globalLoggerDataReader->GetStatsFilePath().c_str());
             text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
         }
 
@@ -625,15 +652,15 @@ void CFBLoggerUtilityDlg::OnSysCommand(UINT nID, LPARAM lParam)
 	}
     else if ((nID & 0xFFF0) == SC_CLOSE)
     {
+        UpdateIniFile();
         if (m_waitForWorkerThread.load())
         {
             SetEvent(m_hKillEvent); // Kill the worker thread
-            DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to shutdown
         }
-
-        UpdateIniFile();
-
-        PostQuitMessage(0);
+        else
+        {
+            PostQuitMessage(0);
+        }
     }
 	else
 	{
@@ -846,7 +873,7 @@ LRESULT CFBLoggerUtilityDlg::OnCancelProcessing(WPARAM, LPARAM)
     if (m_waitForWorkerThread.load())
     {
         SetEvent(m_hKillEvent); // Kill the worker thread
-        DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, INFINITE); // Wait for worker thread to safely shutdown
+        DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, 0); // Wait for worker thread to safely shutdown
     }
     return 0;
 }

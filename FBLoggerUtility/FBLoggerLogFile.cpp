@@ -51,7 +51,7 @@ string FBLoggerLogFile::GetLogFilePath()
     return logFilePath_;
 }
 
-void FBLoggerLogFile::PrintFinalReportToLog(const double totalTimeInSeconds, const int numInvalidFiles, const int numFilesProcessed_, const int numErrors_)
+void FBLoggerLogFile::PrintFinalReportToLogFile(const double totalTimeInSeconds, const int numInvalidFiles, const int numFilesProcessed_, const int numErrors_)
 {
     string dataPathOutput = dataPath_.substr(0, dataPath_.size());
     if (logFile_.good() && logFileLines_ == "" && numInvalidFiles == 0)

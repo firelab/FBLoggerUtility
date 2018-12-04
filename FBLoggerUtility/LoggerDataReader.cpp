@@ -23,14 +23,9 @@ std::vector<std::vector<T>> make_2d_vector(std::size_t rows, std::size_t cols)
 }
 
 LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
-    //:logFilePath_(dataPath + "\\log_file.txt"),
-    //logFile_(logFilePath_, std::ios::out),
-    //gpsFilePath_(dataPath + "\\" + burnName + "_gps.txt"),
-    //gpsFile_(gpsFilePath_, std::ios::out),
     //kmlFilePath_(dataPath + "\\" + burnName + ".kml"),
     //kmlFile_(kmlFilePath_, std::ios::out)
 {
-    //gpsFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     //kmlFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);
 
     numFilesProcessed_ = 0;
@@ -40,7 +35,7 @@ LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
     numErrors_ = 0;
     serialNumber_ = -1;
     outDataLines_ = "";
-    gpsFileLine_ = "";
+    gpsFileLines_ = "";
     dataPath_ = "";
     appPath_ = "";
 
@@ -57,8 +52,6 @@ LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
     invalidInputFileList_.clear();
     invalidInputFileErrorType_.clear();
     configMap_.clear();
-
-    totalTimeInSeconds_ = 0.0;
 
     printRaw_ = false;
 
@@ -149,8 +142,6 @@ LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
 
     SetDataPath(dataPath);
 
-   
-
     ResetCurrentFileStats();
 }
 
@@ -166,7 +157,6 @@ LoggerDataReader::LoggerDataReader(const SharedData& sharedData)
     numErrors_ = 0;
     serialNumber_ = -1;
     outDataLines_ = "";
-    gpsFileLine_ = "";
     dataPath_ = "";
     appPath_ = "";
 
@@ -183,8 +173,6 @@ LoggerDataReader::LoggerDataReader(const SharedData& sharedData)
     invalidInputFileList_.clear();
     invalidInputFileErrorType_.clear();
     configMap_.clear();
-
-    totalTimeInSeconds_ = 0.0;
 
     printRaw_ = false;
 
@@ -513,45 +501,27 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
 
 void LoggerDataReader::CheckConfig()
 {
-    //if (logFile_.good())
-    //{
-    //    //PrintLogFileLine();
         ReadConfig();
 
         if (isConfigFileValid_)
         {
             ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
             CheckConfigForAllFiles();
-            //PrintLogFileLine();
         }
-    //}
 }
 
 void LoggerDataReader::ReportAbort()
 {
     numErrors_++;
-    //if (logFile_.good())
-    //{
-    //    logFileLine_ += "Conversion aborted by user before completion at " + GetMyLocalDateTimeString() + "\n";      
-    //}
-    // logFileLine_ = "";
-
-    //if (gpsFile_.is_open())
-    //{
-    //    gpsFile_.close();
-    //}
-    //if (kmlFile_.is_open())
-    //{
-    //    EndKMLFile();
-    //    kmlFile_.close();
-    //}
+    logFileLines_ += "Conversion aborted by user before completion at " + GetMyLocalDateTimeString() + "\n";      
 }
 
 double LoggerDataReader::CalculateHeatFlux(double rawVoltage)
 {
-	if (true)	//if this is after the test gorse burn in 2018, we need to add 1.25 volts
-		rawVoltage = rawVoltage + 1.25;
-
+    if (true)	//if this is after the test gorse burn in 2018, we need to add 1.25 volts
+    {
+        rawVoltage = rawVoltage + 1.25;
+    }
 	return 56.60 * pow(rawVoltage, 1.129);
 }
 
@@ -1162,7 +1132,7 @@ void LoggerDataReader::CheckConfigForAllFiles()
 
     if (numInvalidInputFiles_)
     {
-        //PrintConfigErrorsToLog();
+        PrintConfigErrorsToLog();
     }
 }
 
@@ -2050,45 +2020,16 @@ void LoggerDataReader::PrintConfigErrorsToLog()
     }
 }
 
-//void LoggerDataReader::PrintGPSFileHeader()
-//{
-//    gpsFileLine_ = "file_name, logger_id, logging_session_number, configuration_type, longitude, latitude, start_time, end_time\n";
-//    gpsFile_ << gpsFileLine_;
-//}
 
-//void LoggerDataReader::PrintGPSFileLine()
-//{
-//    // file, logger unit, and gps data
-//    gpsFileLine_ = currentFileStats_.fileName + ",SN" + headerData_.serialNumberString + "," + to_string(status_.loggingSession) + 
-//        "," + configurationType_ + "," + to_string(headerData_.decimalDegreesLongitude) + "," +
-//        to_string(headerData_.decimalDegreesLatitude) + ",";
-//
-//    // start time information for session
-//    gpsFileLine_ += startTimeForSession_.yearString + "-" + startTimeForSession_.monthString + "-" + startTimeForSession_.dayString + " " +
-//        startTimeForSession_.hourString + ":" + startTimeForSession_.minuteString + ":" + startTimeForSession_.secondString + "." + startTimeForSession_.millisecondString +
-//        ",";
-//
-//    // end time information for session
-//    gpsFileLine_ += endTimeForSession_.yearString + "-" + endTimeForSession_.monthString + "-" + endTimeForSession_.dayString + " " +
-//        endTimeForSession_.hourString + ":" + endTimeForSession_.minuteString + ":" + endTimeForSession_.secondString + "." + endTimeForSession_.millisecondString + "\n";
-//
-//    // print to file
-//    gpsFile_ << gpsFileLine_;
-//}
 
 string LoggerDataReader::GetLogFileLines()
 {
     return logFileLines_;
 }
 
-void LoggerDataReader::AddToGlobalLogFileLines(const string & logFileLines)
+string LoggerDataReader::GetGPSFileLines()
 {
-    logFileLines_ += logFileLines;
-}
-
-void LoggerDataReader::SetTotalTime(const double totalTimeInSeconds)
-{
-    totalTimeInSeconds_ = totalTimeInSeconds;
+    return gpsFileLines_;
 }
 
 void LoggerDataReader::PrintHeader(OutFileType::OutFileTypeEnum outFileType)
