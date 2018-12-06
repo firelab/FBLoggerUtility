@@ -335,12 +335,14 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     clock_t startClock = clock();
 
     unique_ptr<LoggerDataReader> globalLoggerDataReader( new LoggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName)));
-    FBLoggerLogFile logFile(NarrowCStringToStdString(m_dataPath));
+    unique_ptr<FBLoggerLogFile> logFile(new FBLoggerLogFile (NarrowCStringToStdString(m_dataPath)));
     globalLoggerDataReader->SetConfigFile(NarrowCStringToStdString(m_configFilePath));
     m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
     globalLoggerDataReader->SetPrintRaw(m_createRawTicked);
 
     int totalNumberOfFiles = 0;
+
+    vector<string> logFileLinesPerFile;
 
     // Shared accumulated data
     int totalInvalidInputFiles = 0;
@@ -349,7 +351,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     float flProgress = 0;
 
     // Check log file, check config file, process input files, create output files 
-    if (logFile.IsLogFileGood())
+    if (logFile->IsLogFileGood())
     { 
         globalLoggerDataReader->CheckConfig();
         // Load data in from wind tunnel data table
@@ -368,8 +370,13 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 aborted = true;
             }
             if (totalNumberOfFiles > 0)
-            {    
-#pragma omp parallel for schedule(dynamic) shared(i, aborted, totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFile)      
+            {   
+                for (int i = 0; i < totalNumberOfFiles; i++)
+                {
+                    logFileLinesPerFile.push_back("");
+                }
+
+#pragma omp parallel for schedule(dynamic, 1) shared(i, aborted, totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFile)      
                 for (i = 0; i < totalNumberOfFiles; i++)
                 {
                     if (!aborted)
@@ -385,7 +392,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                             totalFilesProcessed += localLoggerDataReader->GetNumFilesProcessed();
                             totalInvalidInputFiles += localLoggerDataReader->GetNumInvalidFiles();
                             totalNumErrors += localLoggerDataReader->GetNumErrors();
-                            logFile.AddToLogFile(localLoggerDataReader->GetLogFileLines());
+                            logFileLinesPerFile[i] = localLoggerDataReader->GetLogFileLines();
 
                             flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
                             ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
@@ -420,9 +427,9 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         double totalTimeInSeconds = ((double)clock() - (double)startClock) / (double)CLOCKS_PER_SEC;
 
         globalLoggerDataReader->ReportAbort();
-        logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
+        logFile->PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
         string tempText;
-        string logFilePath(logFile.GetLogFilePath());
+        string logFilePath(logFile->GetLogFilePath());
         CString numFilesConvertedCString;
         CString numInvalidFilesCString;
         CString totalTimeInSecondsCString;
@@ -447,7 +454,6 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     {
         double totalTimeInSeconds = ((double)clock() - (double)startClock) / (double)CLOCKS_PER_SEC;
 
-        //globalLoggerDataReader.PrintFinalReportToLog();
         //globalLoggerDataReader.PrintStatsFile();
 
         CString numFilesConvertedCString;
@@ -461,7 +467,11 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         CString text = _T("");
         CString caption = _T("");
 
-        logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
+        for (int i = 0; i < logFileLinesPerFile.size(); i++)
+        {
+            logFile->AddToLogFile(logFileLinesPerFile[i]);
+        }
+        logFile->PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
 
         if (!isGoodWindTunnelTable)
         {
@@ -511,7 +521,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
             text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
         }
 
-        CString logFilePath(logFile.GetLogFilePath().c_str());
+        CString logFilePath(logFile->GetLogFilePath().c_str());
         text += _T("A log file was generated at\n") + logFilePath;
 
         MessageBox(text, caption, MB_OK);

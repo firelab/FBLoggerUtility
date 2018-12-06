@@ -26,7 +26,7 @@ static inline std::wstring WidenStdString(const std::string& stdString)
     return wideString;
 }
 
-static inline std::wstring Get_utf16(const std::string &str, int codepage)
+static inline std::wstring Get_utf16(const std::string& str, const int& codepage)
 {
     if (str.empty()) return std::wstring();
     int sz = MultiByteToWideChar(codepage, 0, &str[0], (int)str.size(), 0, 0);
@@ -45,7 +45,7 @@ static inline std::string NarrowCStringToStdString(const CString& CString)
     return stdString;
 }
 
-static inline std::string Utf8_encode(const std::wstring &wstr)
+static inline std::string Utf8_encode(const std::wstring& wstr)
 {
     if (wstr.empty()) return std::string();
     int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
@@ -54,7 +54,7 @@ static inline std::string Utf8_encode(const std::wstring &wstr)
     return strTo;
 }
 
-static inline bool IsOnlyDigits(const std::string &str)
+static inline bool IsOnlyDigits(const std::string& str)
 {
     if (str == "")
     {
@@ -66,34 +66,34 @@ static inline bool IsOnlyDigits(const std::string &str)
     }
 }
 
-string inline MakeStringWidthTwoFromInt(int data)
+string inline MakeStringWidthTwoFromInt(const int& data)
 {
-    string formattedString;
+    string formattedString = "";
     if (data > 9)
     {
-        formattedString = std::to_string(data);
+        formattedString += std::to_string(data);
     }
     else
     {
-        formattedString = "0" + std::to_string(data);
+        formattedString += "0" + std::to_string(data);
     }
     return formattedString;
 }
 
-string inline MakeStringWidthThreeFromInt(int data)
+string inline MakeStringWidthThreeFromInt(const int& data)
 {
-    string formattedString;
+    string formattedString = "";
     if (data > 99)
     {
-        formattedString = std::to_string(data);
+        formattedString += std::to_string(data);
     }
     else if (data > 9)
     {
-        formattedString = "0" + std::to_string(data);
+        formattedString += "0" + std::to_string(data);
     }
     else
     {
-        formattedString = "00" + std::to_string(data);
+        formattedString += "00" + std::to_string(data);
     }
     return formattedString;
 }

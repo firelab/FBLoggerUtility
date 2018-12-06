@@ -60,6 +60,9 @@
     <ClInclude Include="FBLoggerLogFile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GPSFile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FBLoggerUtility.cpp">
@@ -87,6 +90,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FBLoggerLogFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GPSFile.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -31,6 +31,7 @@ struct StatsFileData
 struct SharedData
 {
     string dataPath = "";
+    bool printRaw = false;
     map<int, string>* configMap = NULL;
     map<int, double>* sensorBearingMap = NULL;
     map<int, StatsFileData>* statsFileMap = NULL;
@@ -292,7 +293,7 @@ private:
     void PrintOutDataLinesToFile(ofstream& outFile, const string& outFileDataLines);
     void PrintCarryBugToLog();
     void PrintConfigErrorsToLog();
-
+    void PrintGPSFileLine();
     void PrintHeader(OutFileType::OutFileTypeEnum outFileType);
 
     void UpdateSensorMaxAndMin();

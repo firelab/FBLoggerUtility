@@ -72,6 +72,10 @@ void FBLoggerLogFile::PrintFinalReportToLogFile(const double totalTimeInSeconds,
     }
     else
     {
+        if ((numFilesProcessed_ > 0) && (numErrors_ > 0))
+        {
+            logFileLines_ += "\nProcessed " + std::to_string(numFilesProcessed_) + " DAT files with " + std::to_string(numErrors_) + " errors in " + std::to_string(totalTimeInSeconds) + " seconds in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
+        }
         logFile_ << logFileLines_;
     }
     if (logFile_.is_open())

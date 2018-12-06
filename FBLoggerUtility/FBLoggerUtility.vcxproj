@@ -189,6 +189,7 @@
     <ClInclude Include="FileNameUtility.h" />
     <ClInclude Include="fluid.h" />
     <ClInclude Include="FBLoggerLogFile.h" />
+    <ClInclude Include="GPSFile.h" />
     <ClInclude Include="LoggerDataReader.h" />
     <ClInclude Include="ProgressBarDlg.h" />
     <ClInclude Include="resource.h" />
@@ -209,6 +210,7 @@
     </ClCompile>
     <ClCompile Include="FBLoggerLogFile.cpp" />
     <ClCompile Include="fluid.cpp" />
+    <ClCompile Include="GPSFile.cpp" />
     <ClCompile Include="LoggerDataReader.cpp" />
     <ClCompile Include="ProgressBarDlg.cpp" />
     <ClCompile Include="stdafx.cpp">

@@ -273,6 +273,7 @@ LoggerDataReader::~LoggerDataReader()
 void LoggerDataReader::GetSharedData(SharedData& sharedData)
 {
     sharedData.dataPath = dataPath_;
+    sharedData.printRaw = printRaw_;
     sharedData.configMap = &configMap_;
     sharedData.sensorBearingMap = &sensorBearingMap_;
     sharedData.statsFileMap = &statsFileMap_;
@@ -285,6 +286,7 @@ void LoggerDataReader::GetSharedData(SharedData& sharedData)
 void LoggerDataReader::SetSharedData(const SharedData& sharedData)
 {
     dataPath_ = sharedData.dataPath;
+    printRaw_ = sharedData.printRaw;
     configMap_ = *sharedData.configMap;
     sensorBearingMap_ = *sharedData.sensorBearingMap;
     statsFileMap_ = *sharedData.statsFileMap;
@@ -330,7 +332,8 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
         {
             // Clear file content vector 
             inputFileContents_.clear();
-            // Store input file in RAWM
+
+            // Store input file in RAM
             StoreInputFileContentsToRAM(inFile);
 
             if (inputFileContents_.size() > 0)
@@ -373,7 +376,6 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                         rawOutFile.close();
                         // Report error
                         logFileLines_ += "ERROR: Unable to open " + rawOutDataFilePath_ + "\n";
-                        //PrintLogFileLine();
                         status_.isGoodOutput = false;
                     }
 
@@ -452,6 +454,11 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                     //placemarkName = to_string(serial) + "_s" + to_string(status_.loggingSession);
                     //placemarkDescription = "test";
                     //kmlFile_ << FormatPlacemark();
+
+                    if (status_.carryBugEncountered_ = true)
+                    {
+                        PrintCarryBugToLog();
+                    }
 
                     PrintOutDataLinesToFile(outFile, outDataLines_);
 
@@ -806,8 +813,6 @@ void LoggerDataReader::ReadConfig()
         }
     }
 
-    //PrintLogFileLine();
-
     if (numErrors_ == 0)
     {
         isConfigFileValid_ = true;
@@ -1107,6 +1112,7 @@ void LoggerDataReader::CheckConfigForAllFiles()
                 if (inputFileContents_.size() > 0)
                 {
                     ResetInFileReadingStatus();
+                    currentFileStats_.fileName = inputFilesNameList_[i];
                     bool headerFound = GetFirstHeader();
                     int serialNumber = atoi(headerData_.serialNumberString.c_str());
                     if ((headerFound) && (configMap_.find(serialNumber) == configMap_.end()) || configMap_.find(serialNumber)->second == "")
@@ -1913,8 +1919,7 @@ void LoggerDataReader::ParseHeader()
         // due to an arithmetic error in which 1 was added to the ones place
         // but was not carried over to the tens
         status_.carryBugEncountered_ = true;
-        PrintCarryBugToLog();
-
+        
         // Correct the seconds string
         char tensSecondsChar = headerData_.secondString[0];
         string  tensSecondsString(1, tensSecondsChar);
@@ -2020,8 +2025,6 @@ void LoggerDataReader::PrintConfigErrorsToLog()
     }
 }
 
-
-
 string LoggerDataReader::GetLogFileLines()
 {
     return logFileLines_;
@@ -2034,19 +2037,23 @@ string LoggerDataReader::GetGPSFileLines()
 
 void LoggerDataReader::PrintHeader(OutFileType::OutFileTypeEnum outFileType)
 {
-    outDataLines_ += "\"SN" + headerData_.serialNumberString + "\"," + "\"" + headerData_.latitudeDegreesString + " " +
+    const string columnHeader = "\"SN" + headerData_.serialNumberString + "\"," + "\"" + headerData_.latitudeDegreesString + " " +
         headerData_.latitudeDecimalMinutesString + "\",\"" + headerData_.longitudeDegreesString + " " +
         headerData_.longitudeDecimalMinutesString + "\", " + headerData_.sampleIntervalString + "\n";
 
-        // Print column header data to file
-        if (outFileType == OutFileType::RAW)
-        {
-            outDataLines_ += status_.rawConfigColumnTextLine;
-        }
-        else
-        {
-            outDataLines_ += status_.configColumnTextLine;
-        }
+    // Print column header data to file
+    if (outFileType == OutFileType::RAW)
+    {
+        rawOutDataLines_ += columnHeader;
+
+        rawOutDataLines_ += status_.rawConfigColumnTextLine;
+    }
+    else if (outFileType == OutFileType::PROCESSED)
+    {
+        outDataLines_ += columnHeader;
+
+        outDataLines_ += status_.configColumnTextLine;
+    }
 }
 
 void LoggerDataReader::UpdateSensorMaxAndMin()
@@ -2089,76 +2096,106 @@ void LoggerDataReader::PrintSensorDataOutput(OutFileType::OutFileTypeEnum outFil
             millisecondsString = MakeStringWidthThreeFromInt(headerData_.milliseconds);
             recordString = MakeStringWidthThreeFromInt(status_.recordNumber);
             // Print out time information parsed from the header
-            outDataLines_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
+            const string timeStamp = "\"" + yearString + "-" + monthString + "-" + dayString + " " +
                 hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString +
                 "\"," + recordString + ",";
+            if (outFileType == OutFileType::PROCESSED)
+            {
+                outDataLines_ += timeStamp;
+            }
             if (outFileType == OutFileType::RAW)
             {
-                rawOutDataLines_ += "\"" + yearString + "-" + monthString + "-" + dayString + " " +
-                    hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString +
-                    "\"," + recordString + ",";
+                rawOutDataLines_ += timeStamp;
             }
         }
         if (configurationType_ == "F")
         {
-            if ((sanityChecks_.FFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.FFinalMax[i] != sanityChecks_.NAMax))
+            if (outFileType == OutFileType::RAW)
             {
-                outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
-                if (outFileType == OutFileType::RAW)
-                {
-                    rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
-                }
+                rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
             }
-            else
+            else if (outFileType == OutFileType::PROCESSED)
             {
-                outDataLines_ += std::to_string(0.0);
-                if (outFileType == OutFileType::RAW)
+                if((sanityChecks_.FFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.FFinalMax[i] != sanityChecks_.NAMax))
                 {
-                    rawOutDataLines_ += std::to_string(0.0);
+                    outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
+                }
+                else
+                {
+                    outDataLines_ += std::to_string(0.0);
                 }
             }
         }
         else if (configurationType_ == "H")
         {
-            if ((sanityChecks_.HFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.HFinalMax[i] != sanityChecks_.NAMax))
+            if (outFileType == OutFileType::RAW)
             {
-                outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
-                if (outFileType == OutFileType::RAW)
-                {
-                    rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
-                }
+                rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
             }
-            else
+            else if (outFileType == OutFileType::PROCESSED)
             {
-                outDataLines_ += std::to_string(0.0);
-                if (outFileType == OutFileType::RAW)
+                if ((sanityChecks_.HFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.HFinalMax[i] != sanityChecks_.NAMax))
                 {
-                    rawOutDataLines_ += std::to_string(0.0);
+                    outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
+                }
+                else
+                {
+                    outDataLines_ += std::to_string(0.0);
                 }
             }
         }
         else if (configurationType_ == "T")
         {
-            outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
+            if (outFileType == OutFileType::RAW)
+            {
+                rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
+            }
+            else if (outFileType == OutFileType::PROCESSED)
+            {
+                outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
+            }
         }
 
         if (i < 8)
         {
-            outDataLines_ += ",";
-            if (outFileType == OutFileType::RAW)
+            if (outFileType == OutFileType::PROCESSED)
+            {
+                outDataLines_ += ",";
+            }
+            else if (outFileType == OutFileType::RAW)
             {
                 rawOutDataLines_ += ",";
             }
         }
         else
         {
-            outDataLines_ += "\n";
+            if (outFileType == OutFileType::PROCESSED)
+            {
+                outDataLines_ += "\n";
+            }
             if (outFileType == OutFileType::RAW)
             {
                 rawOutDataLines_ += "\n";
             }
         }
     }
+}
+
+void LoggerDataReader::PrintGPSFileLine()
+{
+    // file, logger unit, and gps data
+    gpsFileLines_ = currentFileStats_.fileName + ",SN" + headerData_.serialNumberString + "," + to_string(status_.loggingSession) +
+        "," + configurationType_ + "," + to_string(headerData_.decimalDegreesLongitude) + "," +
+        to_string(headerData_.decimalDegreesLatitude) + ",";
+
+    // start time information for session
+    gpsFileLines_ += startTimeForSession_.yearString + "-" + startTimeForSession_.monthString + "-" + startTimeForSession_.dayString + " " +
+        startTimeForSession_.hourString + ":" + startTimeForSession_.minuteString + ":" + startTimeForSession_.secondString + "." + startTimeForSession_.millisecondString +
+        ",";
+
+    // end time information for session
+    gpsFileLines_ += endTimeForSession_.yearString + "-" + endTimeForSession_.monthString + "-" + endTimeForSession_.dayString + " " +
+        endTimeForSession_.hourString + ":" + endTimeForSession_.minuteString + ":" + endTimeForSession_.secondString + "." + endTimeForSession_.millisecondString + "\n";
 }
 
 float LoggerDataReader::UnsignedIntToIEEEFloat(uint32_t binaryNumber)
