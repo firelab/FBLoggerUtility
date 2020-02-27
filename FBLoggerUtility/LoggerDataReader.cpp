@@ -953,7 +953,7 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                 char* end;
                 errno = 0;
                 configFileLine_.heatFluxVoltageOffsetValue = std::strtod(token.c_str(), &end);
-                if(configFileLine_.heatFluxVoltageOffsetString == "H")
+                if(configFileLine_.conifgurationString == "H")
                 {
                     if(*end != '\0' ||  // error, we didn't consume the entire string
                         errno != 0)   // error, overflow or underflow
