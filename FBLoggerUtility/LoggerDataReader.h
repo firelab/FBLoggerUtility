@@ -34,6 +34,7 @@ struct SharedData
     bool printRaw = false;
     map<int, string>* configMap = NULL;
     map<int, double>* sensorBearingMap = NULL;
+    map<int, double>* heatFluxVoltageOffsetMap = NULL;
     map<int, StatsFileData>* statsFileMap = NULL;
     vector<double>* angles = NULL;
     vector<double>* ReynloldsNumbers = NULL;
@@ -104,6 +105,7 @@ class LoggerDataReader
         bool isConfigurationTypeValid = false;
         bool isSensorNumberValid = false;
         bool isSensorBearingValid = false;
+        bool isSensorHeatFluxVoltageOffsetValid = false;
         bool isGoodOutput = true;
         bool carryBugEncountered_ = false;
         unsigned int configFileLineNumber = 0;
@@ -222,6 +224,9 @@ class LoggerDataReader
         string conifgurationString = "";
         string sensorNumberString = "";
         string sensorBearingString = "";
+        string heatFluxVoltageOffsetString = "";
+
+        double heatFluxVoltageOffsetValue = 0.0;
         double sensorBearingValue = 0.0;
     };
 
@@ -323,6 +328,7 @@ private:
 
     map<int, string> configMap_;
     map<int, double> sensorBearingMap_;
+    map<int, double> heatFluxVoltageOffsetMap_;
     map<int, StatsFileData> statsFileMap_;
 
     bool isConfigFileValid_;

@@ -519,8 +519,9 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
         if (totalFilesProcessed != 0)
         {
-            CString statsFilePath(globalLoggerDataReader->GetStatsFilePath().c_str());
-            text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
+            // No generating stats file currently commented out for now
+            //CString statsFilePath(globalLoggerDataReader->GetStatsFilePath().c_str());
+            //text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
         }
         else
         {
@@ -787,29 +788,24 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 MessageBox(text, caption, MB_OK);
             }
 
-            if (configFileExists && m_workerThreadCount.load() < 1)
+            if (configFileExists)
             {
-
-                //std::ifstream configFile(m_configFilePath, std::ios::in | std::ios::binary);
-                //FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
-                //bool configIsValid = loggerDataReader.CheckConfigFileFormatIsValid(configFile);
-                bool configIsValid = true;
-                if (configIsValid)
+                if(m_workerThreadCount.load() < 1)
                 {
                     m_workerThreadCount.fetch_add(1);
                     InitProgressBarDlg();
                     m_workerThread = AfxBeginThread(DatFileProcessRoutine, this);
                 }
-                else
-                {
-                    CString text = _T("");
-                    CString caption = _T("");
-                    text += _T("Error: Config file at path \"") + m_configFilePath + _T("\", is invalid. No conversion performed\n");
+            }
+            else
+            {
+                CString text = _T("");
+                CString caption = _T("");
+                text += _T("Error: Config file at path \"") + m_configFilePath + _T("\", is invalid. No conversion performed\n");
 
-                    m_configFileBrowser.SetWindowTextW(NULL);
-                    m_waitForWorkerThread.store(false);
-                    MessageBox(text, caption, MB_OK);
-                }
+                m_configFileBrowser.SetWindowTextW(NULL);
+                m_waitForWorkerThread.store(false);
+                MessageBox(text, caption, MB_OK);
             }
         }
         else
