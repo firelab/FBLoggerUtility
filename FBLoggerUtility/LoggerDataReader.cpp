@@ -958,20 +958,20 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                     if(*end != '\0' ||  // error, we didn't consume the entire string
                         errno != 0)   // error, overflow or underflow
                     {
-                        status_.isSensorHeatFluxVoltageOffsetValid = false;
+                        status_.isHeatFluxVoltageOffsetValid = false;
                     }
                     else if(configFileLine_.heatFluxVoltageOffsetValue < -10 || configFileLine_.heatFluxVoltageOffsetValue > 10) // Need to find real acceptable voltage bounds
                     {
-                        status_.isSensorHeatFluxVoltageOffsetValid = false;
+                        status_.isHeatFluxVoltageOffsetValid = false;
                     }
                     else
                     {
-                        status_.isSensorHeatFluxVoltageOffsetValid = true;
+                        status_.isHeatFluxVoltageOffsetValid = true;
                     }
                 }
                 else
                 {
-                    status_.isSensorHeatFluxVoltageOffsetValid = true;
+                    status_.isHeatFluxVoltageOffsetValid = true;
                 }
                 break;
             }
@@ -1052,7 +1052,7 @@ void LoggerDataReader::ProcessErrorsInLineOfConfigFile()
                     }
                 }
             }
-            if (status_.isSerialNumberValid && status_.isConfigurationTypeValid && status_.isSensorNumberValid && status_.isSensorBearingValid && status_.isSensorHeatFluxVoltageOffsetValid)
+            if (status_.isSerialNumberValid && status_.isConfigurationTypeValid && status_.isSensorNumberValid && status_.isSensorBearingValid && status_.isHeatFluxVoltageOffsetValid)
             {
                 configMap_.insert(pair<int, string>(serialNumber, configFileLine_.conifgurationString));
                 if (configFileLine_.conifgurationString == "H")
@@ -1075,7 +1075,7 @@ void LoggerDataReader::ProcessErrorsInLineOfConfigFile()
                 isConfigFileValid_ = false;
                 numErrors_++;
             }
-            else if(configFileLine_.conifgurationString == "H" && !status_.isSensorHeatFluxVoltageOffsetValid)
+            else if(configFileLine_.conifgurationString == "H" && !status_.isHeatFluxVoltageOffsetValid)
             {
                 logFileLines_ += "Error: Entry " + configFileLine_.heatFluxVoltageOffsetString + " is invalid for heat flux voltage offset (fifth column) for logger id " + configFileLine_.serialNumberString +
                     " in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";

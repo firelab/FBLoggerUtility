@@ -105,7 +105,7 @@ class LoggerDataReader
         bool isConfigurationTypeValid = false;
         bool isSensorNumberValid = false;
         bool isSensorBearingValid = false;
-        bool isSensorHeatFluxVoltageOffsetValid = false;
+        bool isHeatFluxVoltageOffsetValid = false;
         bool isGoodOutput = true;
         bool carryBugEncountered_ = false;
         unsigned int configFileLineNumber = 0;
