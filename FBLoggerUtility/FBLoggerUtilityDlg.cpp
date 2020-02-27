@@ -359,6 +359,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         isGoodWindTunnelTable = globalLoggerDataReader->CreateWindTunnelDataVectors();
         SharedData sharedData;
         globalLoggerDataReader->GetSharedData(sharedData);
+        logFile->logFileLines_ = globalLoggerDataReader->GetLogFileLines();
+
         if (globalLoggerDataReader->IsConfigFileValid() && isGoodWindTunnelTable)
         {
             totalNumberOfFiles = globalLoggerDataReader->GetNumberOfInputFiles();
@@ -414,7 +416,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 }
             }
             else
-            {
+            {   
                 ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
             }
         }
@@ -519,6 +521,10 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         {
             CString statsFilePath(globalLoggerDataReader->GetStatsFilePath().c_str());
             text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
+        }
+        else
+        {
+            ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
         }
 
         CString logFilePath(logFile->GetLogFilePath().c_str());
