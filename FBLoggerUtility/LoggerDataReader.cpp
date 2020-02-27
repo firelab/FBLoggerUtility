@@ -960,7 +960,7 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                     {
                         status_.isSensorHeatFluxVoltageOffsetValid = false;
                     }
-                    else if(configFileLine_.sensorBearingValue < -10 || configFileLine_.sensorBearingValue > 10) // Need to find real acceptable voltage bounds
+                    else if(configFileLine_.heatFluxVoltageOffsetValue < -10 || configFileLine_.heatFluxVoltageOffsetValue > 10) // Need to find real acceptable voltage bounds
                     {
                         status_.isSensorHeatFluxVoltageOffsetValid = false;
                     }
