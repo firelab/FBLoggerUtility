@@ -275,7 +275,9 @@ void LoggerDataReader::GetSharedData(SharedData& sharedData)
     sharedData.dataPath = dataPath_;
     sharedData.printRaw = printRaw_;
     sharedData.configMap = &configMap_;
-    sharedData.heatFluxVoltageOffsetMap = &heatFluxVoltageOffsetMap_;
+    sharedData.heatFlux_X_VoltageOffsetMap = &heatFlux_X_VoltageOffsetMap_;
+    sharedData.heatFlux_Y_VoltageOffsetMap = &heatFlux_Y_VoltageOffsetMap_;
+    sharedData.heatFlux_Z_VoltageOffsetMap = &heatFlux_Z_VoltageOffsetMap_;
     sharedData.sensorBearingMap = &sensorBearingMap_;
     sharedData.statsFileMap = &statsFileMap_;
     sharedData.angles = &angles_;
@@ -289,7 +291,9 @@ void LoggerDataReader::SetSharedData(const SharedData& sharedData)
     dataPath_ = sharedData.dataPath;
     printRaw_ = sharedData.printRaw;
     configMap_ = *sharedData.configMap;
-    heatFluxVoltageOffsetMap_ = *sharedData.heatFluxVoltageOffsetMap;
+    heatFlux_X_VoltageOffsetMap_ = *sharedData.heatFlux_X_VoltageOffsetMap;
+    heatFlux_Y_VoltageOffsetMap_ = *sharedData.heatFlux_Y_VoltageOffsetMap;
+    heatFlux_Z_VoltageOffsetMap_ = *sharedData.heatFlux_Z_VoltageOffsetMap;
     sensorBearingMap_ = *sharedData.sensorBearingMap;
     statsFileMap_ = *sharedData.statsFileMap;
     angles_ = *sharedData.angles;
@@ -638,7 +642,9 @@ void LoggerDataReader::PerformNeededDataConversions()
     }
     else if (configurationType_ == "H")
     {
-        double voltageOffset = heatFluxVoltageOffsetMap_.find(serialNumber_)->second;
+        double xVoltageOffset = heatFlux_X_VoltageOffsetMap_.find(serialNumber_)->second;
+        double yVoltageOffset = heatFlux_Y_VoltageOffsetMap_.find(serialNumber_)->second;
+        double zVoltageOffset = heatFlux_Z_VoltageOffsetMap_.find(serialNumber_)->second;
 
         // Convert temperature from volts to °C
         double temperatureVoltageOne = status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_ONE];
@@ -822,12 +828,14 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
         CONFIGURATION = 1,
         SENSOR_NUMBER = 2,
         SENSOR_BEARING = 3,
-        HEAT_FLUX_VOLTAGE_OFFSET = 4
+        HEAT_FLUX_X_VOLTAGE_OFFSET = 4,
+        HEAT_FLUX_Y_VOLTAGE_OFFSET = 5,
+        HEAT_FLUX_Z_VOLTAGE_OFFSET = 6
     };
 
     int tokenCounter = 0;
 
-    const int numRequiredColumns = 5;
+    const int numRequiredColumns = 7;
 
     string token;
 
@@ -923,6 +931,7 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
 
                 char* end;
                 errno = 0;
+
                 configFileLine_.sensorBearingValue = std::strtod(token.c_str(), &end);
                 if (configFileLine_.conifgurationString == "H")
                 {
@@ -946,32 +955,90 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                 }
                 break;
             }
-            case HEAT_FLUX_VOLTAGE_OFFSET:
+            case HEAT_FLUX_X_VOLTAGE_OFFSET:
             {
-                configFileLine_.heatFluxVoltageOffsetString = token;
+                configFileLine_.heatFlux_X_VoltageOffsetString = token;
 
                 char* end;
                 errno = 0;
-                configFileLine_.heatFluxVoltageOffsetValue = std::strtod(token.c_str(), &end);
+                configFileLine_.heatFlux_X_VoltageOffsetValue = std::strtod(token.c_str(), &end);
                 if(configFileLine_.conifgurationString == "H")
                 {
                     if(*end != '\0' ||  // error, we didn't consume the entire string
                         errno != 0)   // error, overflow or underflow
                     {
-                        status_.isHeatFluxVoltageOffsetValid = false;
+                        status_.isHeatFlux_X_VoltageOffsetValid = false;
                     }
-                    else if(configFileLine_.heatFluxVoltageOffsetValue < -10 || configFileLine_.heatFluxVoltageOffsetValue > 10) // Need to find real acceptable voltage bounds
+                    else if(configFileLine_.heatFlux_X_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_X_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
                     {
-                        status_.isHeatFluxVoltageOffsetValid = false;
+                        status_.isHeatFlux_X_VoltageOffsetValid = false;
                     }
                     else
                     {
-                        status_.isHeatFluxVoltageOffsetValid = true;
+                        status_.isHeatFlux_X_VoltageOffsetValid = true;
                     }
                 }
                 else
                 {
-                    status_.isHeatFluxVoltageOffsetValid = true;
+                    status_.isHeatFlux_X_VoltageOffsetValid = true;
+                }
+                break;
+            }
+            case HEAT_FLUX_Y_VOLTAGE_OFFSET:
+            {
+                configFileLine_.heatFlux_Y_VoltageOffsetString = token;
+
+                char* end;
+                errno = 0;
+                configFileLine_.heatFlux_Y_VoltageOffsetValue = std::strtod(token.c_str(), &end);
+                if(configFileLine_.conifgurationString == "H")
+                {
+                    if(*end != '\0' ||  // error, we didn't consume the entire string
+                        errno != 0)   // error, overflow or underflow
+                    {
+                        status_.isHeatFlux_Y_VoltageOffsetValid = false;
+                    }
+                    else if(configFileLine_.heatFlux_Y_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Y_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
+                    {
+                        status_.isHeatFlux_Y_VoltageOffsetValid = false;
+                    }
+                    else
+                    {
+                        status_.isHeatFlux_Y_VoltageOffsetValid = true;
+                    }
+                }
+                else
+                {
+                    status_.isHeatFlux_Y_VoltageOffsetValid = true;
+                }
+                break;
+            }
+            case HEAT_FLUX_Z_VOLTAGE_OFFSET:
+            {
+                configFileLine_.heatFlux_Z_VoltageOffsetString = token;
+
+                char* end;
+                errno = 0;
+                configFileLine_.heatFlux_Z_VoltageOffsetValue = std::strtod(token.c_str(), &end);
+                if(configFileLine_.conifgurationString == "H")
+                {
+                    if(*end != '\0' ||  // error, we didn't consume the entire string
+                        errno != 0)   // error, overflow or underflow
+                    {
+                        status_.isHeatFlux_Z_VoltageOffsetValid = false;
+                    }
+                    else if(configFileLine_.heatFlux_Z_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Z_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
+                    {
+                        status_.isHeatFlux_Z_VoltageOffsetValid = false;
+                    }
+                    else
+                    {
+                        status_.isHeatFlux_Z_VoltageOffsetValid = true;
+                    }
+                }
+                else
+                {
+                    status_.isHeatFlux_Z_VoltageOffsetValid = true;
                 }
                 break;
             }
@@ -1033,6 +1100,7 @@ void LoggerDataReader::ProcessErrorsInLineOfConfigFile()
         }
         else
         {
+            // Check Configuration
             if (configFileLine_.conifgurationString == "")
             {
                 if (configFileLine_.sensorNumberString != "")
@@ -1052,43 +1120,75 @@ void LoggerDataReader::ProcessErrorsInLineOfConfigFile()
                     }
                 }
             }
-            if (status_.isSerialNumberValid && status_.isConfigurationTypeValid && status_.isSensorNumberValid && status_.isSensorBearingValid && status_.isHeatFluxVoltageOffsetValid)
-            {
-                configMap_.insert(pair<int, string>(serialNumber, configFileLine_.conifgurationString));
-                if (configFileLine_.conifgurationString == "H")
-                {
-                    heatFluxVoltageOffsetMap_.insert(pair<int, double>(serialNumber, configFileLine_.heatFluxVoltageOffsetValue));
-                    sensorBearingMap_.insert(pair<int, double>(serialNumber, configFileLine_.sensorBearingValue));
-                }
-            }
-            else if (!status_.isSensorNumberValid)
+            // Check Sensor Number (Package ID)
+            if(!status_.isSensorNumberValid)
             {
                 logFileLines_ += "Error: Entry " + configFileLine_.sensorNumberString + " is invalid for sensor number (third column) for logger id " + configFileLine_.serialNumberString +
                     " in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
                 isConfigFileValid_ = false;
                 numErrors_++;
             }
-            else if (configFileLine_.conifgurationString == "H" && !status_.isSensorBearingValid)
+            if (status_.isSerialNumberValid && status_.isConfigurationTypeValid)
             {
-                logFileLines_ += "Error: " + configFileLine_.sensorBearingString + " is invalid for sensor bearing (fourth column) for logger id " + configFileLine_.serialNumberString + " in line number " + std::to_string(status_.configFileLineNumber) +
-                    " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
-                isConfigFileValid_ = false;
-                numErrors_++;
+                configMap_.insert(pair<int, string>(serialNumber, configFileLine_.conifgurationString));
+
+                // Check Heat Flux Package Configuration
+                if(configFileLine_.conifgurationString == "H")
+                {
+                    // Check Sensor Bearing
+                    if(status_.isSensorBearingValid)
+                    {
+                        sensorBearingMap_.insert(pair<int, double>(serialNumber, configFileLine_.sensorBearingValue));
+                    }
+                    else
+                    {
+                        logFileLines_ += "Error: " + configFileLine_.sensorBearingString + " is invalid for sensor bearing (fourth column) for logger id " + configFileLine_.serialNumberString + " in line number " + std::to_string(status_.configFileLineNumber) +
+                            " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+                        isConfigFileValid_ = false;
+                        numErrors_++;
+                    }
+                    // Check X Voltage Offset
+                    if(status_.isHeatFlux_X_VoltageOffsetValid)
+                    {
+                        heatFlux_X_VoltageOffsetMap_.insert(pair<int, double>(serialNumber, configFileLine_.heatFlux_X_VoltageOffsetValue));
+                     
+                    }
+                    else
+                    {
+                        logFileLines_ += "Error: Entry " + configFileLine_.heatFlux_X_VoltageOffsetString + " is invalid for heat flux X voltage offset (fifth column) for logger id " + configFileLine_.serialNumberString +
+                            " in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+                        isConfigFileValid_ = false;
+                        numErrors_++;
+                    }
+                    // Check Y Voltage Offset
+                    if(status_.isHeatFlux_Y_VoltageOffsetValid)
+                    {
+                        heatFlux_Y_VoltageOffsetMap_.insert(pair<int, double>(serialNumber, configFileLine_.heatFlux_Y_VoltageOffsetValue));
+                        sensorBearingMap_.insert(pair<int, double>(serialNumber, configFileLine_.sensorBearingValue));
+                    }
+                    else if(configFileLine_.conifgurationString == "H" && !status_.isHeatFlux_Y_VoltageOffsetValid)
+                    {
+                        logFileLines_ += "Error: Entry " + configFileLine_.heatFlux_Y_VoltageOffsetString + " is invalid for heat flux Y voltage offset (sixth column) for logger id " + configFileLine_.serialNumberString +
+                            " in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+                        isConfigFileValid_ = false;
+                        numErrors_++;
+                    }
+                    // Check Z Voltage Offset
+                    if(status_.isHeatFlux_Z_VoltageOffsetValid)
+                    {
+                        heatFlux_Z_VoltageOffsetMap_.insert(pair<int, double>(serialNumber, configFileLine_.heatFlux_Z_VoltageOffsetValue));
+                        sensorBearingMap_.insert(pair<int, double>(serialNumber, configFileLine_.sensorBearingValue));
+                    }
+                    else if(configFileLine_.conifgurationString == "H" && !status_.isHeatFlux_Z_VoltageOffsetValid)
+                    {
+                        logFileLines_ += "Error: Entry " + configFileLine_.heatFlux_Z_VoltageOffsetString + " is invalid for heat flux Z voltage offset (seventh column) for logger id " + configFileLine_.serialNumberString +
+                            " in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
+                        isConfigFileValid_ = false;
+                        numErrors_++;
+                    }
+                }
             }
-            else if(configFileLine_.conifgurationString == "H" && !status_.isHeatFluxVoltageOffsetValid)
-            {
-                logFileLines_ += "Error: Entry " + configFileLine_.heatFluxVoltageOffsetString + " is invalid for heat flux voltage offset (fifth column) for logger id " + configFileLine_.serialNumberString +
-                    " in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
-                isConfigFileValid_ = false;
-                numErrors_++;
-            }
-            else
-            {
-                logFileLines_ += "Error: Entry for logger id " + configFileLine_.serialNumberString +
-                    " is missing sensor number data (third column) " + " in line " + std::to_string(status_.configFileLineNumber) + " in config file at " + configFilePath_ + " " + GetMyLocalDateTimeString() + "\n";
-                isConfigFileValid_ = false;
-                numErrors_++;
-            }
+            
         }
     }
     else if (!status_.isSerialNumberValid)

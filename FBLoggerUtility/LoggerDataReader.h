@@ -34,7 +34,9 @@ struct SharedData
     bool printRaw = false;
     map<int, string>* configMap = NULL;
     map<int, double>* sensorBearingMap = NULL;
-    map<int, double>* heatFluxVoltageOffsetMap = NULL;
+    map<int, double>* heatFlux_X_VoltageOffsetMap = NULL;
+    map<int, double>* heatFlux_Y_VoltageOffsetMap = NULL;
+    map<int, double>* heatFlux_Z_VoltageOffsetMap = NULL;
     map<int, StatsFileData>* statsFileMap = NULL;
     vector<double>* angles = NULL;
     vector<double>* ReynloldsNumbers = NULL;
@@ -105,7 +107,9 @@ class LoggerDataReader
         bool isConfigurationTypeValid = false;
         bool isSensorNumberValid = false;
         bool isSensorBearingValid = false;
-        bool isHeatFluxVoltageOffsetValid = false;
+        bool isHeatFlux_X_VoltageOffsetValid = false;
+        bool isHeatFlux_Y_VoltageOffsetValid = false;
+        bool isHeatFlux_Z_VoltageOffsetValid = false;
         bool isGoodOutput = true;
         bool carryBugEncountered_ = false;
         unsigned int configFileLineNumber = 0;
@@ -224,9 +228,13 @@ class LoggerDataReader
         string conifgurationString = "";
         string sensorNumberString = "";
         string sensorBearingString = "";
-        string heatFluxVoltageOffsetString = "";
+        string heatFlux_X_VoltageOffsetString = "";
+        string heatFlux_Y_VoltageOffsetString = "";
+        string heatFlux_Z_VoltageOffsetString = "";
 
-        double heatFluxVoltageOffsetValue = 0.0;
+        double heatFlux_X_VoltageOffsetValue = 0.0;
+        double heatFlux_Y_VoltageOffsetValue = 0.0;
+        double heatFlux_Z_VoltageOffsetValue = 0.0;
         double sensorBearingValue = 0.0;
     };
 
@@ -328,7 +336,9 @@ private:
 
     map<int, string> configMap_;
     map<int, double> sensorBearingMap_;
-    map<int, double> heatFluxVoltageOffsetMap_;
+    map<int, double> heatFlux_X_VoltageOffsetMap_;
+    map<int, double> heatFlux_Y_VoltageOffsetMap_;
+    map<int, double> heatFlux_Z_VoltageOffsetMap_;
     map<int, StatsFileData> statsFileMap_;
 
     bool isConfigFileValid_;
