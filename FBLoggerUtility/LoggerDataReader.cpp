@@ -961,17 +961,25 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
 
                 char* end;
                 errno = 0;
-                configFileLine_.heatFlux_X_VoltageOffsetValue = std::strtod(token.c_str(), &end);
-                if(configFileLine_.conifgurationString == "H")
+                long double ld;
+                if((std::istringstream(configFileLine_.heatFlux_X_VoltageOffsetString) >> ld >> std::ws).eof()) // Check if string is valide double
                 {
-                    if(*end != '\0' ||  // error, we didn't consume the entire string
-                        errno != 0)   // error, overflow or underflow
+                    configFileLine_.heatFlux_X_VoltageOffsetValue = std::strtod(token.c_str(), &end);
+                    if(configFileLine_.conifgurationString == "H")
                     {
-                        status_.isHeatFlux_X_VoltageOffsetValid = false;
-                    }
-                    else if(configFileLine_.heatFlux_X_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_X_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
-                    {
-                        status_.isHeatFlux_X_VoltageOffsetValid = false;
+                        if(*end != '\0' ||  // error, we didn't consume the entire string
+                            errno != 0)   // error, overflow or underflow
+                        {
+                            status_.isHeatFlux_X_VoltageOffsetValid = false;
+                        }
+                        else if(configFileLine_.heatFlux_X_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_X_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
+                        {
+                            status_.isHeatFlux_X_VoltageOffsetValid = false;
+                        }
+                        else
+                        {
+                            status_.isHeatFlux_X_VoltageOffsetValid = true;
+                        }
                     }
                     else
                     {
@@ -980,7 +988,7 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                 }
                 else
                 {
-                    status_.isHeatFlux_X_VoltageOffsetValid = true;
+                    status_.isHeatFlux_X_VoltageOffsetValid = false;
                 }
                 break;
             }
@@ -990,17 +998,26 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
 
                 char* end;
                 errno = 0;
-                configFileLine_.heatFlux_Y_VoltageOffsetValue = std::strtod(token.c_str(), &end);
-                if(configFileLine_.conifgurationString == "H")
+
+                long double ld;
+                if((std::istringstream(configFileLine_.heatFlux_Y_VoltageOffsetString) >> ld >> std::ws).eof()) // Check if string is valide double
                 {
-                    if(*end != '\0' ||  // error, we didn't consume the entire string
-                        errno != 0)   // error, overflow or underflow
+                    configFileLine_.heatFlux_Y_VoltageOffsetValue = std::strtod(token.c_str(), &end);
+                    if(configFileLine_.conifgurationString == "H")
                     {
-                        status_.isHeatFlux_Y_VoltageOffsetValid = false;
-                    }
-                    else if(configFileLine_.heatFlux_Y_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Y_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
-                    {
-                        status_.isHeatFlux_Y_VoltageOffsetValid = false;
+                        if(*end != '\0' ||  // error, we didn't consume the entire string
+                            errno != 0)   // error, overflow or underflow
+                        {
+                            status_.isHeatFlux_Y_VoltageOffsetValid = false;
+                        }
+                        else if(configFileLine_.heatFlux_Y_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Y_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
+                        {
+                            status_.isHeatFlux_Y_VoltageOffsetValid = false;
+                        }
+                        else
+                        {
+                            status_.isHeatFlux_Y_VoltageOffsetValid = true;
+                        }
                     }
                     else
                     {
@@ -1009,7 +1026,7 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                 }
                 else
                 {
-                    status_.isHeatFlux_Y_VoltageOffsetValid = true;
+                    status_.isHeatFlux_Y_VoltageOffsetValid = false;
                 }
                 break;
             }
@@ -1020,16 +1037,26 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                 char* end;
                 errno = 0;
                 configFileLine_.heatFlux_Z_VoltageOffsetValue = std::strtod(token.c_str(), &end);
-                if(configFileLine_.conifgurationString == "H")
+
+                long double ld;
+                if((std::istringstream(configFileLine_.heatFlux_Z_VoltageOffsetString) >> ld >> std::ws).eof()) // Check if string is valide double
                 {
-                    if(*end != '\0' ||  // error, we didn't consume the entire string
-                        errno != 0)   // error, overflow or underflow
+                    configFileLine_.heatFlux_Z_VoltageOffsetValue = std::strtod(token.c_str(), &end);
+                    if(configFileLine_.conifgurationString == "H")
                     {
-                        status_.isHeatFlux_Z_VoltageOffsetValid = false;
-                    }
-                    else if(configFileLine_.heatFlux_Z_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Z_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
-                    {
-                        status_.isHeatFlux_Z_VoltageOffsetValid = false;
+                        if(*end != '\0' ||  // error, we didn't consume the entire string
+                            errno != 0)   // error, overflow or underflow
+                        {
+                            status_.isHeatFlux_Z_VoltageOffsetValid = false;
+                        }
+                        else if(configFileLine_.heatFlux_Z_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Z_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
+                        {
+                            status_.isHeatFlux_Z_VoltageOffsetValid = false;
+                        }
+                        else
+                        {
+                            status_.isHeatFlux_Z_VoltageOffsetValid = true;
+                        }
                     }
                     else
                     {
@@ -1038,7 +1065,7 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                 }
                 else
                 {
-                    status_.isHeatFlux_Z_VoltageOffsetValid = true;
+                    status_.isHeatFlux_Z_VoltageOffsetValid = false;
                 }
                 break;
             }

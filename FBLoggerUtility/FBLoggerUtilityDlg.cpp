@@ -398,12 +398,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
                             flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
                             ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
-                            if (i == totalNumberOfFiles - 1)
-                            {
-                                ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
-                                ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
-                            }
-
+                            
                             // check kill
                             DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
                             if (dwRet == WAIT_OBJECT_0)
@@ -523,10 +518,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
             //CString statsFilePath(globalLoggerDataReader->GetStatsFilePath().c_str());
             //text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
         }
-        else
-        {
-            ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
-        }
+        
+        ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
 
         CString logFilePath(logFile->GetLogFilePath().c_str());
         text += _T("A log file was generated at\n") + logFilePath;
@@ -536,6 +529,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
     m_waitForWorkerThread.store(false);
     m_workerThreadCount.fetch_add(-1);
+
+   
 
     PostMessage(WORKER_THREAD_DONE, 0, 0);
     // normal thread exit
