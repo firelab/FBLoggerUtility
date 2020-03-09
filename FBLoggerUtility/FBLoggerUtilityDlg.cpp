@@ -9,6 +9,7 @@
 #include "StringUtility.h"
 #include "FileNameUtility.h"
 #include "DirectoryReaderUtility.h"
+#include "GPSFile.h"
 
 #include <omp.h>
 
@@ -336,6 +337,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
     unique_ptr<LoggerDataReader> globalLoggerDataReader( new LoggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName)));
     unique_ptr<FBLoggerLogFile> logFile(new FBLoggerLogFile (NarrowCStringToStdString(m_dataPath)));
+    unique_ptr<GPSFile> gpsFile(new GPSFile(NarrowCStringToStdString(m_dataPath)));
     globalLoggerDataReader->SetConfigFile(NarrowCStringToStdString(m_configFilePath));
     m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
     globalLoggerDataReader->SetPrintRaw(m_createRawTicked);
@@ -343,6 +345,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     int totalNumberOfFiles = 0;
 
     vector<string> logFileLinesPerFile;
+    vector<string> gpsFileLinesPerFile;
 
     // Shared accumulated data
     int totalInvalidInputFiles = 0;
@@ -359,6 +362,8 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         isGoodWindTunnelTable = globalLoggerDataReader->CreateWindTunnelDataVectors();
         SharedData sharedData;
         globalLoggerDataReader->GetSharedData(sharedData);
+        logFile->logFileLines_ = globalLoggerDataReader->GetLogFileLines();
+
         if (globalLoggerDataReader->IsConfigFileValid() && isGoodWindTunnelTable)
         {
             totalNumberOfFiles = globalLoggerDataReader->GetNumberOfInputFiles();
@@ -374,6 +379,11 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 for (int i = 0; i < totalNumberOfFiles; i++)
                 {
                     logFileLinesPerFile.push_back("");
+                }
+
+                for(int i = 0; i < totalNumberOfFiles; i++)
+                {
+                    gpsFileLinesPerFile.push_back("");
                 }
 
 #pragma omp parallel for schedule(dynamic, 1) shared(i, aborted, totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFile)      
@@ -393,15 +403,11 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                             totalInvalidInputFiles += localLoggerDataReader->GetNumInvalidFiles();
                             totalNumErrors += localLoggerDataReader->GetNumErrors();
                             logFileLinesPerFile[i] = localLoggerDataReader->GetLogFileLines();
+                            gpsFileLinesPerFile[i] = localLoggerDataReader->GetGPSFileLines();
 
                             flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
                             ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
-                            if (i == totalNumberOfFiles - 1)
-                            {
-                                ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)100, (LPARAM)0);
-                                ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
-                            }
-
+                            
                             // check kill
                             DWORD dwRet = WaitForSingleObject(m_hKillEvent, 0);
                             if (dwRet == WAIT_OBJECT_0)
@@ -414,7 +420,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                 }
             }
             else
-            {
+            {   
                 ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
             }
         }
@@ -473,6 +479,15 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         }
         logFile->PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
 
+        if(gpsFile->IsGPSFileGood())
+        {
+            for(int i = 0; i < gpsFileLinesPerFile.size(); i++)
+            {
+                gpsFile->AddToGPSFile(gpsFileLinesPerFile[i]);
+            }
+            gpsFile->PrintGPSFileLinesToFile();
+        }
+
         if (!isGoodWindTunnelTable)
         {
             text = _T("There are errors in the wind tunnel data table file");
@@ -517,12 +532,21 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
         if (totalFilesProcessed != 0)
         {
-            CString statsFilePath(globalLoggerDataReader->GetStatsFilePath().c_str());
-            text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
+            // No generating stats file currently commented out for now
+            //CString statsFilePath(globalLoggerDataReader->GetStatsFilePath().c_str());
+            //text += _T("A summary of max and min sensor values was generated at\n") + statsFilePath + _T("\n\n");
         }
+        
+        ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), CLOSE_PROGRESSS_BAR, (WPARAM)0, (LPARAM)0);
 
         CString logFilePath(logFile->GetLogFilePath().c_str());
         text += _T("A log file was generated at\n") + logFilePath;
+
+        if(gpsFile->IsGPSFileGood())
+        {
+            CString gpsFilePath(gpsFile->GetGPSFilePath().c_str());
+            text += _T("\n\nA gps file was generated at\n") + gpsFilePath;
+        }
 
         MessageBox(text, caption, MB_OK);
     }
@@ -539,8 +563,6 @@ void CFBLoggerUtilityDlg::ProcessIniFile()
 {
     bool isDataPathValid;
     bool isConfigurationTypeValid;
-
-   
 
     ifstream infile(m_appIniPath);
     string line;
@@ -781,29 +803,24 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 MessageBox(text, caption, MB_OK);
             }
 
-            if (configFileExists && m_workerThreadCount.load() < 1)
+            if (configFileExists)
             {
-
-                //std::ifstream configFile(m_configFilePath, std::ios::in | std::ios::binary);
-                //FBLoggerDataReader loggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName));
-                //bool configIsValid = loggerDataReader.CheckConfigFileFormatIsValid(configFile);
-                bool configIsValid = true;
-                if (configIsValid)
+                if(m_workerThreadCount.load() < 1)
                 {
                     m_workerThreadCount.fetch_add(1);
                     InitProgressBarDlg();
                     m_workerThread = AfxBeginThread(DatFileProcessRoutine, this);
                 }
-                else
-                {
-                    CString text = _T("");
-                    CString caption = _T("");
-                    text += _T("Error: Config file at path \"") + m_configFilePath + _T("\", is invalid. No conversion performed\n");
+            }
+            else
+            {
+                CString text = _T("");
+                CString caption = _T("");
+                text += _T("Error: Config file at path \"") + m_configFilePath + _T("\", is invalid. No conversion performed\n");
 
-                    m_configFileBrowser.SetWindowTextW(NULL);
-                    m_waitForWorkerThread.store(false);
-                    MessageBox(text, caption, MB_OK);
-                }
+                m_configFileBrowser.SetWindowTextW(NULL);
+                m_waitForWorkerThread.store(false);
+                MessageBox(text, caption, MB_OK);
             }
         }
         else
