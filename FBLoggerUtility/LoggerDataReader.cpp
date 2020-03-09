@@ -600,19 +600,20 @@ double LoggerDataReader::CalculateTCTemperature(double rawVoltage)
 	//    data file. Set to "true" if this is day 1 data, set to "false" if this is good
 	//    data from a fixed logger.
 	
-	if (false)	
-	{
-		temperatureMillivolt = (4.6433525E-2 + 4.8477860E-2 * rawVoltage) / (1.0 + 1.1184923E-3 * rawVoltage - 2.0748220E-8 * rawVoltage * rawVoltage);
-	}
-	else
-	{
-		double panelTemp = status_.sensorReadingValue[TCIndex::PANEL_TEMP];
-		double panelMillivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp + 0.0393 * panelTemp;
-		temperatureMillivolt = panelMillivolt + rawVoltage * 1000.0;
-	}
-	
-    return (24.319 * temperatureMillivolt) - (0.0621 * temperatureMillivolt * temperatureMillivolt) + 
-        (0.00013 * temperatureMillivolt * temperatureMillivolt * temperatureMillivolt);
+	//if (false)	
+	//{
+	//	temperatureMillivolt = (4.6433525E-2 + 4.8477860E-2 * rawVoltage) / (1.0 + 1.1184923E-3 * rawVoltage - 2.0748220E-8 * rawVoltage * rawVoltage);
+	//}
+	//else
+	//{
+	//	double panelTemp = status_.sensorReadingValue[TCIndex::PANEL_TEMP];
+	//	double panelMillivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp + 0.0393 * panelTemp;
+	//	temperatureMillivolt = panelMillivolt + rawVoltage * 1000.0;
+	//}
+	//
+ //   return (24.319 * temperatureMillivolt) - (0.0621 * temperatureMillivolt * temperatureMillivolt) + 
+ //       (0.00013 * temperatureMillivolt * temperatureMillivolt * temperatureMillivolt);
+    return rawVoltage;
 }
 
 void LoggerDataReader::PerformNeededDataConversions()
