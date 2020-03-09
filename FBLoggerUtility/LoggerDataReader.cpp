@@ -989,10 +989,6 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                             status_.isHeatFlux_X_VoltageOffsetValid = true;
                         }
                     }
-                    else if(configFileLine_.conifgurationString != "H")
-                    {
-                        status_.isHeatFlux_X_VoltageOffsetValid = false;
-                    }
                 }
                 else
                 {
@@ -1032,10 +1028,6 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                         {
                             status_.isHeatFlux_Y_VoltageOffsetValid = true;
                         }
-                    }
-                    else if(configFileLine_.conifgurationString != "H")
-                    {
-                        status_.isHeatFlux_Y_VoltageOffsetValid = false;
                     }
                 }
                 else
