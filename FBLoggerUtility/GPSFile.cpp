@@ -2,7 +2,7 @@
 #include "GPSFile.h"
 
 GPSFile::GPSFile(string dataPath)
-    :gpsFilePath_(dataPath + "\\log_file.txt"),
+    :gpsFilePath_(dataPath + "\\gps_file.txt"),
     gpsFile_(gpsFilePath_, std::ios::out)
 {
     gpsFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);

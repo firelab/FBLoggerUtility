@@ -9,6 +9,7 @@
 #include "StringUtility.h"
 #include "FileNameUtility.h"
 #include "DirectoryReaderUtility.h"
+#include "GPSFile.h"
 
 #include <omp.h>
 
@@ -336,6 +337,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
 
     unique_ptr<LoggerDataReader> globalLoggerDataReader( new LoggerDataReader(NarrowCStringToStdString(m_dataPath), NarrowCStringToStdString(m_burnName)));
     unique_ptr<FBLoggerLogFile> logFile(new FBLoggerLogFile (NarrowCStringToStdString(m_dataPath)));
+    unique_ptr<GPSFile> gpsFile(new GPSFile(NarrowCStringToStdString(m_dataPath)));
     globalLoggerDataReader->SetConfigFile(NarrowCStringToStdString(m_configFilePath));
     m_createRawTicked = (m_ctlCheckRaw.GetCheck() == TRUE) ? true : false;
     globalLoggerDataReader->SetPrintRaw(m_createRawTicked);
@@ -343,6 +345,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     int totalNumberOfFiles = 0;
 
     vector<string> logFileLinesPerFile;
+    vector<string> gpsFileLinesPerFile;
 
     // Shared accumulated data
     int totalInvalidInputFiles = 0;
@@ -378,6 +381,11 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                     logFileLinesPerFile.push_back("");
                 }
 
+                for(int i = 0; i < totalNumberOfFiles; i++)
+                {
+                    gpsFileLinesPerFile.push_back("");
+                }
+
 #pragma omp parallel for schedule(dynamic, 1) shared(i, aborted, totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFile)      
                 for (i = 0; i < totalNumberOfFiles; i++)
                 {
@@ -395,6 +403,7 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
                             totalInvalidInputFiles += localLoggerDataReader->GetNumInvalidFiles();
                             totalNumErrors += localLoggerDataReader->GetNumErrors();
                             logFileLinesPerFile[i] = localLoggerDataReader->GetLogFileLines();
+                            gpsFileLinesPerFile[i] = localLoggerDataReader->GetGPSFileLines();
 
                             flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
                             ::PostMessage(m_pProgressBarDlg->GetSafeHwnd(), UPDATE_PROGRESSS_BAR, (WPARAM)static_cast<int>(flProgress), (LPARAM)0);
@@ -470,6 +479,15 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         }
         logFile->PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
 
+        if(gpsFile->IsGPSFileGood())
+        {
+            for(int i = 0; i < gpsFileLinesPerFile.size(); i++)
+            {
+                gpsFile->AddToGPSFile(gpsFileLinesPerFile[i]);
+            }
+            gpsFile->PrintGPSFileLinesToFile();
+        }
+
         if (!isGoodWindTunnelTable)
         {
             text = _T("There are errors in the wind tunnel data table file");
@@ -524,13 +542,17 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         CString logFilePath(logFile->GetLogFilePath().c_str());
         text += _T("A log file was generated at\n") + logFilePath;
 
+        if(gpsFile->IsGPSFileGood())
+        {
+            CString gpsFilePath(gpsFile->GetGPSFilePath().c_str());
+            text += _T("\n\nA gps file was generated at\n") + gpsFilePath;
+        }
+
         MessageBox(text, caption, MB_OK);
     }
 
     m_waitForWorkerThread.store(false);
     m_workerThreadCount.fetch_add(-1);
-
-   
 
     PostMessage(WORKER_THREAD_DONE, 0, 0);
     // normal thread exit
@@ -541,8 +563,6 @@ void CFBLoggerUtilityDlg::ProcessIniFile()
 {
     bool isDataPathValid;
     bool isConfigurationTypeValid;
-
-   
 
     ifstream infile(m_appIniPath);
     string line;

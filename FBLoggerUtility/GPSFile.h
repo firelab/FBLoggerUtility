@@ -18,6 +18,21 @@ public:
         gpsFileLines_ += gpsFileLines;
     }
 
+    inline bool IsGPSFileGood()
+    {
+        bool isGood = false;
+        if(!gpsFile_.fail())
+        {
+            isGood = gpsFile_.good();
+        }
+        return isGood;
+    }
+
+    inline string GetGPSFilePath()
+    {
+        return gpsFilePath_;
+    }
+
 private:
     void PrintGPSFileHeader();
 
