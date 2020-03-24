@@ -427,27 +427,30 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                                 }
                             }
 
-                            UpdateSensorMaxAndMin();
-                            if (status_.sensorReadingCounter == 9)
+                            if ((status_.isDataCorruptionEncountered_ == false) || (status_.isRecoveredAfterDataCorruption_ == true))
                             {
-                                // An entire row of sensor data has been read in
-                                status_.recordNumber++;
-                                PerformSanityChecksOnValues(SanityChecks::RAW);
-                                if (printRaw_)
+                                UpdateSensorMaxAndMin();
+                                if (status_.sensorReadingCounter == 9)
                                 {
-                                    PrintSensorDataOutput(OutFileType::RAW);
+                                    // An entire row of sensor data has been read in
+                                    status_.recordNumber++;
+                                    PerformSanityChecksOnValues(SanityChecks::RAW);
+                                    if (printRaw_)
+                                    {
+                                        PrintSensorDataOutput(OutFileType::RAW);
+                                    }
+                                    PerformNeededDataConversions();
+                                    PerformSanityChecksOnValues(SanityChecks::FINAL);
+                                    UpdateStatsFileMap();
+                                    PrintSensorDataOutput(OutFileType::PROCESSED);
+                                    // Reset sensor reading counter 
+                                    status_.sensorReadingCounter = 0;
+                                    // Get (possible) session end time
+                                    StoreSessionEndTime();
+                                    // Update time for next set of sensor readings
+                                    headerData_.milliseconds += headerData_.sampleInterval;
+                                    UpdateTime();
                                 }
-                                PerformNeededDataConversions();
-                                PerformSanityChecksOnValues(SanityChecks::FINAL);
-                                UpdateStatsFileMap();
-                                PrintSensorDataOutput(OutFileType::PROCESSED);
-                                // Reset sensor reading counter 
-                                status_.sensorReadingCounter = 0;
-                                // Get (possible) session end time
-                                StoreSessionEndTime();
-                                // Update time for next set of sensor readings
-                                headerData_.milliseconds += headerData_.sampleInterval;
-                                UpdateTime();
                             }
                         }
                     }
@@ -462,9 +465,14 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                     //placemarkDescription = "test";
                     //kmlFile_ << FormatPlacemark();
 
-                    if (status_.carryBugEncountered_ = true)
+                    if (status_.isCarryBugEncountered_ == true)
                     {
                         PrintCarryBugToLog();
+                    }
+
+                    if (status_.isDataCorruptionEncountered_ == true)
+                    {
+                        PrintCorruptionDetectionsToLog();
                     }
 
                     PrintOutDataLinesToFile(outFile, outDataLines_);
@@ -498,7 +506,7 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
         numErrors_++;
     }
 
-    //if(logFile_.good())
+    //if (logFile_.good())
     //{
     //    PrintLogFileLine();
     //}
@@ -915,8 +923,12 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
                 {
                     status_.isSensorNumberValid = true;
                 }
-                else if (configFileLine_.conifgurationString == "" &&
+                else if (configFileLine_.conifgurationString == "H" &&
                     configFileLine_.sensorNumberString == "")
+                {
+                    status_.isSensorNumberValid = true;
+                }
+                else if (configFileLine_.conifgurationString == "")
                 {
                     status_.isSensorNumberValid = true;
                 }
@@ -1295,14 +1307,18 @@ void LoggerDataReader::CheckConfigForAllFiles()
                     ResetInFileReadingStatus();
                     currentFileStats_.fileName = inputFilesNameList_[i];
                     bool headerFound = GetFirstHeader();
-                    int serialNumber = atoi(headerData_.serialNumberString.c_str());
-                    if ((headerFound) && (configMap_.find(serialNumber) == configMap_.end()) || configMap_.find(serialNumber)->second == "")
+                  
+                    if (headerFound)
                     {
-                        // Config missing for file
-                        numInvalidInputFiles_++;
-                        invalidInputFileList_.push_back(inDataFilePath_);
-                        invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_CONFIG);
-                        inFile.close();
+                        int serialNumber = atoi(headerData_.serialNumberString.c_str());
+                        if((configMap_.find(serialNumber) == configMap_.end()) || (configMap_.find(serialNumber)->second == ""))
+                        {
+                            // Config missing for file
+                            numInvalidInputFiles_++;
+                            invalidInputFileList_.push_back(inDataFilePath_);
+                            invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_CONFIG);
+                            inFile.close();
+                        }
                     }
                     else if (!headerFound)
                     {
@@ -1363,7 +1379,9 @@ void LoggerDataReader::ResetInFileReadingStatus()
         status_.sensorReadingValue[i] = 0.0;
     }
     status_.headerFound = false;
-    status_.carryBugEncountered_ = false;
+    status_.isCarryBugEncountered_ = false;
+    status_.isDataCorruptionEncountered_ = false;
+    status_.isRecoveredAfterDataCorruption_ = true;
 }
 
 void LoggerDataReader::ResetCurrentFileStats()
@@ -1851,7 +1869,7 @@ bool LoggerDataReader::GetFirstHeader()
     ResetHeaderData();
 
     status_.pos = 0;
-    size_t filePositionLimit = inputFileContents_.size() - BYTES_READ_PER_ITERATION;
+    filePositionLimit = inputFileContents_.size() - BYTES_READ_PER_ITERATION;
 
     // Keep grabbing bytes until header is found or end of file is reached
     while (!status_.headerFound && (status_.pos < filePositionLimit))
@@ -1926,6 +1944,52 @@ void LoggerDataReader::GetRawNumber()
         {
             // Make panel temp's channel number 9, as it is printed last
             parsedNumericData_.channelNumber = 9;
+        }
+        else if ((parsedNumericData_.channelNumber < 0) || (parsedNumericData_.channelNumber > 8))
+        {
+            // Indicates data is corrupted
+            ResetHeaderData();
+            bool isAlreadyAddedToListOfCorruptedRecords = false;
+            for (int i = 0; i < status_.corruptedRecordNumbers.size(); i++)
+            {
+                if ((status_.corruptedRecordNumbers[i] == status_.recordNumber) && (status_.corruptedSessionNumbers[i] == status_.loggingSession))
+                {
+                    isAlreadyAddedToListOfCorruptedRecords = true;
+                    break;
+                }
+            }
+            if(isAlreadyAddedToListOfCorruptedRecords == false)
+            {
+                status_.corruptedRecordNumbers.push_back(status_.recordNumber);
+                status_.corruptedSessionNumbers.push_back(status_.loggingSession);
+            }
+            status_.isDataCorruptionEncountered_ = true;
+            
+            while (status_.headerFound == false && status_.pos < filePositionLimit)
+            {
+                // Always read in 4 bytes, then check if those 4 bytes contain the header signature
+                for (int i = 0; i < 4; i++)
+                {
+                    parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.pos];
+                    status_.pos++;
+                }
+
+                CheckForHeader();
+                if (status_.headerFound == false)
+                {
+                    status_.pos -= 3; // shift reading frame by three bytes back
+                    if (status_.pos < 0)
+                    {
+                        status_.pos = filePositionLimit;
+                        break; // something really went wrong here
+                    }
+                }
+            }
+            if (status_.headerFound == true)
+            {
+                // Recovered reading after corruption
+                status_.isRecoveredAfterDataCorruption_ = true;
+            }
         }
     }
 }
@@ -2099,7 +2163,7 @@ void LoggerDataReader::ParseHeader()
         // The character ':' appears in the seconds portion of some headers
         // due to an arithmetic error in which 1 was added to the ones place
         // but was not carried over to the tens
-        status_.carryBugEncountered_ = true;
+        status_.isCarryBugEncountered_ = true;
         
         // Correct the seconds string
         char tensSecondsChar = headerData_.secondString[0];
@@ -2180,6 +2244,15 @@ void LoggerDataReader::PrintCarryBugToLog()
 {
     numErrors_++;
     logFileLines_ += "Error: File " + currentFileStats_.fileName + " has failure to carry the one in header\n";
+}
+
+void LoggerDataReader::PrintCorruptionDetectionsToLog()
+{
+    for(int i = 0; i < status_.corruptedRecordNumbers.size(); i++)
+    {
+        numErrors_++;
+        logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt in record " + std::to_string(status_.corruptedRecordNumbers[i]) + " in session " + std::to_string(status_.corruptedSessionNumbers[i]) + "\n";
+    }
 }
 
 void LoggerDataReader::PrintConfigErrorsToLog()
@@ -2297,7 +2370,7 @@ void LoggerDataReader::PrintSensorDataOutput(OutFileType::OutFileTypeEnum outFil
             }
             else if (outFileType == OutFileType::PROCESSED)
             {
-                if((sanityChecks_.FFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.FFinalMax[i] != sanityChecks_.NAMax))
+                if ((sanityChecks_.FFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.FFinalMax[i] != sanityChecks_.NAMax))
                 {
                     outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
                 }

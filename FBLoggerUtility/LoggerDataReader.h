@@ -111,8 +111,12 @@ class LoggerDataReader
         bool isHeatFlux_Y_VoltageOffsetValid = false;
         bool isHeatFlux_Z_VoltageOffsetValid = false;
         bool isGoodOutput = true;
-        bool carryBugEncountered_ = false;
+        bool isCarryBugEncountered_ = false;
+        bool isDataCorruptionEncountered_ = false;
+        bool isRecoveredAfterDataCorruption_ = false;
         unsigned int configFileLineNumber = 0;
+        vector<int> corruptedRecordNumbers;
+        vector<int> corruptedSessionNumbers;
     };
 
     struct InvalidInputFileErrorType
@@ -305,6 +309,7 @@ private:
     void SetOutFilePaths(string inFileName);
     void PrintOutDataLinesToFile(ofstream& outFile, const string& outFileDataLines);
     void PrintCarryBugToLog();
+    void PrintCorruptionDetectionsToLog();
     void PrintConfigErrorsToLog();
     void PrintGPSFileLine();
     void PrintHeader(OutFileType::OutFileTypeEnum outFileType);
@@ -351,6 +356,8 @@ private:
     unsigned int numFilesProcessed_;
     unsigned int numInvalidInputFiles_;
     unsigned int numInvalidOutputFiles_;
+
+    size_t filePositionLimit;
 
     string inDataFilePath_;
     string outDataFilePath_;

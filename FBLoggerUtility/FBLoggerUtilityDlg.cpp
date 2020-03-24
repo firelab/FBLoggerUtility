@@ -353,6 +353,9 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
     int totalNumErrors = 0;
     float flProgress = 0;
 
+    CString text = _T("");
+    CString caption = _T("");
+
     // Check log file, check config file, process input files, create output files 
     if (logFile->IsLogFileGood())
     { 
@@ -470,8 +473,6 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
         numFilesConvertedCString.Format(_T("%d"), numFilesConverted);
         numInvalidFilesCString.Format(_T("%d"), (int)totalInvalidInputFiles);
         totalTimeInSecondsCString.Format(_T("%.2f"), totalTimeInSeconds);
-        CString text = _T("");
-        CString caption = _T("");
 
         for (int i = 0; i < logFileLinesPerFile.size(); i++)
         {
@@ -547,14 +548,15 @@ UINT CFBLoggerUtilityDlg::ProcessAllDatFiles()
             CString gpsFilePath(gpsFile->GetGPSFilePath().c_str());
             text += _T("\n\nA gps file was generated at\n") + gpsFilePath;
         }
-
-        MessageBox(text, caption, MB_OK);
     }
 
-    m_waitForWorkerThread.store(false);
-    m_workerThreadCount.fetch_add(-1);
+   
+   
 
     PostMessage(WORKER_THREAD_DONE, 0, 0);
+    m_workerThreadCount.fetch_add(-1);
+    m_waitForWorkerThread.store(false);
+    MessageBox(text, caption, MB_OK);
     // normal thread exit
     return 0;
 }
@@ -808,6 +810,7 @@ void CFBLoggerUtilityDlg::OnBnClickedConvert()
                 if(m_workerThreadCount.load() < 1)
                 {
                     m_workerThreadCount.fetch_add(1);
+                    m_waitForWorkerThread.store(true);
                     InitProgressBarDlg();
                     m_workerThread = AfxBeginThread(DatFileProcessRoutine, this);
                 }
@@ -914,6 +917,11 @@ LRESULT CFBLoggerUtilityDlg::OnWorkerThreadRunning(WPARAM, LPARAM)
 
 LRESULT CFBLoggerUtilityDlg::OnWorkerThreadDone(WPARAM, LPARAM)
 {
+    if(m_waitForWorkerThread.load())
+    {
+        DWORD dwRet = WaitForSingleObject(m_workerThread->m_hThread, 0); // Wait for worker thread to safely shutdown
+    }
+
     m_btnConvert.ShowWindow(TRUE);
     m_ctlCheckRaw.ShowWindow(TRUE);
     return 0;
