@@ -1,7 +1,8 @@
-#include "stdafx.h"
-#include "FBLoggerLogFile.h"
+#include "fb_logger_log_file.h"
 
-#include "StringUtility.h"
+#include <QDateTime>
+
+#include "string_utility.h"
 
 FBLoggerLogFile::FBLoggerLogFile(string dataPath)
     :logFilePath_(dataPath + "\\log_file.txt"),
@@ -17,17 +18,17 @@ FBLoggerLogFile::FBLoggerLogFile(string dataPath)
         logFile_.close();
         logFile_.clear();
 
-        SYSTEMTIME systemTime;
-        GetLocalTime(&systemTime);
+        QTime systemTime = QTime::currentTime();
+    //    GetLocalTime(&systemTime);
 
-        string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
-            "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
-            MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
+    //    string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +
+    //        "_" + MakeStringWidthTwoFromInt(systemTime.wHour) + "H" + MakeStringWidthTwoFromInt(systemTime.wMinute) + "M" +
+    //        MakeStringWidthTwoFromInt(systemTime.wSecond) + "S";
 
-        string logFileNoExtension = dataPath + "log_file";
-        logFileLines_ += "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
-        logFilePath_ = logFileNoExtension + "_" + dateTimeString + ".txt";
-        logFile_.open(logFilePath_, std::ios::out);
+    //    string logFileNoExtension = dataPath + "log_file";
+    //    logFileLines_ += "ERROR: default log file at " + logFilePath_ + " already opened or otherwise unwritable\n";
+    //    logFilePath_ = logFileNoExtension + "_" + dateTimeString + ".txt";
+    //    logFile_.open(logFilePath_, std::ios::out);
     }
     if (logFile_.fail())
     {
@@ -62,7 +63,16 @@ void FBLoggerLogFile::PrintFinalReportToLogFile(const double totalTimeInSeconds,
         }
         else if ((numFilesProcessed_ > 0) && (numErrors_ > 0))
         {
-            logFileLines_ += "Processed " + std::to_string(numFilesProcessed_) + " DAT files with " + std::to_string(numErrors_) + " errors in " + std::to_string(totalTimeInSeconds) + " seconds in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
+            string errorOrErrors = "";
+            if(numErrors_ == 1)
+            {
+                errorOrErrors = "error";
+            }
+            else
+            {
+                errorOrErrors = "errors";
+            }
+            logFileLines_ += "Processed " + std::to_string(numFilesProcessed_) + " DAT files with " + std::to_string(numErrors_) + " " + errorOrErrors + " in " + std::to_string(totalTimeInSeconds) + " seconds in " + dataPathOutput + " " + GetMyLocalDateTimeString() + "\n";
         }
         else
         {

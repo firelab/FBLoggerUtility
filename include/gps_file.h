@@ -36,7 +36,6 @@ public:
 private:
     void PrintGPSFileHeader();
 
-    string dataPath_;
     string gpsFilePath_;
     string gpsFileLines_;
     ofstream gpsFile_;

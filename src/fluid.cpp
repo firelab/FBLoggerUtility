@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "fluid.h"
 
 Fluid::Fluid()

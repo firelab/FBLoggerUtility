@@ -8,7 +8,7 @@
 #include <sstream>
 #include <time.h>
 
-#include "convertVelocity.h"
+#include "convert_velocity.h"
 
 using std::string;
 using std::vector;
@@ -30,18 +30,29 @@ struct StatsFileData
 
 struct SharedData
 {
+    int totalFilesProcessed = 0;
+    int totalInvalidInputFiles = 0;
+    int totalErrors = 0;
+    string burnName = "";
+    string logFilePath = "";
+    string gpsFilePath = "";
+    string configFilePath = "";
     string dataPath = "";
+    string windTunnelDataTablePath = "";
+    bool aborted = false;
+    bool configFileGood = false;
+    bool gpsFileGood = false;
     bool printRaw = false;
     map<int, string>* configMap = NULL;
     map<int, double>* sensorBearingMap = NULL;
-    map<int, double>* heatFlux_X_VoltageOffsetMap = NULL;
-    map<int, double>* heatFlux_Y_VoltageOffsetMap = NULL;
-    map<int, double>* heatFlux_Z_VoltageOffsetMap = NULL;
-    map<int, StatsFileData>* statsFileMap = NULL;
-    vector<double>* angles = NULL;
-    vector<double>* ReynloldsNumbers = NULL;
-    vector<vector<double>>* pressureCoefficients = NULL;
-    vector<string>* inputFilesNameList = NULL;
+    map<int, double>* heatFlux_X_VoltageOffsetMap = nullptr;
+    map<int, double>* heatFlux_Y_VoltageOffsetMap = nullptr;
+    map<int, double>* heatFlux_Z_VoltageOffsetMap = nullptr;
+    map<int, StatsFileData>* statsFileMap = nullptr;
+    vector<double>* angles = nullptr;
+    vector<double>* ReynloldsNumbers = nullptr;
+    vector<vector<double>>* pressureCoefficients = nullptr;
+    vector<string>* inputFilePathList = nullptr;
 };
 
 class LoggerDataReader
@@ -248,6 +259,7 @@ public:
     LoggerDataReader(const SharedData& sharedData);
     ~LoggerDataReader();
 
+    void SetSharedData(const SharedData& sharedData);
     void GetSharedData(SharedData& sharedData);
 
     void ProcessSingleDataFile(int fileIndex);
@@ -283,8 +295,6 @@ private:
         return std::abs(a - b) < epsilon;
     }
 
-    void SetSharedData(const SharedData& sharedData);
-
     double CalculateHeatFlux(double rawVoltage);
     double CalculateHeatFluxTemperature(double rawVoltage);
     int CalculateHeatFluxComponentVelocities(double temperatureOne, double temperatureTwo,
@@ -296,7 +306,7 @@ private:
     void StoreInputFileContentsToRAM(ifstream& inFile);
 	void ReadConfig();
     void ParseTokensFromLineOfConfigFile(string& line);
-    void ProcessErrorsInLineOfConfigFile();
+    void ProcessLineOfConfigFile();
     void CheckConfigForAllFiles();
     bool GetFirstHeader();
     void ReadNextHeaderOrNumber();
@@ -306,7 +316,7 @@ private:
     void UpdateTime();
     void GetHeader();
     void ParseHeader();
-    void SetOutFilePaths(string inFileName);
+    void SetOutFilePaths(string inFilePaths);
     void PrintOutDataLinesToFile(ofstream& outFile, const string& outFileDataLines);
     void PrintCarryBugToLog();
     void PrintCorruptionDetectionsToLog();
@@ -335,7 +345,7 @@ private:
     static const unsigned int NUM_SENSOR_READINGS = 9;
     static const uint8_t BYTES_READ_PER_ITERATION = 5; // 5 total: 4 byte sensor reading, 1 byte channel number
 
-    vector<string> inputFilesNameList_;
+    vector<string> inputFilePathList_;
     vector<string> invalidInputFileList_;
     vector<int> invalidInputFileErrorType_;
 
@@ -366,8 +376,10 @@ private:
     string kmlFilePath_;
     string outDataLines_;
     string rawOutDataLines_;
+    string burnName_;
     string appPath_;
     string dataPath_;
+    string windTunnelDataTablePath_;
     string logFileLines_;
     string statsFilePath_;
     string configFilePath_;

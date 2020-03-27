@@ -1,5 +1,4 @@
-#include "stdafx.h"
-#include "convertVelocity.h"
+#include "convert_velocity.h"
 
 convertVelocity::convertVelocity()
 {

@@ -1,20 +1,16 @@
-#include "stdafx.h"
-#include "LoggerDataReader.h"
-#include "StringUtility.h"
-#include "DirectoryReaderUtility.h"
-#include "FileNameUtility.h"
+#include "logger_data_reader.h"
+#include "string_utility.h"
+#include "directory_reader_utility.h"
 
-#include "stdafx.h"
 #include <algorithm>
 #include <limits.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <string>
 #include <math.h>
-#include <sys/stat.h>
-#include <errno.h>
 #include <iomanip>
-#include <ctype.h>
+#include <fstream>
+
+using std::ios;
+using std::ofstream;
 
 template<typename T>
 std::vector<std::vector<T>> make_2d_vector(std::size_t rows, std::size_t cols)
@@ -36,6 +32,7 @@ LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
     serialNumber_ = -1;
     outDataLines_ = "";
     gpsFileLines_ = "";
+    burnName_ = "";
     dataPath_ = "";
     appPath_ = "";
 
@@ -48,7 +45,7 @@ LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
     outDataFilePath_ = "";
     rawOutDataFilePath_ = "";
 
-    inputFilesNameList_.clear();
+    inputFilePathList_.clear();
     invalidInputFileList_.clear();
     invalidInputFileErrorType_.clear();
     configMap_.clear();
@@ -157,6 +154,7 @@ LoggerDataReader::LoggerDataReader(const SharedData& sharedData)
     numErrors_ = 0;
     serialNumber_ = -1;
     outDataLines_ = "";
+    burnName_ = "";
     dataPath_ = "";
     appPath_ = "";
 
@@ -169,7 +167,7 @@ LoggerDataReader::LoggerDataReader(const SharedData& sharedData)
     outDataFilePath_ = "";
     rawOutDataFilePath_ = "";
 
-    inputFilesNameList_.clear();
+    inputFilePathList_.clear();
     invalidInputFileList_.clear();
     invalidInputFileErrorType_.clear();
     configMap_.clear();
@@ -272,7 +270,10 @@ LoggerDataReader::~LoggerDataReader()
 
 void LoggerDataReader::GetSharedData(SharedData& sharedData)
 {
+    sharedData.burnName = burnName_;
+    sharedData.configFilePath = configFilePath_;
     sharedData.dataPath = dataPath_;
+    sharedData.windTunnelDataTablePath = windTunnelDataTablePath_;
     sharedData.printRaw = printRaw_;
     sharedData.configMap = &configMap_;
     sharedData.heatFlux_X_VoltageOffsetMap = &heatFlux_X_VoltageOffsetMap_;
@@ -283,37 +284,75 @@ void LoggerDataReader::GetSharedData(SharedData& sharedData)
     sharedData.angles = &angles_;
     sharedData.ReynloldsNumbers = &ReynloldsNumbers_;
     sharedData.pressureCoefficients = &pressureCoefficients_;
-    sharedData.inputFilesNameList = &inputFilesNameList_;
+    sharedData.inputFilePathList = &inputFilePathList_;
 }
 
 void LoggerDataReader::SetSharedData(const SharedData& sharedData)
 {
+    burnName_ = sharedData.burnName;
+    configFilePath_ = sharedData.configFilePath;
     dataPath_ = sharedData.dataPath;
+    windTunnelDataTablePath_ = sharedData.windTunnelDataTablePath;
     printRaw_ = sharedData.printRaw;
-    configMap_ = *sharedData.configMap;
-    heatFlux_X_VoltageOffsetMap_ = *sharedData.heatFlux_X_VoltageOffsetMap;
-    heatFlux_Y_VoltageOffsetMap_ = *sharedData.heatFlux_Y_VoltageOffsetMap;
-    heatFlux_Z_VoltageOffsetMap_ = *sharedData.heatFlux_Z_VoltageOffsetMap;
-    sensorBearingMap_ = *sharedData.sensorBearingMap;
-    statsFileMap_ = *sharedData.statsFileMap;
-    angles_ = *sharedData.angles;
-    ReynloldsNumbers_ = *sharedData.ReynloldsNumbers;
-    pressureCoefficients_ = *sharedData.pressureCoefficients;
-    inputFilesNameList_ = *sharedData.inputFilesNameList;
+    if(sharedData.configMap != nullptr)
+    {
+        configMap_ = *sharedData.configMap;
+    }
+    if(sharedData.heatFlux_X_VoltageOffsetMap != nullptr &&
+       sharedData.heatFlux_Y_VoltageOffsetMap != nullptr &&
+       sharedData.heatFlux_Z_VoltageOffsetMap != nullptr)
+    {
+        heatFlux_X_VoltageOffsetMap_ = *sharedData.heatFlux_X_VoltageOffsetMap;
+        heatFlux_Y_VoltageOffsetMap_ = *sharedData.heatFlux_Y_VoltageOffsetMap;
+        heatFlux_Z_VoltageOffsetMap_ = *sharedData.heatFlux_Z_VoltageOffsetMap;
+    }
+
+    if(sharedData.sensorBearingMap != nullptr)
+    {
+        sensorBearingMap_ = *sharedData.sensorBearingMap;
+    }
+    if(sharedData.statsFileMap != nullptr)
+    {
+        statsFileMap_ = *sharedData.statsFileMap;
+    }
+    if(sharedData.angles != nullptr)
+    {
+        angles_ = *sharedData.angles;
+    }
+    if(sharedData.ReynloldsNumbers != nullptr)
+    {
+        ReynloldsNumbers_ = *sharedData.ReynloldsNumbers;
+    }
+    if(sharedData.pressureCoefficients != nullptr)
+    {
+        pressureCoefficients_ = *sharedData.pressureCoefficients;
+    }
+    if(sharedData.inputFilePathList != nullptr)
+    {
+        inputFilePathList_ = *sharedData.inputFilePathList;
+    }
 }
 
 void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
 {
-    int codepage = CP_UTF8;
-    //std::wstring extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
-    string infileName = inputFilesNameList_[fileIndex];
-    std::wstring extensionW = PathFindExtension(Get_utf16(infileName, codepage).c_str());
-    string extension = Utf8_encode(extensionW);
-
-    std::transform(extension.begin(), extension.end(), extension.begin(), toupper);
-    if (extension == ".DAT")
+    string infileName = inputFilePathList_[fileIndex];
+    string extension = "";
+   
+    int pos = infileName.find_last_of('/');
+    if(pos != string::npos)
     {
-        inDataFilePath_ = dataPath_ + infileName;
+        infileName = infileName.substr(pos + 1, infileName.size());
+    }
+    pos = infileName.find_last_of('.');
+    if(pos != string::npos)
+    {
+        extension = infileName.substr(pos, infileName.size());
+    }
+
+    std::transform(extension.begin(), extension.end(), extension.begin(), tolower);
+    if (extension == ".dat")
+    {
+        inDataFilePath_ = inputFilePathList_[fileIndex];
 
         std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
 
@@ -527,7 +566,7 @@ void LoggerDataReader::CheckConfig()
 
         if (isConfigFileValid_)
         {
-            ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
+            //ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
             CheckConfigForAllFiles();
         }
 }
@@ -819,7 +858,7 @@ void LoggerDataReader::ReadConfig()
             while (getline(configFile, line))
             {
                 ParseTokensFromLineOfConfigFile(line);
-                ProcessErrorsInLineOfConfigFile();
+                ProcessLineOfConfigFile();
             }
         }
     }
@@ -1136,7 +1175,7 @@ bool LoggerDataReader::CheckConfigFileFormatIsValid(ifstream& configFile)
     return isConfigFileValid_;
 }
 
-void LoggerDataReader::ProcessErrorsInLineOfConfigFile()
+void LoggerDataReader::ProcessLineOfConfigFile()
 {
     if (status_.isSerialNumberValid && status_.isConfigurationTypeValid)
     {
@@ -1275,59 +1314,52 @@ void LoggerDataReader::ProcessErrorsInLineOfConfigFile()
 
 void LoggerDataReader::CheckConfigForAllFiles()
 {
-    int codepage = CP_UTF8;
-    std::wstring extensionW;
-    string extension;
-
+    int codepage = 0;
     numInvalidInputFiles_ = 0;
 
-    for (unsigned int i = 0; i < inputFilesNameList_.size(); i++)
+    for (unsigned int i = 0; i < inputFilePathList_.size(); i++)
     {
-        inDataFilePath_ = dataPath_ + inputFilesNameList_[i];
-        extensionW = PathFindExtension(Get_utf16(inputFilesNameList_[i], codepage).c_str());
-        extension = Utf8_encode(extensionW);
-        if (extension == ".DAT" || extension == ".dat")
+        inDataFilePath_ = inputFilePathList_[i];
+      
+        std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
+        // Check for input file's existence
+        if (inFile.fail())
         {
-            std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
-            // Check for input file's existence
-            if (inFile.fail())
+            // Cannot open file
+            numInvalidInputFiles_++;
+            invalidInputFileList_.push_back(inDataFilePath_);
+            invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::CANNOT_OPEN_FILE);
+            inFile.close();
+        }
+        else
+        {
+            inputFileContents_.clear();
+            StoreInputFileContentsToRAM(inFile);
+            if (inputFileContents_.size() > 0)
             {
-                // Cannot open file
-                numInvalidInputFiles_++;
-                invalidInputFileList_.push_back(inDataFilePath_);
-                invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::CANNOT_OPEN_FILE);
-                inFile.close();
-            }
-            else
-            {
-                inputFileContents_.clear();
-                StoreInputFileContentsToRAM(inFile);
-                if (inputFileContents_.size() > 0)
-                {
-                    ResetInFileReadingStatus();
-                    currentFileStats_.fileName = inputFilesNameList_[i];
-                    bool headerFound = GetFirstHeader();
+                ResetInFileReadingStatus();
+                currentFileStats_.fileName = inputFilePathList_[i];
+                bool headerFound = GetFirstHeader();
                   
-                    if (headerFound)
+                if (headerFound)
+                {
+                    int serialNumber = atoi(headerData_.serialNumberString.c_str());
+                    if((configMap_.find(serialNumber) == configMap_.end()) || (configMap_.find(serialNumber)->second == ""))
                     {
-                        int serialNumber = atoi(headerData_.serialNumberString.c_str());
-                        if((configMap_.find(serialNumber) == configMap_.end()) || (configMap_.find(serialNumber)->second == ""))
-                        {
-                            // Config missing for file
-                            numInvalidInputFiles_++;
-                            invalidInputFileList_.push_back(inDataFilePath_);
-                            invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_CONFIG);
-                            inFile.close();
-                        }
-                    }
-                    else if (!headerFound)
-                    {
-                        // No header found in file
+                        // Config missing for file
                         numInvalidInputFiles_++;
                         invalidInputFileList_.push_back(inDataFilePath_);
-                        invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_HEADER);
+                        invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_CONFIG);
                         inFile.close();
                     }
+                }
+                else if (!headerFound)
+                {
+                    // No header found in file
+                    numInvalidInputFiles_++;
+                    invalidInputFileList_.push_back(inDataFilePath_);
+                    invalidInputFileErrorType_.push_back(InvalidInputFileErrorType::MISSING_HEADER);
+                    inFile.close();
                 }
             }
         }
@@ -1836,7 +1868,7 @@ string LoggerDataReader::GetStatsFilePath()
 
 unsigned int LoggerDataReader::GetNumberOfInputFiles()
 {
-    return (unsigned int)inputFilesNameList_.size();
+    return (unsigned int)inputFilePathList_.size();
 }
 
 unsigned int LoggerDataReader::GetNumFilesProcessed()
@@ -1861,7 +1893,7 @@ bool LoggerDataReader::IsConfigFileValid()
 
 bool LoggerDataReader::IsDoneReadingDataFiles()
 {
-    return(currentFileIndex_ >= inputFilesNameList_.size());
+    return(currentFileIndex_ >= inputFilePathList_.size());
 }
 
 bool LoggerDataReader::GetFirstHeader()
@@ -1900,7 +1932,7 @@ void LoggerDataReader::ReadNextHeaderOrNumber()
     CheckForHeader();
     if (!status_.headerFound)
     {
-        if (parsedNumericData_.channelNumber != 0) // Prevents array out of bounds while reading a header 
+        if ((parsedNumericData_.channelNumber > 0) && (parsedNumericData_.channelNumber <= 9)) // Prevents array out of bounds while reading a header 
         {
             parsedNumericData_.intFromBytes = GetIntFromByteArray(parsedNumericData_.rawHexNumber);
             parsedNumericData_.parsedIEEENumber = UnsignedIntToIEEEFloat(parsedNumericData_.intFromBytes);
@@ -2192,22 +2224,34 @@ void LoggerDataReader::ParseHeader()
     }
 }
 
-void LoggerDataReader::SetOutFilePaths(string infileName)
+void LoggerDataReader::SetOutFilePaths(string inputfileName)
 {
-    string firstDateString;
-    string firstTimeString;
-
+    string firstDateString = "";
+    string firstTimeString = "";
+    string extension = "";
     firstDateString = headerData_.yearString + "-" + headerData_.monthString  + "-" + headerData_.dayString;
     firstTimeString = headerData_.hourString + "H" + headerData_.minuteString + "M";
 
-    infileName = RemoveFileExtension(infileName);
+    string fileNameNoExtension = inputfileName;
+    int pos = inputfileName.find_last_of('.');
+    if(pos != string::npos)
+    {
+        extension = fileNameNoExtension.substr(pos, fileNameNoExtension.size());
+    }
+   
+    // Strip away extension from file name
+    if((fileNameNoExtension != extension) && (fileNameNoExtension.size()) > (extension.size()))
+    {
+        // if so then strip them off
+        fileNameNoExtension = fileNameNoExtension.substr(0, fileNameNoExtension.size() - extension.size());
+    }
 
-    int infileIntValue = atoi(infileName.c_str());
+    int infileIntValue = atoi(fileNameNoExtension.c_str());
     serialNumber_ = atoi(headerData_.serialNumberString.c_str());
 
-    if (infileIntValue == serialNumber_ && IsOnlyDigits(infileName))
+    if (infileIntValue == serialNumber_ && IsOnlyDigits(fileNameNoExtension))
     {
-        outDataFilePath_ = dataPath_ + "SN" + headerData_.serialNumberString.c_str();
+        outDataFilePath_ = dataPath_ + "/" + burnName_ + "SN" + headerData_.serialNumberString.c_str();
         if (printRaw_)
         {
             rawOutDataFilePath_ = outDataFilePath_;
@@ -2215,7 +2259,7 @@ void LoggerDataReader::SetOutFilePaths(string infileName)
     }
     else
     {
-        outDataFilePath_ = dataPath_ + infileName + "_" + "SN" + headerData_.serialNumberString.c_str();
+        outDataFilePath_ = dataPath_ + "/" + burnName_ + fileNameNoExtension + "_" + "SN" + headerData_.serialNumberString.c_str();
         if (printRaw_)
         {
             rawOutDataFilePath_ = outDataFilePath_;
@@ -2314,13 +2358,16 @@ void LoggerDataReader::UpdateSensorMaxAndMin()
 {
     // Update max and min
     int currentReadingIndex = parsedNumericData_.channelNumber - 1;
-    if (parsedNumericData_.parsedIEEENumber < currentFileStats_.columnMin[currentReadingIndex])
+    if(currentReadingIndex >= 0 && currentReadingIndex <= 8) // Data is probably not corrupted
     {
-        currentFileStats_.columnMin[currentReadingIndex] = parsedNumericData_.parsedIEEENumber;
-    }
-    if (parsedNumericData_.parsedIEEENumber > currentFileStats_.columnMax[currentReadingIndex])
-    {
-        currentFileStats_.columnMax[currentReadingIndex] = parsedNumericData_.parsedIEEENumber;
+        if(parsedNumericData_.parsedIEEENumber < currentFileStats_.columnMin[currentReadingIndex])
+        {
+            currentFileStats_.columnMin[currentReadingIndex] = parsedNumericData_.parsedIEEENumber;
+        }
+        if(parsedNumericData_.parsedIEEENumber > currentFileStats_.columnMax[currentReadingIndex])
+        {
+            currentFileStats_.columnMax[currentReadingIndex] = parsedNumericData_.parsedIEEENumber;
+        }
     }
 }
 
@@ -2438,9 +2485,9 @@ void LoggerDataReader::PrintSensorDataOutput(OutFileType::OutFileTypeEnum outFil
 void LoggerDataReader::PrintGPSFileLine()
 {
     // file, logger unit, and gps data
-    gpsFileLines_ = currentFileStats_.fileName + ",SN" + headerData_.serialNumberString + "," + to_string(status_.loggingSession) +
-        "," + configurationType_ + "," + to_string(headerData_.decimalDegreesLongitude) + "," +
-        to_string(headerData_.decimalDegreesLatitude) + ",";
+    gpsFileLines_ = currentFileStats_.fileName + ",SN" + headerData_.serialNumberString + "," + std::to_string(status_.loggingSession) +
+        "," + configurationType_ + "," + std::to_string(headerData_.decimalDegreesLongitude) + "," +
+        std::to_string(headerData_.decimalDegreesLatitude) + ",";
 
     // start time information for session
     gpsFileLines_ += startTimeForSession_.yearString + "-" + startTimeForSession_.monthString + "-" + startTimeForSession_.dayString + " " +

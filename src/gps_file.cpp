@@ -1,5 +1,4 @@
-#include "stdafx.h"
-#include "GPSFile.h"
+#include "gps_file.h"
 
 GPSFile::GPSFile(string dataPath)
     :gpsFilePath_(dataPath + "\\gps_file.txt"),
