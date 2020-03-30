@@ -107,6 +107,7 @@ void MainWindow::setUpProgressDialog()
     connect(progressDialog, &QProgressDialog::canceled, this, &MainWindow::progressCancelClicked);
 
     progressDialog->resize(progressWidth, progressHeight);
+    progressDialog->setMinimumWidth(progressWidth);
     progressDialog->setMinimumDuration(1);
     progressDialog->setAutoClose(false);
     progressDialog->setAutoReset(false);
@@ -117,6 +118,9 @@ void MainWindow::setUpProgressDialog()
 void MainWindow::progressCancelClicked()
 {
     qDebug() << "Progress bar cancel clicked!";
+    progressDialog->setLabelText("Cancelling conversion...");
+    progressDialog->show();
+    progressDialog->setValue(0);
     QApplication::postEvent(loggerDataWorker, new CancelWorkEvent());
 }
 
@@ -253,7 +257,7 @@ void MainWindow::convertPressed()
     if(configFileExists && burnDataDirectoryExists)
     {
         ui->convertButton->setEnabled(false);
-
+        progressDialog->setLabelText("File conversion in progress...");
         progressDialog->show();
 
         setUpLoggerDataWorker();
@@ -415,9 +419,28 @@ void MainWindow::handleResults()
 
     // Display Messages Here
     QMessageBox msgBox;
-    QString msgText = "Converted a total of " + QString::number(sharedData->totalFilesProcessed) + " .DAT files to .csv files to\n";
-    msgText += burnFilesDirectoryPath + "\n";
-    msgText += "in " + QString::number(elapsedSeconds) + " seconds\n";
+    QString msgText = "";
+    if(!sharedData->aborted)
+    {
+        msgText += "Converted a total of " + QString::number(sharedData->totalFilesProcessed) + " DAT files to csv files to\n";
+        msgText += burnFilesDirectoryPath + "\n";
+        msgText += "in " + QString::number(elapsedSeconds) + " seconds\n\n";
+    }
+    else
+    {
+        msgText += "Conversion aborted by user\n\n";
+    }
+
+    if(sharedData->gpsFileGood)
+    {
+        msgText += "A gps file was generated at\n" + QString::fromStdString(sharedData->gpsFilePath) + "\n\n";
+    }
+
+    if(sharedData->logFilePath != "")
+    {
+        msgText += "A log file was generated at\n" + QString::fromStdString(sharedData->logFilePath);
+    }
+
     msgBox.setText(msgText);
     msgBox.exec();
 

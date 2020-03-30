@@ -43,7 +43,7 @@ void LoggerDataWorker::handleCancelWorkEvent(const CancelWorkEvent *event)
 void LoggerDataWorker::doWork(SharedData* sharedData)
 {
     /* ... here is the expensive or blocking operation ... */
-    bool aborted = false;
+
     bool isGoodWindTunnelTable = false;
     
     string configFilePath = sharedData->configFilePath;
@@ -96,7 +96,7 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
                 }
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(dynamic, 1) shared(aborted, totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFile)  
+#pragma omp parallel for schedule(dynamic, 1) shared(totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFile)  
 #endif
                 for(i = 0; i < totalNumberOfFiles; i++)
                 {
@@ -113,23 +113,31 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
                         }
                         localLoggerDataReader.ProcessSingleDataFile(i);
 
-                        // critical section
+                        // Check for kill
+                        QCoreApplication::processEvents();
+
 #ifdef _OPENMP
 #pragma omp critical(updateLogAndProgress)
 #endif
+                        // critical section 
                         {
-                            // Check for kill
-                            QCoreApplication::processEvents();
+                                totalFilesProcessed += localLoggerDataReader.GetNumFilesProcessed();
+                                totalInvalidInputFiles += localLoggerDataReader.GetNumInvalidFiles();
+                                totalNumErrors += localLoggerDataReader.GetNumErrors();
+                                logFileLinesPerFile[i] = localLoggerDataReader.GetLogFileLines();
+                                gpsFileLinesPerFile[i] = localLoggerDataReader.GetGPSFileLines();
 
-                            totalFilesProcessed += localLoggerDataReader.GetNumFilesProcessed();
-                            totalInvalidInputFiles += localLoggerDataReader.GetNumInvalidFiles();
-                            totalNumErrors += localLoggerDataReader.GetNumErrors();
-                            logFileLinesPerFile[i] = localLoggerDataReader.GetLogFileLines();
-                            gpsFileLinesPerFile[i] = localLoggerDataReader.GetGPSFileLines();
-
-                            flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
-                            QApplication::postEvent(parent, new ProgressUpdateEvent((int)flProgress));
+                                if(!isWorkCancelled)
+                                {
+                                    flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
+                                    QApplication::postEvent(parent, new ProgressUpdateEvent((int)flProgress));
+                                }
+                                else
+                                {
+                                    QApplication::postEvent(parent, new ProgressUpdateEvent((int)0));
+                                }
                         }
+                       
                         // end critical section
                     }
                 }
@@ -144,24 +152,40 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
         sharedData->aborted = true;
         double totalTimeInSeconds = ((double)clock() - (double)startClock) / (double)CLOCKS_PER_SEC;
 
-        globalLoggerDataReader.ReportAbort();
-        logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
-
-        int numFilesConverted = totalFilesProcessed - totalInvalidInputFiles;
+        if(logFile.IsLogFileGood())
+        {
+            sharedData->logFilePath = sharedData->dataPath + "/" + "log_file.txt";
+            globalLoggerDataReader.ReportAbort();
+            logFile.AddToLogFile(globalLoggerDataReader.GetLogFileLines());
+            logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
+        }
+        else
+        {
+            sharedData->logFilePath = "";
+        }
     }
     else
     {
         double totalTimeInSeconds = ((double)clock() - (double)startClock) / (double)CLOCKS_PER_SEC;
         int numFilesConverted = totalFilesProcessed - totalInvalidInputFiles;
 
-        for(int i = 0; i < logFileLinesPerFile.size(); i++)
+        if(logFile.IsLogFileGood())
         {
-            logFile.AddToLogFile(logFileLinesPerFile[i]);
+            sharedData->logFilePath = sharedData->dataPath + "/" + "log_file.txt";
+            for(int i = 0; i < logFileLinesPerFile.size(); i++)
+            {
+                logFile.AddToLogFile(logFileLinesPerFile[i]);
+            }
+            logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
         }
-        logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
+        else
+        {
+            sharedData->logFilePath = "";
+        }
 
         if(gpsFile.IsGPSFileGood())
         {
+            sharedData->gpsFilePath = sharedData->dataPath + "/" + sharedData->burnName + "gps_file.txt";
             for(int i = 0; i < gpsFileLinesPerFile.size(); i++)
             {
                 gpsFile.AddToGPSFile(gpsFileLinesPerFile[i]);
