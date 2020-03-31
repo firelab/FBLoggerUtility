@@ -95,7 +95,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
 MainWindow::~MainWindow()
 {
-    resetSharedData();
+    sharedData->reset();
     delete sharedData;
     delete ui;
 }
@@ -169,9 +169,35 @@ void MainWindow::convertPressed()
     configFilePath = ui->configFileLineEdit->text();
     if(QFileInfo::exists(configFilePath))
     {
-        qDebug() << "Config file exists" << endl;
-        configFileExists = true;
-        updateIniFile();
+        struct stat s;
+        if(stat(configFilePath.toStdString().c_str(), &s) == 0)
+        {
+            if(s.st_mode & S_IFDIR)
+            {
+                //it's a directory
+                QMessageBox msgBox;
+                QString msgText = "Config file does not exist";
+                msgBox.setText(msgText);
+                msgBox.exec();
+                qDebug() << msgText << endl;
+            }
+            else if(s.st_mode & S_IFREG)
+            {
+                //it's a file
+                qDebug() << "Config file exists" << endl;
+                configFileExists = true;
+                updateIniFile();
+            }
+        }
+        else
+        {
+            //error
+            QMessageBox msgBox;
+            QString msgText = "An unkown error occured reading config file";
+            msgBox.setText(msgText);
+            msgBox.exec();
+            qDebug() << msgText << endl;
+        }
     }
     else
     {
@@ -181,11 +207,38 @@ void MainWindow::convertPressed()
         msgBox.exec();
         qDebug() << msgText << endl;
     }
+
     if(QFileInfo::exists(burnFilesDirectoryPath))
     {
-        qDebug() << "Burn data directory exists" << endl;
-        burnDataDirectoryExists = true;
-        updateIniFile();
+        struct stat s;
+        if(stat(burnFilesDirectoryPath.toStdString().c_str(), &s) == 0)
+        {
+            if(s.st_mode & S_IFDIR)
+            {
+                //it's a directory
+                qDebug() << "Burn data directory exists" << endl;
+                burnDataDirectoryExists = true;
+                updateIniFile();
+            }
+            else if(s.st_mode & S_IFREG)
+            {
+                //it's a file
+                QMessageBox msgBox;
+                QString msgText = "Burn data directory cannot be a file";
+                msgBox.setText(msgText);
+                msgBox.exec();
+                qDebug() << msgText << endl;
+            }
+        }
+        else
+        {
+            //error
+            QMessageBox msgBox;
+            QString msgText = "An unkown error occured reading burn data directory";
+            msgBox.setText(msgText);
+            msgBox.exec();
+            qDebug() << msgText << endl;
+        }
     }
     else
     {
@@ -218,50 +271,62 @@ void MainWindow::convertPressed()
     int pos = -1;
     string extension = "";
 
-    if((dir = opendir(burnFilesDirectoryPath.toStdString().c_str())) != nullptr)
-    {
-        /* read all the files and directories within directory */
-        while((ent = readdir(dir)) != nullptr)
-        {
-            fileName = ent->d_name;
-
-            pos = fileName.find_last_of('.');
-            if(pos != string::npos)
-            {
-                extension = fileName.substr(pos, fileName.size());
-                std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-                if(extension == ".dat")
-                {
-                    //datFileNameList.push_back(directoryName);
-                    sharedData->inputFilePathList->push_back(burnFilesDirectoryPath.toStdString() + "/" + fileName);
-                }
-            }
-        }
-        closedir(dir);
-    }
-    else
-    {
-        /* could not open directory */
-        QMessageBox msgBox;
-        QString msgText = "Error, could not open burn data directory";
-        msgBox.setText(msgText);
-        msgBox.exec();
-        qDebug() << msgText << endl;
-    }
-
-    if(ui->createRawDataCheckBox->checkState() == Qt::Checked)
-    {
-        sharedData->printRaw = true;
-    }
-
     if(configFileExists && burnDataDirectoryExists)
     {
-        ui->convertButton->setEnabled(false);
-        progressDialog->setLabelText("File conversion in progress...");
-        progressDialog->show();
+        if((dir = opendir(burnFilesDirectoryPath.toStdString().c_str())) != nullptr)
+        {
+            /* read all the files and directories within directory */
+            while((ent = readdir(dir)) != nullptr)
+            {
+                fileName = ent->d_name;
 
-        setUpLoggerDataWorker();
-        operate(sharedData);
+                pos = fileName.find_last_of('.');
+                if(pos != string::npos)
+                {
+                    extension = fileName.substr(pos, fileName.size());
+                    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+                    if(extension == ".dat")
+                    {
+                        //datFileNameList.push_back(directoryName);
+                        sharedData->inputFilePathList->push_back(burnFilesDirectoryPath.toStdString() + "/" + fileName);
+                    }
+                }
+            }
+            closedir(dir);
+        }
+        else
+        {
+            /* could not open directory */
+            QMessageBox msgBox;
+            QString msgText = "Error, could not open burn data directory";
+            msgBox.setText(msgText);
+            msgBox.exec();
+            qDebug() << msgText << endl;
+        }
+
+        if(ui->createRawDataCheckBox->checkState() == Qt::Checked)
+        {
+            sharedData->printRaw = true;
+        }
+
+        if(sharedData->inputFilePathList->size() > 0)
+        {
+            ui->convertButton->setEnabled(false);
+            progressDialog->setLabelText("File conversion in progress...");
+            progressDialog->show();
+
+            setUpLoggerDataWorker();
+            operate(sharedData);
+        }
+        else
+        {
+            /* No DAT files found */
+            QMessageBox msgBox;
+            QString msgText = "Error, no DAT files found in burn data directory";
+            msgBox.setText(msgText);
+            msgBox.exec();
+            qDebug() << msgText << endl;
+        }
     }
 }
 
@@ -295,87 +360,6 @@ void MainWindow::destroyLoggerDataWorker()
     workerThread = nullptr;
     loggerDataWorker = nullptr;
 }
-
-void MainWindow::resetSharedData()
-{
-    sharedData->totalFilesProcessed = 0;
-    sharedData->totalInvalidInputFiles = 0;
-    sharedData->totalErrors = 0;
-
-    sharedData->aborted = false;
-    sharedData->printRaw = false;
-    sharedData->configFileGood = false;
-    sharedData->gpsFileGood = false;
-
-    sharedData->burnName = "";
-    sharedData->logFilePath = "";
-    sharedData->gpsFilePath = "";
-    sharedData->configFilePath = "";
-    sharedData->dataPath = "";
-    sharedData->windTunnelDataTablePath = "";
- 
-    if(sharedData->configMap != nullptr)
-    {
-        sharedData->configMap->clear();
-        delete sharedData->configMap;
-        sharedData->configMap = nullptr;
-    }
-    if(sharedData->heatFlux_X_VoltageOffsetMap != nullptr)
-    {
-        sharedData->heatFlux_X_VoltageOffsetMap->clear();
-        delete sharedData->heatFlux_X_VoltageOffsetMap;
-        sharedData->heatFlux_X_VoltageOffsetMap = nullptr;
-    }
-    if(sharedData->heatFlux_Y_VoltageOffsetMap != nullptr)
-    {
-        sharedData->heatFlux_Y_VoltageOffsetMap->clear();
-        delete sharedData->heatFlux_Y_VoltageOffsetMap;
-        sharedData->heatFlux_Y_VoltageOffsetMap = nullptr;
-    }
-    if(sharedData->heatFlux_Z_VoltageOffsetMap != nullptr)
-    {
-        sharedData->heatFlux_Z_VoltageOffsetMap->clear();
-        delete sharedData->heatFlux_Z_VoltageOffsetMap;
-        sharedData->heatFlux_Z_VoltageOffsetMap = nullptr;
-    }
-    if(sharedData->sensorBearingMap != nullptr)
-    {
-        sharedData->sensorBearingMap->clear();
-        delete sharedData->sensorBearingMap;
-        sharedData->sensorBearingMap = nullptr;
-    }
-    if(sharedData->statsFileMap != nullptr)
-    {
-        sharedData->statsFileMap->clear();
-        delete sharedData->statsFileMap;
-        sharedData->statsFileMap = nullptr;
-    }
-    if(sharedData->angles != nullptr)
-    {
-        sharedData->angles->clear();
-        delete sharedData->angles;
-        sharedData->angles = nullptr;
-    }
-    if(sharedData->ReynloldsNumbers != nullptr)
-    {
-        sharedData->ReynloldsNumbers->clear();
-        delete sharedData->ReynloldsNumbers;
-        sharedData->ReynloldsNumbers = nullptr;
-    }
-    if(sharedData->pressureCoefficients != nullptr)
-    {
-        sharedData->pressureCoefficients->clear();
-        delete sharedData->pressureCoefficients;
-        sharedData->pressureCoefficients = nullptr;
-    }
-    if(sharedData->inputFilePathList != nullptr)
-    {
-        sharedData->inputFilePathList->clear();
-        delete sharedData->inputFilePathList;
-        sharedData->inputFilePathList = nullptr;
-    }
-}
-
 
 void MainWindow::customEvent(QEvent* event)
 {
@@ -444,7 +428,7 @@ void MainWindow::handleResults()
     msgBox.setText(msgText);
     msgBox.exec();
 
-    resetSharedData();
+    sharedData->reset();
     ui->convertButton->setEnabled(true);
 }
 

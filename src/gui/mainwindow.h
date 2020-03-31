@@ -49,8 +49,7 @@ private:
     void readIniFile();
     void setUpLoggerDataWorker();
     void destroyLoggerDataWorker();
-    void resetSharedData();
-
+    
     bool windTunnelDataExists;
 
     Ui::MainWindow *ui;

@@ -53,6 +53,86 @@ struct SharedData
     vector<double>* ReynloldsNumbers = nullptr;
     vector<vector<double>>* pressureCoefficients = nullptr;
     vector<string>* inputFilePathList = nullptr;
+
+    void reset()
+    {
+        totalFilesProcessed = 0;
+        totalInvalidInputFiles = 0;
+        totalErrors = 0;
+
+        aborted = false;
+        printRaw = false;
+        configFileGood = false;
+        gpsFileGood = false;
+
+        burnName = "";
+        logFilePath = "";
+        gpsFilePath = "";
+        configFilePath = "";
+        dataPath = "";
+        windTunnelDataTablePath = "";
+
+        if(configMap != nullptr)
+        {
+            configMap->clear();
+            delete configMap;
+            configMap = nullptr;
+        }
+        if(heatFlux_X_VoltageOffsetMap != nullptr)
+        {
+            heatFlux_X_VoltageOffsetMap->clear();
+            delete heatFlux_X_VoltageOffsetMap;
+            heatFlux_X_VoltageOffsetMap = nullptr;
+        }
+        if(heatFlux_Y_VoltageOffsetMap != nullptr)
+        {
+            heatFlux_Y_VoltageOffsetMap->clear();
+            delete heatFlux_Y_VoltageOffsetMap;
+            heatFlux_Y_VoltageOffsetMap = nullptr;
+        }
+        if(heatFlux_Z_VoltageOffsetMap != nullptr)
+        {
+            heatFlux_Z_VoltageOffsetMap->clear();
+            delete heatFlux_Z_VoltageOffsetMap;
+            heatFlux_Z_VoltageOffsetMap = nullptr;
+        }
+        if(sensorBearingMap != nullptr)
+        {
+            sensorBearingMap->clear();
+            delete sensorBearingMap;
+            sensorBearingMap = nullptr;
+        }
+        if(statsFileMap != nullptr)
+        {
+            statsFileMap->clear();
+            delete statsFileMap;
+            statsFileMap = nullptr;
+        }
+        if(angles != nullptr)
+        {
+            angles->clear();
+            delete angles;
+            angles = nullptr;
+        }
+        if(ReynloldsNumbers != nullptr)
+        {
+            ReynloldsNumbers->clear();
+            delete ReynloldsNumbers;
+            ReynloldsNumbers = nullptr;
+        }
+        if(pressureCoefficients != nullptr)
+        {
+            pressureCoefficients->clear();
+            delete pressureCoefficients;
+            pressureCoefficients = nullptr;
+        }
+        if(inputFilePathList != nullptr)
+        {
+            inputFilePathList->clear();
+            delete inputFilePathList;
+            inputFilePathList = nullptr;
+        }
+    }
 };
 
 class LoggerDataReader
