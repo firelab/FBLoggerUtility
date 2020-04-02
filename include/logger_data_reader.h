@@ -194,6 +194,7 @@ class LoggerDataReader
         string columnRawType[9];
         double sensorReadingValue[9];
         bool headerFound = false;
+        bool firstHeaderFound = false;
         bool isSerialNumberValid = false;
         bool isConfigurationTypeValid = false;
         bool isSensorNumberValid = false;
@@ -416,6 +417,8 @@ private:
     void StoreSessionEndTime();
 
     void DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData);
+
+    void HandleCorruptData();
 
     //void BeginKMLFile();
     //string FormatPlacemark();

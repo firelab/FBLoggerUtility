@@ -466,32 +466,29 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                                 }
                             }
 
-                            if ((status_.isDataCorruptionEncountered_ == false) || (status_.isRecoveredAfterDataCorruption_ == true))
+                            UpdateSensorMaxAndMin();
+                            if (status_.sensorReadingCounter == 9)
                             {
-                                UpdateSensorMaxAndMin();
-                                if (status_.sensorReadingCounter == 9)
+                                // An entire row of sensor data has been read in
+                                status_.recordNumber++;
+                                PerformSanityChecksOnValues(SanityChecks::RAW);
+                                if (printRaw_)
                                 {
-                                    // An entire row of sensor data has been read in
-                                    status_.recordNumber++;
-                                    PerformSanityChecksOnValues(SanityChecks::RAW);
-                                    if (printRaw_)
-                                    {
-                                        PrintSensorDataOutput(OutFileType::RAW);
-                                    }
-                                    PerformNeededDataConversions();
-                                    PerformSanityChecksOnValues(SanityChecks::FINAL);
-                                    UpdateStatsFileMap();
-                                    PrintSensorDataOutput(OutFileType::PROCESSED);
-                                    // Reset sensor reading counter 
-                                    status_.sensorReadingCounter = 0;
-                                    // Get (possible) session end time
-                                    StoreSessionEndTime();
-                                    // Update time for next set of sensor readings
-                                    headerData_.milliseconds += headerData_.sampleInterval;
-                                    UpdateTime();
+                                    PrintSensorDataOutput(OutFileType::RAW);
                                 }
+                                PerformNeededDataConversions();
+                                PerformSanityChecksOnValues(SanityChecks::FINAL);
+                                UpdateStatsFileMap();
+                                PrintSensorDataOutput(OutFileType::PROCESSED);
+                                // Reset sensor reading counter 
+                                status_.sensorReadingCounter = 0;
+                                // Get (possible) session end time
+                                StoreSessionEndTime();
+                                // Update time for next set of sensor readings
+                                headerData_.milliseconds += headerData_.sampleInterval;
+                                UpdateTime();
                             }
-                        }
+                        }                  
                     }
 
                     // Print to gps file
@@ -509,7 +506,7 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                         PrintCarryBugToLog();
                     }
 
-                    if (status_.isDataCorruptionEncountered_ == true)
+                    if (status_.corruptedRecordNumbers.size() > 0)
                     {
                         PrintCorruptionDetectionsToLog();
                     }
@@ -828,10 +825,10 @@ void LoggerDataReader::StoreInputFileContentsToRAM(ifstream & inFile)
 
     inputFileContents_.reserve(fileSizeInBytes);
 
-    outDataLines_.reserve(fileSizeInBytes * 3);
+    outDataLines_.reserve(fileSizeInBytes * 2);
     if (printRaw_)
     {
-        rawOutDataLines_.reserve(fileSizeInBytes * 3);
+        rawOutDataLines_.reserve(fileSizeInBytes * 2);
     }
     inputFileContents_.assign(std::istreambuf_iterator<char>(inFile), std::istreambuf_iterator<char>());
 }
@@ -1741,6 +1738,117 @@ void LoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerD
     }
 }
 
+void LoggerDataReader::HandleCorruptData()
+{
+    int numCorruptReadings = 0;
+    int numCorruptRecords = 0;
+ 
+    bool isAlreadyAddedToListOfCorruptedRecords = false;
+    for(int i = 0; i < status_.corruptedRecordNumbers.size(); i++)
+    {
+        if((status_.corruptedRecordNumbers[i] == status_.recordNumber) && (status_.corruptedSessionNumbers[i] == status_.loggingSession))
+        {
+            isAlreadyAddedToListOfCorruptedRecords = true;
+            break;
+        }
+    }
+
+    if(isAlreadyAddedToListOfCorruptedRecords == false)
+    {
+        status_.corruptedRecordNumbers.push_back(status_.recordNumber);
+        status_.corruptedSessionNumbers.push_back(status_.loggingSession);
+    }
+    status_.isDataCorruptionEncountered_ = true;
+
+    bool isGoodChannelRead = false;
+    int posRecoveredReading = -1;
+
+    status_.pos -= BYTES_READ_PER_ITERATION;
+    while(!isGoodChannelRead && status_.pos < filePositionLimit)
+    {
+        // Always read in 4 bytes, then check if those 4 bytes contain the header signature
+        for(int i = 0; i < 4; i++)
+        {
+            parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.pos];
+            status_.pos++;
+        }
+
+        CheckForHeader();
+
+        if(status_.firstHeaderFound && (!status_.headerFound))
+        {
+            status_.pos -= 4; // move back reading frame by four byte, check for channel number
+            parsedNumericData_.channelNumber = inputFileContents_[status_.pos];
+            status_.pos++;
+            numCorruptReadings++;
+            if(parsedNumericData_.channelNumber == 0)
+            {
+                // Make panel temp's channel number 9, as it is printed last
+                parsedNumericData_.channelNumber = 9;
+                posRecoveredReading = status_.pos;
+            }
+
+            if((parsedNumericData_.channelNumber >= 1) && (parsedNumericData_.channelNumber <= 9))
+            {
+                // We have a valid channel number, check that next channel number is also valid
+                status_.pos += 4; // skip over sensor reading bytes
+                int previousChannelNumber = parsedNumericData_.channelNumber;
+                parsedNumericData_.channelNumber = inputFileContents_[status_.pos];
+                status_.pos++;
+                if((previousChannelNumber == 9) && (parsedNumericData_.channelNumber == 1))
+                {
+                    isGoodChannelRead = true;
+                    status_.pos = posRecoveredReading;
+                    break;
+                }
+                else
+                {
+                    status_.pos -= 5; // move reading frame back 5 bytes
+                }
+            }
+        }
+        else
+        {
+            // Found the header
+            break;
+        }
+    }
+
+    numCorruptRecords = ceil(numCorruptReadings / 45.0);
+    int badRecord = status_.recordNumber;
+    for(int i = 0; i < numCorruptRecords; i++)
+    {
+        badRecord++;
+        status_.corruptedRecordNumbers.push_back(badRecord);
+        status_.corruptedSessionNumbers.push_back(status_.loggingSession);
+
+        // An entire row of sensor data has been read in
+        status_.recordNumber++;
+
+        for(int i = 0; i < NUM_SENSOR_READINGS; i++)
+        {
+            status_.sensorReadingValue[i] = -8888.0; // indicates corrupted row data;
+        }
+
+        PerformSanityChecksOnValues(SanityChecks::RAW);
+        if(printRaw_)
+        {
+            PrintSensorDataOutput(OutFileType::RAW);
+        }
+        PerformNeededDataConversions();
+        PerformSanityChecksOnValues(SanityChecks::FINAL);
+        UpdateStatsFileMap();
+        PrintSensorDataOutput(OutFileType::PROCESSED);
+        // Reset sensor reading counter 
+        status_.sensorReadingCounter = 0;
+        // Get (possible) session end time
+        StoreSessionEndTime();
+        // Update time for next set of sensor readings
+        headerData_.milliseconds += headerData_.sampleInterval;
+        UpdateTime();
+    }
+}
+
 //void LoggerDataReader::BeginKMLFile()
 //{
 //    kmlFile_ << "<?xml version='1.0' encoding='utf-8'?>\n";
@@ -1910,6 +2018,7 @@ bool LoggerDataReader::GetFirstHeader()
     }
     if (status_.headerFound)
     {
+        status_.firstHeaderFound = true;
         // Reset record and sensor reading count
         status_.recordNumber = 0;
         status_.sensorReadingCounter = 0;
@@ -1957,6 +2066,8 @@ uint32_t LoggerDataReader::GetIntFromByteArray(uint8_t byteArray[4])
 void LoggerDataReader::GetRawNumber()
 {
     int index = 0;
+    int numCorruptReadings = 0;
+    int numCorruptRecords = 0;
     status_.headerFound = false;
 
     // Always read in 4 bytes, then check if those 4 bytes contain the header signature
@@ -1977,51 +2088,11 @@ void LoggerDataReader::GetRawNumber()
             // Make panel temp's channel number 9, as it is printed last
             parsedNumericData_.channelNumber = 9;
         }
-        else if ((parsedNumericData_.channelNumber < 0) || (parsedNumericData_.channelNumber > 8))
+
+        if (status_.firstHeaderFound && (parsedNumericData_.channelNumber < 1) || (parsedNumericData_.channelNumber > 9))
         {
             // Indicates data is corrupted
-            ResetHeaderData();
-            bool isAlreadyAddedToListOfCorruptedRecords = false;
-            for (int i = 0; i < status_.corruptedRecordNumbers.size(); i++)
-            {
-                if ((status_.corruptedRecordNumbers[i] == status_.recordNumber) && (status_.corruptedSessionNumbers[i] == status_.loggingSession))
-                {
-                    isAlreadyAddedToListOfCorruptedRecords = true;
-                    break;
-                }
-            }
-            if(isAlreadyAddedToListOfCorruptedRecords == false)
-            {
-                status_.corruptedRecordNumbers.push_back(status_.recordNumber);
-                status_.corruptedSessionNumbers.push_back(status_.loggingSession);
-            }
-            status_.isDataCorruptionEncountered_ = true;
-            
-            while (status_.headerFound == false && status_.pos < filePositionLimit)
-            {
-                // Always read in 4 bytes, then check if those 4 bytes contain the header signature
-                for (int i = 0; i < 4; i++)
-                {
-                    parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.pos];
-                    status_.pos++;
-                }
-
-                CheckForHeader();
-                if (status_.headerFound == false)
-                {
-                    status_.pos -= 3; // shift reading frame by three bytes back
-                    if (status_.pos < 0)
-                    {
-                        status_.pos = filePositionLimit;
-                        break; // something really went wrong here
-                    }
-                }
-            }
-            if (status_.headerFound == true)
-            {
-                // Recovered reading after corruption
-                status_.isRecoveredAfterDataCorruption_ = true;
-            }
+            HandleCorruptData();
         }
     }
 }
@@ -2292,10 +2363,48 @@ void LoggerDataReader::PrintCarryBugToLog()
 
 void LoggerDataReader::PrintCorruptionDetectionsToLog()
 {
+    int currentRecord = -1;
+    int previousRecord = -1;
+    int startRecordForRange = -1;
+    int endRecordForRange = -1;
     for(int i = 0; i < status_.corruptedRecordNumbers.size(); i++)
     {
         numErrors_++;
-        logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt in record " + std::to_string(status_.corruptedRecordNumbers[i]) + " in session " + std::to_string(status_.corruptedSessionNumbers[i]) + "\n";
+        currentRecord = status_.corruptedRecordNumbers[i];
+        if(previousRecord > 0)
+        {
+            if(currentRecord - previousRecord == 1)
+            {
+                if(startRecordForRange == -1)
+                {
+                    startRecordForRange = previousRecord;
+                }
+                endRecordForRange = currentRecord;
+            }
+            else
+            {
+                if(startRecordForRange == -1)
+                {
+                    logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt in record " + std::to_string(previousRecord) + " in session " + std::to_string(status_.corruptedSessionNumbers[i]) + "\n";
+                    startRecordForRange = -1;
+                    endRecordForRange = -1;
+                }
+                else
+                {
+                    logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(endRecordForRange) + " in session " + std::to_string(status_.corruptedSessionNumbers[i]) + "\n";
+                    startRecordForRange = -1;
+                    endRecordForRange = -1;
+                }
+            }
+            if(i == status_.corruptedRecordNumbers.size() - 1 && endRecordForRange != -1)
+            {
+                logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(endRecordForRange) + " in session " + std::to_string(status_.corruptedSessionNumbers[i]) + "\n";
+                startRecordForRange = -1;
+                endRecordForRange = -1;
+            }
+        }
+        
+        previousRecord = status_.corruptedRecordNumbers[i];
     }
 }
 
