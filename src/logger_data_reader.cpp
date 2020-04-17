@@ -1781,7 +1781,10 @@ void LoggerDataReader::HandleCorruptData()
             if((parsedNumericData_.channelNumber >= 0) && (parsedNumericData_.channelNumber <= 8))
             {
                 // We have a valid channel number, check that next channel number is also valid
-                posRecoveredReading = status_.position;
+                if(parsedNumericData_.channelNumber == 0)
+                {
+                    posRecoveredReading = status_.position;
+                }
                 previousChannelNumber = parsedNumericData_.channelNumber;
 
                 if(status_.position < (filePositionLimit - BYTES_READ_PER_ITERATION))
@@ -1814,7 +1817,17 @@ void LoggerDataReader::HandleCorruptData()
                         isGoodChannelRead = true;
                         status_.position = posRecoveredReading;
                         parsedNumericData_.channelNumber = inputFileContents_[status_.position];
-                        status_.previousChannelNumber = -1;
+                        status_.position -= 4;
+                        if(status_.position < filePositionLimit)
+                        {
+                            for(int i = 0; i < 4; i++)
+                            {
+                                parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.position];
+                                status_.position++;
+                            }
+                        }
+                        
+                        status_.previousChannelNumber = 0;
                         status_.sensorReadingCounter = 0;
                         break;
                     }
