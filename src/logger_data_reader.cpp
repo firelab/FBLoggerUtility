@@ -440,15 +440,23 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                         {
                             PrintHeader(OutFileType::RAW);
                         }
-                        while (status_.pos < inputFileContents_.size())
+                        while (status_.position < filePositionLimit)
                         {
                             ReadNextHeaderOrNumber();
 
                             if (status_.headerFound)
                             {
                                 // Reset record and sensor reading count
+                                status_.previousChannelNumber = -1;
                                 status_.recordNumber = 0;
                                 status_.sensorReadingCounter = 0;
+
+                                // Clear sensor readings
+                                for(int i = 0; i < NUM_SENSOR_READINGS; i++)
+                                {
+                                    status_.sensorReadingValue[i] = 0.0;
+                                }
+
                                 DegreesDecimalMinutesToDecimalDegrees(headerData_);
                                 // Print gps data from header to gps and kml files
                                 //PrintGPSFileLine(); 
@@ -467,9 +475,10 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                             }
 
                             UpdateSensorMaxAndMin();
-                            if (status_.sensorReadingCounter == 9)
+                            if ((status_.sensorReadingCounter == 9) || (status_.recordNumber == 0 && status_.sensorReadingCounter == 8)) // Some reason first record only has 8 readings instead of nine
                             {
                                 // An entire row of sensor data has been read in
+                                status_.previousChannelNumber = -1;
                                 status_.recordNumber++;
                                 PerformSanityChecksOnValues(SanityChecks::RAW);
                                 if (printRaw_)
@@ -1397,7 +1406,7 @@ void LoggerDataReader::ResetHeaderData()
 void LoggerDataReader::ResetInFileReadingStatus()
 {
     status_.sensorReadingCounter = 0;
-    status_.pos = 0;
+    status_.position = 0;
     status_.recordNumber = 0;
     status_.configColumnTextLine = "";
     status_.loggingSession = 0;
@@ -1740,71 +1749,78 @@ void LoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerD
 
 void LoggerDataReader::HandleCorruptData()
 {
+    const int BYTES_PER_DATA_RECORD = 45;
     int numCorruptReadings = 0;
     int numCorruptRecords = 0;
  
-    bool isAlreadyAddedToListOfCorruptedRecords = false;
-    for(int i = 0; i < status_.corruptedRecordNumbers.size(); i++)
-    {
-        if((status_.corruptedRecordNumbers[i] == status_.recordNumber) && (status_.corruptedSessionNumbers[i] == status_.loggingSession))
-        {
-            isAlreadyAddedToListOfCorruptedRecords = true;
-            break;
-        }
-    }
-
-    if(isAlreadyAddedToListOfCorruptedRecords == false)
-    {
-        status_.corruptedRecordNumbers.push_back(status_.recordNumber);
-        status_.corruptedSessionNumbers.push_back(status_.loggingSession);
-    }
     status_.isDataCorruptionEncountered_ = true;
 
     bool isGoodChannelRead = false;
     int posRecoveredReading = -1;
+    int previousChannelNumber = -1;
 
-    status_.pos -= BYTES_READ_PER_ITERATION;
-    while(!isGoodChannelRead && status_.pos < filePositionLimit)
+    int headerPosition;
+
+    status_.position -= BYTES_READ_PER_ITERATION;
+    while(!isGoodChannelRead && (status_.position < (filePositionLimit - BYTES_READ_PER_ITERATION)))
     {
         // Always read in 4 bytes, then check if those 4 bytes contain the header signature
         for(int i = 0; i < 4; i++)
         {
-            parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.pos];
-            status_.pos++;
+            parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.position];
+            status_.position++;
         }
 
         CheckForHeader();
 
         if(status_.firstHeaderFound && (!status_.headerFound))
         {
-            status_.pos -= 4; // move back reading frame by four byte, check for channel number
-            parsedNumericData_.channelNumber = inputFileContents_[status_.pos];
-            status_.pos++;
-            numCorruptReadings++;
-            if(parsedNumericData_.channelNumber == 0)
-            {
-                // Make panel temp's channel number 9, as it is printed last
-                parsedNumericData_.channelNumber = 9;
-                posRecoveredReading = status_.pos;
-            }
+            status_.position -= 4; // move back reading frame by four byte, check for channel number
+            parsedNumericData_.channelNumber = inputFileContents_[status_.position];
 
-            if((parsedNumericData_.channelNumber >= 1) && (parsedNumericData_.channelNumber <= 9))
+            if((parsedNumericData_.channelNumber >= 0) && (parsedNumericData_.channelNumber <= 8))
             {
                 // We have a valid channel number, check that next channel number is also valid
-                status_.pos += 4; // skip over sensor reading bytes
-                int previousChannelNumber = parsedNumericData_.channelNumber;
-                parsedNumericData_.channelNumber = inputFileContents_[status_.pos];
-                status_.pos++;
-                if((previousChannelNumber == 9) && (parsedNumericData_.channelNumber == 1))
+                posRecoveredReading = status_.position;
+                previousChannelNumber = parsedNumericData_.channelNumber;
+
+                if(status_.position < (filePositionLimit - BYTES_READ_PER_ITERATION))
                 {
-                    isGoodChannelRead = true;
-                    status_.pos = posRecoveredReading;
-                    break;
+                    status_.position += BYTES_READ_PER_ITERATION; // move reading frame to next channel number
                 }
                 else
                 {
-                    status_.pos -= 5; // move reading frame back 5 bytes
+                    status_.position == filePositionLimit;
+                    break;
                 }
+                parsedNumericData_.channelNumber = inputFileContents_[status_.position];
+                
+                if((previousChannelNumber == 0) && (parsedNumericData_.channelNumber == 1))
+                {
+                    previousChannelNumber = parsedNumericData_.channelNumber;
+                    if(status_.position < (filePositionLimit - BYTES_READ_PER_ITERATION))
+                    {
+                        status_.position += BYTES_READ_PER_ITERATION; // move reading frame to next channel number
+                    }
+                    else
+                    {
+                        status_.position == filePositionLimit;
+                        break;
+                    }
+                    parsedNumericData_.channelNumber = inputFileContents_[status_.position];
+
+                    if((previousChannelNumber == 1) && (parsedNumericData_.channelNumber == 2))
+                    {
+                        isGoodChannelRead = true;
+                        status_.position = posRecoveredReading;
+                        parsedNumericData_.channelNumber = inputFileContents_[status_.position];
+                        status_.previousChannelNumber = -1;
+                        status_.sensorReadingCounter = 0;
+                        break;
+                    }
+                }
+
+                status_.position -= BYTES_READ_PER_ITERATION; // move back reading frame by five bytes
             }
         }
         else
@@ -1812,14 +1828,24 @@ void LoggerDataReader::HandleCorruptData()
             // Found the header
             break;
         }
+
+        if(status_.position < filePositionLimit)
+        {
+            status_.position++; // advance reading frame one byte forward
+        }
+        else
+        {
+            status_.position = filePositionLimit;
+            break;
+        }
+      
+        numCorruptReadings++;
     }
 
-    numCorruptRecords = ceil(numCorruptReadings / 45.0);
-    int badRecord = status_.recordNumber;
+    numCorruptRecords = ceil(numCorruptReadings / (BYTES_PER_DATA_RECORD * 1.0));
     for(int i = 0; i < numCorruptRecords; i++)
     {
-        badRecord++;
-        status_.corruptedRecordNumbers.push_back(badRecord);
+        status_.corruptedRecordNumbers.push_back(status_.recordNumber + 1); // record number is zero indexed in program
         status_.corruptedSessionNumbers.push_back(status_.loggingSession);
 
         // An entire row of sensor data has been read in
@@ -1846,6 +1872,15 @@ void LoggerDataReader::HandleCorruptData()
         // Update time for next set of sensor readings
         headerData_.milliseconds += headerData_.sampleInterval;
         UpdateTime();
+    }
+
+    if(status_.firstHeaderFound && (!status_.headerFound) && (status_.position < filePositionLimit))
+    {
+        status_.position++;
+    }
+    else if(!(status_.position < filePositionLimit))
+    {
+        status_.position = filePositionLimit;
     }
 }
 
@@ -2008,14 +2043,15 @@ bool LoggerDataReader::GetFirstHeader()
 {
     ResetHeaderData();
 
-    status_.pos = 0;
+    status_.position = 0;
     filePositionLimit = inputFileContents_.size() - BYTES_READ_PER_ITERATION;
 
     // Keep grabbing bytes until header is found or end of file is reached
-    while (!status_.headerFound && (status_.pos < filePositionLimit))
+    while (!status_.headerFound && (status_.position < filePositionLimit))
     {
         GetRawNumber();
     }
+
     if (status_.headerFound)
     {
         status_.firstHeaderFound = true;
@@ -2041,7 +2077,13 @@ void LoggerDataReader::ReadNextHeaderOrNumber()
     CheckForHeader();
     if (!status_.headerFound)
     {
-        if ((parsedNumericData_.channelNumber > 0) && (parsedNumericData_.channelNumber <= 9)) // Prevents array out of bounds while reading a header 
+        if(parsedNumericData_.channelNumber == 0)
+        {
+            // Make panel temp's channel number 9, as it is printed last
+            parsedNumericData_.channelNumber = 9;
+        }
+
+        if ((parsedNumericData_.channelNumber >= 0) && (parsedNumericData_.channelNumber <= 9)) // Prevents array out of bounds while reading a header 
         {
             parsedNumericData_.intFromBytes = GetIntFromByteArray(parsedNumericData_.rawHexNumber);
             parsedNumericData_.parsedIEEENumber = UnsignedIntToIEEEFloat(parsedNumericData_.intFromBytes);
@@ -2071,28 +2113,42 @@ void LoggerDataReader::GetRawNumber()
     status_.headerFound = false;
 
     // Always read in 4 bytes, then check if those 4 bytes contain the header signature
-    for (int i = 0; i < 4; i++)
+    if(status_.position < filePositionLimit)
     {
-        parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.pos];
-        status_.pos++;
+        for(int i = 0; i < 4; i++)
+        {
+            parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.position];
+            status_.position++;
+        }
     }
 
     CheckForHeader();
-    // If it is not a header, read in 1 more byte for channel number
-    if (!status_.headerFound)
-    {
-        parsedNumericData_.channelNumber = inputFileContents_[status_.pos];
-        status_.pos++;
-        if (parsedNumericData_.channelNumber == 0)
-        {
-            // Make panel temp's channel number 9, as it is printed last
-            parsedNumericData_.channelNumber = 9;
-        }
 
-        if (status_.firstHeaderFound && (parsedNumericData_.channelNumber < 1) || (parsedNumericData_.channelNumber > 9))
+    // If it is not a header, read in 1 more byte for channel number
+    if (!status_.headerFound && (status_.position < filePositionLimit))
+    {
+        parsedNumericData_.channelNumber = inputFileContents_[status_.position];
+        status_.position++;
+       
+        if(status_.firstHeaderFound)
         {
-            // Indicates data is corrupted
-            HandleCorruptData();
+            if(parsedNumericData_.channelNumber == 0)
+            {
+                status_.previousChannelNumber = -1;
+            }
+
+            if( (!status_.headerFound) &&
+                ((status_.recordNumber != 0) && // Some reason order is messed up in first record in each file
+                ((parsedNumericData_.channelNumber < 0) || (parsedNumericData_.channelNumber > 8) ||
+                (parsedNumericData_.channelNumber - status_.previousChannelNumber) != 1))) // Channel numbers should be consecutive, i.e., differring by 1
+            {
+                // Indicates data is corrupted
+                HandleCorruptData(); // Channel numbers must be in the range of [1,9] and in sequential order
+            }
+            if(!status_.headerFound) // Need to check if header was found again if corruption was detected
+            {
+                status_.previousChannelNumber = parsedNumericData_.channelNumber;
+            }
         }
     }
 }
@@ -2166,20 +2222,28 @@ void LoggerDataReader::GetHeader()
     uint8_t byte = 0;
     ResetHeaderData();
 
-    for (int i = 0; i < 4; i++)
+    bool fileSizeLimitReached = false;
+    for(int i = 0; i < 4; i++)
     {
         headerData_.rawHeader[i] = parsedNumericData_.rawHexNumber[i];
     }
-    unsigned int currentPos = status_.pos;
-    for (unsigned int i = currentPos; i < currentPos + 44; i++)
+    unsigned int currentPos = status_.position;
+    for(unsigned int i = currentPos; (i < currentPos + 44) && (i < filePositionLimit); i++)
     {
         byte = inputFileContents_[i];
         headerData_.rawHeader += byte;
         // update reading position
-        status_.pos++;
+        status_.position++;
+        if(i == filePositionLimit - 1)
+        {
+            fileSizeLimitReached = true;
+        }
     }
 
-    ParseHeader();
+    if(!fileSizeLimitReached)
+    {
+        ParseHeader();
+    }
 }
 
 void LoggerDataReader::ParseHeader()
@@ -2367,43 +2431,62 @@ void LoggerDataReader::PrintCorruptionDetectionsToLog()
     int previousRecord = -1;
     int startRecordForRange = -1;
     int endRecordForRange = -1;
+    int sessionForRange = -1;
+    int currentSession = -1;
+    int previousSession = -1;
+
     for(int i = 0; i < status_.corruptedRecordNumbers.size(); i++)
     {
         numErrors_++;
         currentRecord = status_.corruptedRecordNumbers[i];
+        currentSession = status_.corruptedSessionNumbers[i];
         if(previousRecord > 0)
         {
-            if(currentRecord - previousRecord == 1)
+            if(previousSession < 0)
+            {
+                previousSession = currentSession;
+            }
+
+            if((currentRecord - previousRecord) == 1 && (currentSession == previousSession))
             {
                 if(startRecordForRange == -1)
                 {
                     startRecordForRange = previousRecord;
                 }
                 endRecordForRange = currentRecord;
+                sessionForRange = status_.corruptedSessionNumbers[i];
             }
             else
             {
                 if(startRecordForRange == -1)
                 {
-                    logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt in record " + std::to_string(previousRecord) + " in session " + std::to_string(status_.corruptedSessionNumbers[i]) + "\n";
+                    endRecordForRange = currentRecord;
+                    sessionForRange = status_.corruptedSessionNumbers[i];
+                    logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt in record " + std::to_string(previousRecord) + " in session " + std::to_string(previousSession) + "\n";
                     startRecordForRange = -1;
                     endRecordForRange = -1;
+                    sessionForRange = -1;
                 }
                 else
                 {
-                    logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(endRecordForRange) + " in session " + std::to_string(status_.corruptedSessionNumbers[i]) + "\n";
+                    sessionForRange = status_.corruptedSessionNumbers[i];
+                    logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(endRecordForRange) + " in session " + std::to_string(sessionForRange) + "\n";
                     startRecordForRange = -1;
                     endRecordForRange = -1;
+                    sessionForRange = -1;
                 }
             }
             if(i == status_.corruptedRecordNumbers.size() - 1 && endRecordForRange != -1)
             {
-                logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(endRecordForRange) + " in session " + std::to_string(status_.corruptedSessionNumbers[i]) + "\n";
+                sessionForRange = status_.corruptedSessionNumbers[i];
+                logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(currentRecord) + " in session " + std::to_string(sessionForRange) + "\n";
                 startRecordForRange = -1;
                 endRecordForRange = -1;
+                sessionForRange = -1;
             }
         }
         
+        previousSession = currentSession;
         previousRecord = status_.corruptedRecordNumbers[i];
     }
 }

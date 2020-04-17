@@ -185,9 +185,10 @@ class LoggerDataReader
 
     struct InFileReadingStatus
     {
+        int8_t previousChannelNumber = 0;
         uint8_t sensorReadingCounter = 0;
         uint8_t loggingSession = 0;
-        uint32_t pos = 0;
+        uint32_t position = 0;
         uint32_t recordNumber = 0;
         string configColumnTextLine;
         string rawConfigColumnTextLine;
