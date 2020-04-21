@@ -475,7 +475,7 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                             }
 
                             UpdateSensorMaxAndMin();
-                            if ((status_.sensorReadingCounter == 9) || (status_.recordNumber == 0 && status_.sensorReadingCounter == 8)) // Some reason first record only has 8 readings instead of nine
+                            if (status_.sensorReadingCounter == 9)
                             {
                                 // An entire row of sensor data has been read in
                                 status_.previousChannelNumber = -1;
