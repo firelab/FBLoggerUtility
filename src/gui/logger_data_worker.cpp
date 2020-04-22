@@ -65,6 +65,8 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
     int totalNumErrors = 0;
     float flProgress = 0;
 
+    int num_threads = 1;
+
     // Check log file, check config file, process input files, create output files 
     if(logFile.IsLogFileGood())
     {
@@ -81,8 +83,6 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
             SharedData shareDataLocal = *sharedData;
             globalLoggerDataReader.GetSharedData(shareDataLocal);
 
-            int i = 0;
-
             if(totalNumberOfFiles > 0)
             {
                 for(int i = 0; i < totalNumberOfFiles; i++)
@@ -96,9 +96,16 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
                 }
 
 #ifdef _OPENMP
+                num_threads = omp_get_num_procs() - 1;
+                if(num_threads < 1)
+                {
+                    num_threads = 1;
+                }
+                omp_set_num_threads(num_threads);
+
 #pragma omp parallel for schedule(dynamic, 1) shared(totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFile)  
 #endif
-                for(i = 0; i < totalNumberOfFiles; i++)
+                for(int i = 0; i < totalNumberOfFiles; i++)
                 {
                     // Check for kill
                     QCoreApplication::processEvents();
