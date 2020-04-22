@@ -103,7 +103,7 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
                 }
                 omp_set_num_threads(num_threads);
 
-#pragma omp parallel for schedule(dynamic, 1) shared(totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFile)  
+#pragma omp parallel for schedule(dynamic, 1) shared(totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFileLinesPerFile, gpsFileLinesPerFile)  
 #endif
                 for(int i = 0; i < totalNumberOfFiles; i++)
                 {
