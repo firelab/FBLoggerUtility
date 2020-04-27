@@ -19,9 +19,9 @@ std::vector<std::vector<T>> make_2d_vector(std::size_t rows, std::size_t cols)
 }
 
 LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
-    
-    //kmlFilePath_(dataPath + "\\" + burnName + ".kml"),
-    //kmlFile_(kmlFilePath_, std::ios::out)
+
+//kmlFilePath_(dataPath + "\\" + burnName + ".kml"),
+//kmlFile_(kmlFilePath_, std::ios::out)
 {
     //kmlFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     numFilesProcessed_ = 0;
@@ -264,7 +264,7 @@ LoggerDataReader::LoggerDataReader(const SharedData& sharedData)
 }
 
 LoggerDataReader::~LoggerDataReader()
-{   
+{
 
 }
 
@@ -299,8 +299,8 @@ void LoggerDataReader::SetSharedData(const SharedData& sharedData)
         configMap_ = *sharedData.configMap;
     }
     if(sharedData.heatFlux_X_VoltageOffsetMap != nullptr &&
-       sharedData.heatFlux_Y_VoltageOffsetMap != nullptr &&
-       sharedData.heatFlux_Z_VoltageOffsetMap != nullptr)
+        sharedData.heatFlux_Y_VoltageOffsetMap != nullptr &&
+        sharedData.heatFlux_Z_VoltageOffsetMap != nullptr)
     {
         heatFlux_X_VoltageOffsetMap_ = *sharedData.heatFlux_X_VoltageOffsetMap;
         heatFlux_Y_VoltageOffsetMap_ = *sharedData.heatFlux_Y_VoltageOffsetMap;
@@ -337,7 +337,7 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
 {
     string infileName = inputFilePathList_[fileIndex];
     string extension = "";
-   
+
     int pos = infileName.find_last_of('/');
     if(pos != string::npos)
     {
@@ -440,14 +440,17 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                         {
                             PrintHeader(OutFileType::RAW);
                         }
-                        while (status_.position < filePositionLimit)
+                        while (status_.position < status_.filePositionLimit)
                         {
                             ReadNextHeaderOrNumber();
 
                             if (status_.headerFound)
                             {
+                                for(int i = 0; i < NUM_SENSOR_READINGS; i++)
+                                {
+                                    status_.isChannelPresent[i] = false;
+                                }
                                 // Reset record and sensor reading count
-                                status_.previousChannelNumber = -1;
                                 status_.recordNumber = 0;
                                 status_.sensorReadingCounter = 0;
 
@@ -477,11 +480,15 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                             UpdateSensorMaxAndMin();
                             if (status_.sensorReadingCounter == 9)
                             {
+                                for(int i = 0; i < NUM_SENSOR_READINGS; i++)
+                                {
+                                    status_.isChannelPresent[i] = false;
+                                }
+
                                 // An entire row of sensor data has been read in
-                                status_.previousChannelNumber = -1;
                                 status_.recordNumber++;
                                 PerformSanityChecksOnValues(SanityChecks::RAW);
-                                if (printRaw_)
+                                if(printRaw_)
                                 {
                                     PrintSensorDataOutput(OutFileType::RAW);
                                 }
@@ -497,7 +504,7 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                                 headerData_.milliseconds += headerData_.sampleInterval;
                                 UpdateTime();
                             }
-                        }                  
+                        }
                     }
 
                     // Print to gps file
@@ -568,19 +575,19 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
 
 void LoggerDataReader::CheckConfig()
 {
-        ReadConfig();
+    ReadConfig();
 
-        if (isConfigFileValid_)
-        {
-            //ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
-            CheckConfigForAllFiles();
-        }
+    if (isConfigFileValid_)
+    {
+        //ReadDirectoryIntoStringVector(dataPath_, inputFilesNameList_);
+        CheckConfigForAllFiles();
+    }
 }
 
 void LoggerDataReader::ReportAbort()
 {
     numErrors_++;
-    logFileLines_ += "Conversion aborted by user before completion at " + GetMyLocalDateTimeString() + "\n";      
+    logFileLines_ += "Conversion aborted by user before completion at " + GetMyLocalDateTimeString() + "\n";
 }
 
 double LoggerDataReader::CalculateHeatFlux(double rawVoltage)
@@ -589,12 +596,12 @@ double LoggerDataReader::CalculateHeatFlux(double rawVoltage)
     {
         rawVoltage = rawVoltage + 1.25;
     }
-	return 56.60 * pow(rawVoltage, 1.129);
+    return 56.60 * pow(rawVoltage, 1.129);
 }
 
 double LoggerDataReader::CalculateHeatFluxTemperature(double rawVoltage)
 {
-	double thermistorResistance = 10000.0 / ((-1.25 / rawVoltage) - 1.0);
+    double thermistorResistance = 10000.0 / ((-1.25 / rawVoltage) - 1.0);
     double heatFluxTemperature = (1.0 / (0.003356 - (log(30000.0 / thermistorResistance) / 3962.0))) - 273.15;
     return heatFluxTemperature;
 }
@@ -652,25 +659,25 @@ double LoggerDataReader::CalculateFIDPackagePressure(double rawVoltage)
 
 double LoggerDataReader::CalculateTCTemperature(double rawVoltage)
 {
-	double temperatureMillivolt;
+    double temperatureMillivolt;
     //--------------------------------------------------------------------------------------
-	//The code below is to fix a problem with data loggers incorrectly converting voltage to
-	//    temperature.  This only occurred on the first day of burns in New Zealand in
-	//    February/March of 2018.  Currently the loggers now save raw voltage to the raw
-	//    data file. Set to "true" if this is day 1 data, set to "false" if this is good
-	//    data from a fixed logger.
-	
-	//if (false)	
-	//{
-	//	temperatureMillivolt = (4.6433525E-2 + 4.8477860E-2 * rawVoltage) / (1.0 + 1.1184923E-3 * rawVoltage - 2.0748220E-8 * rawVoltage * rawVoltage);
-	//}
-	//else
-	//{
-	//	double panelTemp = status_.sensorReadingValue[TCIndex::PANEL_TEMP];
-	//	double panelMillivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp + 0.0393 * panelTemp;
-	//	temperatureMillivolt = panelMillivolt + rawVoltage * 1000.0;
-	//}
-	//
+    //The code below is to fix a problem with data loggers incorrectly converting voltage to
+    //    temperature.  This only occurred on the first day of burns in New Zealand in
+    //    February/March of 2018.  Currently the loggers now save raw voltage to the raw
+    //    data file. Set to "true" if this is day 1 data, set to "false" if this is good
+    //    data from a fixed logger.
+
+    //if (false)	
+    //{
+    //	temperatureMillivolt = (4.6433525E-2 + 4.8477860E-2 * rawVoltage) / (1.0 + 1.1184923E-3 * rawVoltage - 2.0748220E-8 * rawVoltage * rawVoltage);
+    //}
+    //else
+    //{
+    //	double panelTemp = status_.sensorReadingValue[TCIndex::PANEL_TEMP];
+    //	double panelMillivolt = 2.0 * pow(10, -5) * panelTemp * panelTemp + 0.0393 * panelTemp;
+    //	temperatureMillivolt = panelMillivolt + rawVoltage * 1000.0;
+    //}
+    //
  //   return (24.319 * temperatureMillivolt) - (0.0621 * temperatureMillivolt * temperatureMillivolt) + 
  //       (0.00013 * temperatureMillivolt * temperatureMillivolt * temperatureMillivolt);
     return rawVoltage;
@@ -825,7 +832,7 @@ void LoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckType
     }
 }
 
-void LoggerDataReader::StoreInputFileContentsToRAM(ifstream & inFile)
+void LoggerDataReader::StoreInputFileContentsToRAM(ifstream& inFile)
 {
     // Get size of file in bytes
     inFile.seekg(0, ios::end);
@@ -925,219 +932,219 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
 
         switch (tokenCounter)
         {
-            case SERIAL_NUMBER:
+        case SERIAL_NUMBER:
+        {
+            configFileLine_.serialNumberString = token;
+            if (IsOnlyDigits(configFileLine_.serialNumberString))
             {
-                configFileLine_.serialNumberString = token;
-                if (IsOnlyDigits(configFileLine_.serialNumberString))
-                {
-                    status_.isSerialNumberValid = true;
-                }
-                else
-                {
-                    status_.isSerialNumberValid = false;
-                    isConfigFileValid_ = false;
-                }
-                break;
+                status_.isSerialNumberValid = true;
             }
-            case CONFIGURATION:
+            else
             {
-                configFileLine_.conifgurationString = token;
-                if (configFileLine_.conifgurationString == "F" ||
-                    configFileLine_.conifgurationString == "H" ||
-                    configFileLine_.conifgurationString == "T" ||
-                    configFileLine_.conifgurationString == "")
-                {
-                    status_.isConfigurationTypeValid = true;
-                }
-                else
-                {
-                    status_.isConfigurationTypeValid = false;
-                    isConfigFileValid_ = false;
-                }
-                break;
+                status_.isSerialNumberValid = false;
+                isConfigFileValid_ = false;
             }
-            case SENSOR_NUMBER:
+            break;
+        }
+        case CONFIGURATION:
+        {
+            configFileLine_.conifgurationString = token;
+            if (configFileLine_.conifgurationString == "F" ||
+                configFileLine_.conifgurationString == "H" ||
+                configFileLine_.conifgurationString == "T" ||
+                configFileLine_.conifgurationString == "")
             {
-                configFileLine_.sensorNumberString = token;
-                if (IsOnlyDigits(configFileLine_.sensorNumberString))
-                {
-                    status_.isSensorNumberValid = true;
-                }
-                else if (configFileLine_.conifgurationString == "T" &&
-                    configFileLine_.sensorNumberString == "")
-                {
-                    status_.isSensorNumberValid = true;
-                }
-                else if (configFileLine_.conifgurationString == "H" &&
-                    configFileLine_.sensorNumberString == "")
-                {
-                    status_.isSensorNumberValid = true;
-                }
-                else if (configFileLine_.conifgurationString == "")
-                {
-                    status_.isSensorNumberValid = true;
-                }
-                else
-                {
-                    status_.isSensorNumberValid = false;
-                    isConfigFileValid_ = false;
-                }
-                break;
+                status_.isConfigurationTypeValid = true;
             }
-            case SENSOR_BEARING:
+            else
             {
-                configFileLine_.sensorBearingString = token;
+                status_.isConfigurationTypeValid = false;
+                isConfigFileValid_ = false;
+            }
+            break;
+        }
+        case SENSOR_NUMBER:
+        {
+            configFileLine_.sensorNumberString = token;
+            if (IsOnlyDigits(configFileLine_.sensorNumberString))
+            {
+                status_.isSensorNumberValid = true;
+            }
+            else if (configFileLine_.conifgurationString == "T" &&
+                configFileLine_.sensorNumberString == "")
+            {
+                status_.isSensorNumberValid = true;
+            }
+            else if (configFileLine_.conifgurationString == "H" &&
+                configFileLine_.sensorNumberString == "")
+            {
+                status_.isSensorNumberValid = true;
+            }
+            else if (configFileLine_.conifgurationString == "")
+            {
+                status_.isSensorNumberValid = true;
+            }
+            else
+            {
+                status_.isSensorNumberValid = false;
+                isConfigFileValid_ = false;
+            }
+            break;
+        }
+        case SENSOR_BEARING:
+        {
+            configFileLine_.sensorBearingString = token;
 
-                char* end;
-                errno = 0;
+            char* end;
+            errno = 0;
 
-                configFileLine_.sensorBearingValue = std::strtod(token.c_str(), &end);
-                if (configFileLine_.conifgurationString == "H")
+            configFileLine_.sensorBearingValue = std::strtod(token.c_str(), &end);
+            if (configFileLine_.conifgurationString == "H")
+            {
+                if (*end != '\0' ||  // error, we didn't consume the entire string
+                    errno != 0)   // error, overflow or underflow
                 {
-                    if (*end != '\0' ||  // error, we didn't consume the entire string
-                        errno != 0)   // error, overflow or underflow
-                    {
-                        status_.isSensorBearingValid = false;
-                    }
-                    else if (configFileLine_.sensorBearingValue < 0 || configFileLine_.sensorBearingValue > 360)
-                    {
-                        status_.isSensorBearingValid = false;
-                    }
-                    else
-                    {
-                        status_.isSensorBearingValid = true;
-                    }
+                    status_.isSensorBearingValid = false;
+                }
+                else if (configFileLine_.sensorBearingValue < 0 || configFileLine_.sensorBearingValue > 360)
+                {
+                    status_.isSensorBearingValid = false;
                 }
                 else
                 {
                     status_.isSensorBearingValid = true;
                 }
-                break;
             }
-            case HEAT_FLUX_X_VOLTAGE_OFFSET:
+            else
             {
-                configFileLine_.heatFlux_X_VoltageOffsetString = token;
+                status_.isSensorBearingValid = true;
+            }
+            break;
+        }
+        case HEAT_FLUX_X_VOLTAGE_OFFSET:
+        {
+            configFileLine_.heatFlux_X_VoltageOffsetString = token;
 
-                if(configFileLine_.conifgurationString == "H")
+            if(configFileLine_.conifgurationString == "H")
+            {
+                char* end;
+                errno = 0;
+                long double ld;
+                if((std::istringstream(configFileLine_.heatFlux_X_VoltageOffsetString) >> ld >> std::ws).eof()) // Check if string is valide double
                 {
-                    char* end;
-                    errno = 0;
-                    long double ld;
-                    if((std::istringstream(configFileLine_.heatFlux_X_VoltageOffsetString) >> ld >> std::ws).eof()) // Check if string is valide double
+                    configFileLine_.heatFlux_X_VoltageOffsetValue = std::strtod(token.c_str(), &end);
+                    if(configFileLine_.conifgurationString == "H")
                     {
-                        configFileLine_.heatFlux_X_VoltageOffsetValue = std::strtod(token.c_str(), &end);
-                        if(configFileLine_.conifgurationString == "H")
+                        if(*end != '\0' ||  // error, we didn't consume the entire string
+                            errno != 0)   // error, overflow or underflow
                         {
-                            if(*end != '\0' ||  // error, we didn't consume the entire string
-                                errno != 0)   // error, overflow or underflow
-                            {
-                                status_.isHeatFlux_X_VoltageOffsetValid = false;
-                            }
-                            else if(configFileLine_.heatFlux_X_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_X_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
-                            {
-                                status_.isHeatFlux_X_VoltageOffsetValid = false;
-                            }
-                            else
-                            {
-                                status_.isHeatFlux_X_VoltageOffsetValid = true;
-                            }
+                            status_.isHeatFlux_X_VoltageOffsetValid = false;
+                        }
+                        else if(configFileLine_.heatFlux_X_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_X_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
+                        {
+                            status_.isHeatFlux_X_VoltageOffsetValid = false;
                         }
                         else
                         {
                             status_.isHeatFlux_X_VoltageOffsetValid = true;
                         }
                     }
-                }
-                else
-                {
-                    status_.isHeatFlux_X_VoltageOffsetValid = true;
-                }
-                break;
-            }
-            case HEAT_FLUX_Y_VOLTAGE_OFFSET:
-            {
-                configFileLine_.heatFlux_Y_VoltageOffsetString = token;
-
-                if(configFileLine_.conifgurationString == "H")
-                {
-                    char* end;
-                    errno = 0;
-                    long double ld;
-                    if((std::istringstream(configFileLine_.heatFlux_Y_VoltageOffsetString) >> ld >> std::ws).eof()) // Check if string is valide double
+                    else
                     {
-                        configFileLine_.heatFlux_Y_VoltageOffsetValue = std::strtod(token.c_str(), &end);
-                        if(configFileLine_.conifgurationString == "H")
+                        status_.isHeatFlux_X_VoltageOffsetValid = true;
+                    }
+                }
+            }
+            else
+            {
+                status_.isHeatFlux_X_VoltageOffsetValid = true;
+            }
+            break;
+        }
+        case HEAT_FLUX_Y_VOLTAGE_OFFSET:
+        {
+            configFileLine_.heatFlux_Y_VoltageOffsetString = token;
+
+            if(configFileLine_.conifgurationString == "H")
+            {
+                char* end;
+                errno = 0;
+                long double ld;
+                if((std::istringstream(configFileLine_.heatFlux_Y_VoltageOffsetString) >> ld >> std::ws).eof()) // Check if string is valide double
+                {
+                    configFileLine_.heatFlux_Y_VoltageOffsetValue = std::strtod(token.c_str(), &end);
+                    if(configFileLine_.conifgurationString == "H")
+                    {
+                        if(*end != '\0' ||  // error, we didn't consume the entire string
+                            errno != 0)   // error, overflow or underflow
                         {
-                            if(*end != '\0' ||  // error, we didn't consume the entire string
-                                errno != 0)   // error, overflow or underflow
-                            {
-                                status_.isHeatFlux_Y_VoltageOffsetValid = false;
-                            }
-                            else if(configFileLine_.heatFlux_Y_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Y_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
-                            {
-                                status_.isHeatFlux_Y_VoltageOffsetValid = false;
-                            }
-                            else
-                            {
-                                status_.isHeatFlux_Y_VoltageOffsetValid = true;
-                            }
+                            status_.isHeatFlux_Y_VoltageOffsetValid = false;
+                        }
+                        else if(configFileLine_.heatFlux_Y_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Y_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
+                        {
+                            status_.isHeatFlux_Y_VoltageOffsetValid = false;
                         }
                         else
                         {
                             status_.isHeatFlux_Y_VoltageOffsetValid = true;
                         }
                     }
-                }
-                else
-                {
-                    status_.isHeatFlux_Y_VoltageOffsetValid = true;
-                }
-                break;
-            }
-            case HEAT_FLUX_Z_VOLTAGE_OFFSET:
-            {
-                configFileLine_.heatFlux_Z_VoltageOffsetString = token;
-
-                if(configFileLine_.conifgurationString == "H")
-                {
-                    char* end;
-                    errno = 0;
-                    long double ld;
-                    if((std::istringstream(configFileLine_.heatFlux_Z_VoltageOffsetString) >> ld >> std::ws).eof()) // Check if string is valide double
+                    else
                     {
-                        configFileLine_.heatFlux_Z_VoltageOffsetValue = std::strtod(token.c_str(), &end);
-                        if(configFileLine_.conifgurationString == "H")
+                        status_.isHeatFlux_Y_VoltageOffsetValid = true;
+                    }
+                }
+            }
+            else
+            {
+                status_.isHeatFlux_Y_VoltageOffsetValid = true;
+            }
+            break;
+        }
+        case HEAT_FLUX_Z_VOLTAGE_OFFSET:
+        {
+            configFileLine_.heatFlux_Z_VoltageOffsetString = token;
+
+            if(configFileLine_.conifgurationString == "H")
+            {
+                char* end;
+                errno = 0;
+                long double ld;
+                if((std::istringstream(configFileLine_.heatFlux_Z_VoltageOffsetString) >> ld >> std::ws).eof()) // Check if string is valide double
+                {
+                    configFileLine_.heatFlux_Z_VoltageOffsetValue = std::strtod(token.c_str(), &end);
+                    if(configFileLine_.conifgurationString == "H")
+                    {
+                        if(*end != '\0' ||  // error, we didn't consume the entire string
+                            errno != 0)   // error, overflow or underflow
                         {
-                            if(*end != '\0' ||  // error, we didn't consume the entire string
-                                errno != 0)   // error, overflow or underflow
-                            {
-                                status_.isHeatFlux_Z_VoltageOffsetValid = false;
-                            }
-                            else if(configFileLine_.heatFlux_Z_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Z_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
-                            {
-                                status_.isHeatFlux_Z_VoltageOffsetValid = false;
-                            }
-                            else
-                            {
-                                status_.isHeatFlux_Z_VoltageOffsetValid = true;
-                            }
+                            status_.isHeatFlux_Z_VoltageOffsetValid = false;
+                        }
+                        else if(configFileLine_.heatFlux_Z_VoltageOffsetValue < -10.0 || configFileLine_.heatFlux_Z_VoltageOffsetValue > 10.0) // Need to find real acceptable voltage bounds
+                        {
+                            status_.isHeatFlux_Z_VoltageOffsetValid = false;
                         }
                         else
                         {
                             status_.isHeatFlux_Z_VoltageOffsetValid = true;
                         }
                     }
-                    else if(configFileLine_.conifgurationString != "H")
+                    else
                     {
-                        status_.isHeatFlux_Z_VoltageOffsetValid = false;
+                        status_.isHeatFlux_Z_VoltageOffsetValid = true;
                     }
                 }
-                else
+                else if(configFileLine_.conifgurationString != "H")
                 {
-                    status_.isHeatFlux_Z_VoltageOffsetValid = true;
+                    status_.isHeatFlux_Z_VoltageOffsetValid = false;
                 }
-                break;
             }
+            else
+            {
+                status_.isHeatFlux_Z_VoltageOffsetValid = true;
+            }
+            break;
+        }
         }
         tokenCounter++;
     }
@@ -1247,7 +1254,7 @@ void LoggerDataReader::ProcessLineOfConfigFile()
                     if(status_.isHeatFlux_X_VoltageOffsetValid)
                     {
                         heatFlux_X_VoltageOffsetMap_.insert(pair<int, double>(serialNumber, configFileLine_.heatFlux_X_VoltageOffsetValue));
-                     
+
                     }
                     else
                     {
@@ -1284,7 +1291,7 @@ void LoggerDataReader::ProcessLineOfConfigFile()
                     }
                 }
             }
-            
+
         }
     }
     else if (!status_.isSerialNumberValid)
@@ -1326,7 +1333,7 @@ void LoggerDataReader::CheckConfigForAllFiles()
     for (unsigned int i = 0; i < inputFilePathList_.size(); i++)
     {
         inDataFilePath_ = inputFilePathList_[i];
-      
+
         std::ifstream inFile(inDataFilePath_, std::ios::in | std::ios::binary);
         // Check for input file's existence
         if (inFile.fail())
@@ -1346,7 +1353,7 @@ void LoggerDataReader::CheckConfigForAllFiles()
                 ResetInFileReadingStatus();
                 currentFileStats_.fileName = inputFilePathList_[i];
                 bool headerFound = GetFirstHeader();
-                  
+
                 if (headerFound)
                 {
                     int serialNumber = atoi(headerData_.serialNumberString.c_str());
@@ -1682,7 +1689,7 @@ bool LoggerDataReader::CreateWindTunnelDataVectors()
     string line;
 
     double angle, ReynoldsNumber, pressureCoefficient;
-    
+
     const int NUM_ANGLES = 100;
     const int NUM_REYNOLDS_NUMBERS = 10;
     const int NUM_DATA_LINES = NUM_ANGLES * NUM_REYNOLDS_NUMBERS;
@@ -1722,7 +1729,7 @@ bool LoggerDataReader::CreateWindTunnelDataVectors()
             isSuccessful = true;
         }
     }
-    
+
     return isSuccessful;
 }
 
@@ -1749,10 +1756,9 @@ void LoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerD
 
 void LoggerDataReader::HandleCorruptData()
 {
-    const int BYTES_PER_DATA_RECORD = 45;
     int numCorruptReadings = 0;
     int numCorruptRecords = 0;
- 
+    //int fistCorruptByte = fistCorruptByte = status_.position;;
     status_.isDataCorruptionEncountered_ = true;
 
     bool isGoodChannelRead = false;
@@ -1762,9 +1768,9 @@ void LoggerDataReader::HandleCorruptData()
     int headerPosition;
 
     status_.position -= BYTES_READ_PER_ITERATION;
-    while(!isGoodChannelRead && (status_.position < (filePositionLimit - BYTES_READ_PER_ITERATION)))
+    while (!isGoodChannelRead && (status_.position < (status_.filePositionLimit - BYTES_READ_PER_ITERATION)))
     {
-        // Always read in 4 bytes, then check if those 4 bytes contain the header signature
+        // Read in 4 bytes, then check if those 4 bytes contain the header signature
         for(int i = 0; i < 4; i++)
         {
             parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.position];
@@ -1773,67 +1779,107 @@ void LoggerDataReader::HandleCorruptData()
 
         CheckForHeader();
 
-        if(status_.firstHeaderFound && (!status_.headerFound))
+        for (uint8_t i = 0; i < NUM_SENSOR_READINGS; i++)
         {
-            status_.position -= 4; // move back reading frame by four byte, check for channel number
-            parsedNumericData_.channelNumber = inputFileContents_[status_.position];
+            status_.isChannelPresent[i] = false;
+        }
 
-            if((parsedNumericData_.channelNumber >= 0) && (parsedNumericData_.channelNumber <= 8))
+        if (status_.firstHeaderFound && (!status_.headerFound))
+        {
+            status_.position -= 4; // move back reading frame by four bytes, check for channel number
+            parsedNumericData_.channelNumber = (uint8_t)inputFileContents_[status_.position];
+
+            if ((parsedNumericData_.channelNumber >= 0) && (parsedNumericData_.channelNumber <= 8))
             {
-                // We have a valid channel number, check that next channel number is also valid
-                if(parsedNumericData_.channelNumber == 0)
-                {
-                    posRecoveredReading = status_.position;
-                }
-                previousChannelNumber = parsedNumericData_.channelNumber;
+                // We have a valid channel number, check that next channel 8 numbers are also valid
+                posRecoveredReading = status_.position;
 
-                if(status_.position < (filePositionLimit - BYTES_READ_PER_ITERATION))
+                status_.isChannelPresent[parsedNumericData_.channelNumber] = true;
+
+                for (int i = 0; i < 8; i++)
                 {
-                    status_.position += BYTES_READ_PER_ITERATION; // move reading frame to next channel number
-                }
-                else
-                {
-                    status_.position == filePositionLimit;
-                    break;
-                }
-                parsedNumericData_.channelNumber = inputFileContents_[status_.position];
-                
-                if((previousChannelNumber == 0) && (parsedNumericData_.channelNumber == 1))
-                {
-                    previousChannelNumber = parsedNumericData_.channelNumber;
-                    if(status_.position < (filePositionLimit - BYTES_READ_PER_ITERATION))
+                    if (status_.position < (status_.filePositionLimit - BYTES_READ_PER_ITERATION))
                     {
                         status_.position += BYTES_READ_PER_ITERATION; // move reading frame to next channel number
+                        parsedNumericData_.channelNumber = (uint8_t)inputFileContents_[status_.position];
                     }
                     else
                     {
-                        status_.position == filePositionLimit;
+                        status_.position = status_.filePositionLimit;
                         break;
                     }
-                    parsedNumericData_.channelNumber = inputFileContents_[status_.position];
 
-                    if((previousChannelNumber == 1) && (parsedNumericData_.channelNumber == 2))
+                    // Check that channel numbers appear exactly once and in the correct order
+                    if ((parsedNumericData_.channelNumber >= 0) &&
+                        (parsedNumericData_.channelNumber <= 8) &&
+                        (status_.isChannelPresent[parsedNumericData_.channelNumber] == false))
                     {
-                        isGoodChannelRead = true;
-                        status_.position = posRecoveredReading;
-                        parsedNumericData_.channelNumber = inputFileContents_[status_.position];
-                        status_.position -= 4;
-                        if(status_.position < filePositionLimit)
+                        if ((parsedNumericData_.channelNumber == 0) && (status_.isChannelPresent[8] == true))
                         {
-                            for(int i = 0; i < 4; i++)
-                            {
-                                parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.position];
-                                status_.position++;
-                            }
+                            status_.isChannelPresent[parsedNumericData_.channelNumber] = true;
                         }
-                        
-                        status_.previousChannelNumber = 0;
-                        status_.sensorReadingCounter = 0;
+                        else if ((status_.isChannelPresent[parsedNumericData_.channelNumber - 1] == true))
+                        {
+                            status_.isChannelPresent[parsedNumericData_.channelNumber] = true;
+                        }
+                        else
+                        {
+                            for (uint8_t i = 0; i < NUM_SENSOR_READINGS; i++)
+                            {
+                                status_.isChannelPresent[i] = false;
+                            }
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        for (uint8_t i = 0; i < NUM_SENSOR_READINGS; i++)
+                        {
+                            status_.isChannelPresent[i] = false;
+                        }
                         break;
                     }
                 }
+            }
 
-                status_.position -= BYTES_READ_PER_ITERATION; // move back reading frame by five bytes
+            if (status_.isChannelPresent[0] &&
+                status_.isChannelPresent[1] &&
+                status_.isChannelPresent[2] &&
+                status_.isChannelPresent[3] &&
+                status_.isChannelPresent[4] &&
+                status_.isChannelPresent[5] &&
+                status_.isChannelPresent[6] &&
+                status_.isChannelPresent[7] &&
+                status_.isChannelPresent[8])
+            {
+                isGoodChannelRead = true;
+                status_.position = posRecoveredReading;
+                parsedNumericData_.channelNumber = (uint8_t)inputFileContents_[status_.position];
+
+                status_.position -= 4;
+
+                for (int i = 0; i < 4; i++)
+                {
+                    parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.position];
+                    status_.position++;
+                }
+
+                for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+                {
+                    status_.isChannelPresent[i] = false;
+                }
+
+                status_.isChannelPresent[parsedNumericData_.channelNumber] = true;
+
+                status_.sensorReadingCounter = 0;
+                break;
+            }
+            else
+            {
+                for (uint8_t i = 0; i < NUM_SENSOR_READINGS; i++)
+                {
+                    status_.isChannelPresent[i] = false;
+                }
             }
         }
         else
@@ -1842,38 +1888,46 @@ void LoggerDataReader::HandleCorruptData()
             break;
         }
 
-        if(status_.position < filePositionLimit)
+        if(status_.position < status_.filePositionLimit)
         {
             status_.position++; // advance reading frame one byte forward
         }
         else
         {
-            status_.position = filePositionLimit;
+            status_.position = status_.filePositionLimit;
             break;
         }
-      
+
         numCorruptReadings++;
     }
 
-    numCorruptRecords = ceil(numCorruptReadings / (BYTES_PER_DATA_RECORD * 1.0));
-    for(int i = 0; i < numCorruptRecords; i++)
+    numCorruptRecords = ceil(numCorruptReadings / (NUM_SENSOR_READINGS * 1.0));
+
+    // Ensure at least one corrupt record if this method is called
+    if (numCorruptRecords < 1)
     {
-        status_.corruptedRecordNumbers.push_back(status_.recordNumber + 1); // record number is zero indexed in program
+        numCorruptRecords = 1;
+    }
+
+    for (int i = 0; i < numCorruptRecords; i++)
+    {
+        status_.corruptedRecordNumbers.push_back(status_.recordNumber + 1); // record number is zero indexed in progra
         status_.corruptedSessionNumbers.push_back(status_.loggingSession);
 
         // An entire row of sensor data has been read in
         status_.recordNumber++;
 
-        for(int i = 0; i < NUM_SENSOR_READINGS; i++)
-        {
-            status_.sensorReadingValue[i] = -8888.0; // indicates corrupted row data;
-        }
-
         PerformSanityChecksOnValues(SanityChecks::RAW);
-        if(printRaw_)
+        if (printRaw_)
         {
             PrintSensorDataOutput(OutFileType::RAW);
         }
+
+        for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+        {
+            status_.sensorReadingValue[i] = -8888.888888; // indicates corrupted row data
+        }
+
         PerformNeededDataConversions();
         PerformSanityChecksOnValues(SanityChecks::FINAL);
         UpdateStatsFileMap();
@@ -1887,13 +1941,14 @@ void LoggerDataReader::HandleCorruptData()
         UpdateTime();
     }
 
-    if(status_.firstHeaderFound && (!status_.headerFound) && (status_.position < filePositionLimit))
+    if (status_.firstHeaderFound && (!status_.headerFound) && (status_.position < status_.filePositionLimit))
     {
         status_.position++;
     }
-    else if(!(status_.position < filePositionLimit))
+
+    if (status_.position > status_.filePositionLimit)
     {
-        status_.position = filePositionLimit;
+        status_.position = status_.filePositionLimit;
     }
 }
 
@@ -2057,10 +2112,10 @@ bool LoggerDataReader::GetFirstHeader()
     ResetHeaderData();
 
     status_.position = 0;
-    filePositionLimit = inputFileContents_.size() - BYTES_READ_PER_ITERATION;
+    status_.filePositionLimit = inputFileContents_.size();
 
     // Keep grabbing bytes until header is found or end of file is reached
-    while (!status_.headerFound && (status_.position < filePositionLimit))
+    while (!status_.headerFound && (status_.position < status_.filePositionLimit))
     {
         GetRawNumber();
     }
@@ -2085,12 +2140,12 @@ bool LoggerDataReader::GetFirstHeader()
 void LoggerDataReader::ReadNextHeaderOrNumber()
 {
     status_.headerFound = false;
-   
+
     GetRawNumber();
     CheckForHeader();
     if (!status_.headerFound)
     {
-        if(parsedNumericData_.channelNumber == 0)
+        if (parsedNumericData_.channelNumber == 0)
         {
             // Make panel temp's channel number 9, as it is printed last
             parsedNumericData_.channelNumber = 9;
@@ -2126,41 +2181,40 @@ void LoggerDataReader::GetRawNumber()
     status_.headerFound = false;
 
     // Always read in 4 bytes, then check if those 4 bytes contain the header signature
-    if(status_.position < filePositionLimit)
+    for (int i = 0; i < 4; i++)
     {
-        for(int i = 0; i < 4; i++)
+        if (status_.position < status_.filePositionLimit)
         {
             parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.position];
             status_.position++;
         }
+        else
+        {
+            status_.position = status_.filePositionLimit;
+        }
     }
-
+    
     CheckForHeader();
 
     // If it is not a header, read in 1 more byte for channel number
-    if (!status_.headerFound && (status_.position < filePositionLimit))
+    if (!status_.headerFound && (status_.position < status_.filePositionLimit))
     {
         parsedNumericData_.channelNumber = inputFileContents_[status_.position];
         status_.position++;
-       
+
         if(status_.firstHeaderFound)
         {
-            if(parsedNumericData_.channelNumber == 0)
+            if ((parsedNumericData_.channelNumber >= 0) || (parsedNumericData_.channelNumber <= 8))
             {
-                status_.previousChannelNumber = -1;
-            }
-
-            if( (!status_.headerFound) &&
-                ((status_.recordNumber != 0) && // Some reason order is messed up in first record in each file
-                ((parsedNumericData_.channelNumber < 0) || (parsedNumericData_.channelNumber > 8) ||
-                (parsedNumericData_.channelNumber - status_.previousChannelNumber) != 1))) // Channel numbers should be consecutive, i.e., differring by 1
-            {
-                // Indicates data is corrupted
-                HandleCorruptData(); // Channel numbers must be in the range of [1,9] and in sequential order
-            }
-            if(!status_.headerFound) // Need to check if header was found again if corruption was detected
-            {
-                status_.previousChannelNumber = parsedNumericData_.channelNumber;
+                if (status_.isChannelPresent[parsedNumericData_.channelNumber] == true)
+                {
+                    // Indicates data is corrupted
+                    HandleCorruptData();
+                }
+                else
+                {
+                    status_.isChannelPresent[parsedNumericData_.channelNumber] = true;
+                }
             }
         }
     }
@@ -2229,31 +2283,26 @@ void LoggerDataReader::UpdateTime()
         headerData_.month = 1;
     }
 }
-     
+
 void LoggerDataReader::GetHeader()
 {
     uint8_t byte = 0;
     ResetHeaderData();
 
-    bool fileSizeLimitReached = false;
-    for(int i = 0; i < 4; i++)
+    for (int i = 0; i < 4; i++)
     {
         headerData_.rawHeader[i] = parsedNumericData_.rawHexNumber[i];
     }
     unsigned int currentPos = status_.position;
-    for(unsigned int i = currentPos; (i < currentPos + 44) && (i < filePositionLimit); i++)
+    for (unsigned int i = currentPos; (i < currentPos + 44) && (i < status_.filePositionLimit); i++)
     {
         byte = inputFileContents_[i];
         headerData_.rawHeader += byte;
         // update reading position
         status_.position++;
-        if(i == filePositionLimit - 1)
-        {
-            fileSizeLimitReached = true;
-        }
     }
 
-    if(!fileSizeLimitReached)
+    if (status_.position < status_.filePositionLimit)
     {
         ParseHeader();
     }
@@ -2297,7 +2346,7 @@ void LoggerDataReader::ParseHeader()
     headerData_.eastOrWestHemishere = headerData_.longitudeDecimalMinutesString[7];
     headerData_.longitudeDecimalMinutesString[7] = '\'';
     headerData_.longitudeDecimalMinutesString += " " + headerData_.eastOrWestHemishere;
-    
+
     for (int i = 28; i < 30; i++)
     {
         headerData_.yearString[i - 26] = headerData_.rawHeader[i];
@@ -2344,7 +2393,7 @@ void LoggerDataReader::ParseHeader()
         // due to an arithmetic error in which 1 was added to the ones place
         // but was not carried over to the tens
         status_.isCarryBugEncountered_ = true;
-        
+
         // Correct the seconds string
         char tensSecondsChar = headerData_.secondString[0];
         string  tensSecondsString(1, tensSecondsChar);
@@ -2377,7 +2426,7 @@ void LoggerDataReader::SetOutFilePaths(string inputfileName)
     string firstDateString = "";
     string firstTimeString = "";
     string extension = "";
-    firstDateString = headerData_.yearString + "-" + headerData_.monthString  + "-" + headerData_.dayString;
+    firstDateString = headerData_.yearString + "-" + headerData_.monthString + "-" + headerData_.dayString;
     firstTimeString = headerData_.hourString + "H" + headerData_.minuteString + "M";
 
     string fileNameNoExtension = inputfileName;
@@ -2386,7 +2435,7 @@ void LoggerDataReader::SetOutFilePaths(string inputfileName)
     {
         extension = fileNameNoExtension.substr(pos, fileNameNoExtension.size());
     }
-   
+
     // Strip away extension from file name
     if((fileNameNoExtension != extension) && (fileNameNoExtension.size()) > (extension.size()))
     {
@@ -2448,59 +2497,66 @@ void LoggerDataReader::PrintCorruptionDetectionsToLog()
     int currentSession = -1;
     int previousSession = -1;
 
-    for(int i = 0; i < status_.corruptedRecordNumbers.size(); i++)
+    if (status_.corruptedRecordNumbers.size() == 1)
     {
-        numErrors_++;
-        currentRecord = status_.corruptedRecordNumbers[i];
-        currentSession = status_.corruptedSessionNumbers[i];
-        if(previousRecord > 0)
+        logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt in record " + std::to_string(status_.corruptedRecordNumbers[0]) + " in session " + std::to_string(status_.corruptedSessionNumbers[0]) + "\n";
+    }
+    else
+    {
+        for (int i = 0; i < status_.corruptedRecordNumbers.size(); i++)
         {
-            if(previousSession < 0)
+            numErrors_++;
+            currentRecord = status_.corruptedRecordNumbers[i];
+            currentSession = status_.corruptedSessionNumbers[i];
+            if (previousRecord > 0)
             {
-                previousSession = currentSession;
-            }
-
-            if((currentRecord - previousRecord) == 1 && (currentSession == previousSession))
-            {
-                if(startRecordForRange == -1)
+                if (previousSession < 0)
                 {
-                    startRecordForRange = previousRecord;
+                    previousSession = currentSession;
                 }
-                endRecordForRange = currentRecord;
-                sessionForRange = status_.corruptedSessionNumbers[i];
-            }
-            else
-            {
-                if(startRecordForRange == -1)
+
+                if ((currentRecord - previousRecord) == 1 && (currentSession == previousSession))
                 {
+                    if (startRecordForRange == -1)
+                    {
+                        startRecordForRange = previousRecord;
+                    }
                     endRecordForRange = currentRecord;
                     sessionForRange = status_.corruptedSessionNumbers[i];
-                    logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt in record " + std::to_string(previousRecord) + " in session " + std::to_string(previousSession) + "\n";
-                    startRecordForRange = -1;
-                    endRecordForRange = -1;
-                    sessionForRange = -1;
                 }
                 else
                 {
+                    if (startRecordForRange == -1)
+                    {
+                        endRecordForRange = currentRecord;
+                        sessionForRange = status_.corruptedSessionNumbers[i];
+                        logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt in record " + std::to_string(previousRecord) + " in session " + std::to_string(previousSession) + "\n";
+                        startRecordForRange = -1;
+                        endRecordForRange = -1;
+                        sessionForRange = -1;
+                    }
+                    else
+                    {
+                        sessionForRange = status_.corruptedSessionNumbers[i];
+                        logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(endRecordForRange) + " in session " + std::to_string(sessionForRange) + "\n";
+                        startRecordForRange = -1;
+                        endRecordForRange = -1;
+                        sessionForRange = -1;
+                    }
+                }
+                if (i == status_.corruptedRecordNumbers.size() - 1 && endRecordForRange != -1)
+                {
                     sessionForRange = status_.corruptedSessionNumbers[i];
-                    logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(endRecordForRange) + " in session " + std::to_string(sessionForRange) + "\n";
+                    logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(currentRecord) + " in session " + std::to_string(sessionForRange) + "\n";
                     startRecordForRange = -1;
                     endRecordForRange = -1;
                     sessionForRange = -1;
                 }
             }
-            if(i == status_.corruptedRecordNumbers.size() - 1 && endRecordForRange != -1)
-            {
-                sessionForRange = status_.corruptedSessionNumbers[i];
-                logFileLines_ += "Error: File " + currentFileStats_.fileName + " data is corrupt from record " + std::to_string(startRecordForRange) + " to " + std::to_string(currentRecord) + " in session " + std::to_string(sessionForRange) + "\n";
-                startRecordForRange = -1;
-                endRecordForRange = -1;
-                sessionForRange = -1;
-            }
+
+            previousSession = currentSession;
+            previousRecord = status_.corruptedRecordNumbers[i];
         }
-        
-        previousSession = currentSession;
-        previousRecord = status_.corruptedRecordNumbers[i];
     }
 }
 
@@ -2707,8 +2763,8 @@ void LoggerDataReader::PrintGPSFileLine()
 float LoggerDataReader::UnsignedIntToIEEEFloat(uint32_t binaryNumber)
 {
     // Cast the unsigned 32 bit int as a float
-    float *pFloat;
-    pFloat = (float *)(&binaryNumber);
+    float* pFloat;
+    pFloat = (float*)(&binaryNumber);
     float value = *pFloat;
 
     return value;

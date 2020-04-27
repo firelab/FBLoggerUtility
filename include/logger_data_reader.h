@@ -185,11 +185,15 @@ class LoggerDataReader
 
     struct InFileReadingStatus
     {
+        bool isChannelPresent[9] = { false, false, false,
+                                     false, false, false,
+                                     false, false, false };
         int8_t previousChannelNumber = 0;
         uint8_t sensorReadingCounter = 0;
         uint8_t loggingSession = 0;
         uint32_t position = 0;
         uint32_t recordNumber = 0;
+        size_t filePositionLimit;
         string configColumnTextLine;
         string rawConfigColumnTextLine;
         string columnRawType[9];
@@ -450,8 +454,6 @@ private:
     unsigned int numFilesProcessed_;
     unsigned int numInvalidInputFiles_;
     unsigned int numInvalidOutputFiles_;
-
-    size_t filePositionLimit;
 
     string inDataFilePath_;
     string outDataFilePath_;
