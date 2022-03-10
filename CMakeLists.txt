@@ -51,6 +51,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
                 src/convert_velocity.cpp
                 src/fb_logger_log_file.cpp
                 src/fluid.cpp
+                src/legacy_logger_data_reader.cpp
                 src/logger_data_reader.cpp
                 src/gps_file.cpp
                 src/gui/logger_data_worker.cpp

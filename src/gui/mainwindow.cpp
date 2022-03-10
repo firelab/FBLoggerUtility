@@ -25,6 +25,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
 
     ui->createRawDataCheckBox->setCheckState(Qt::Unchecked);
+    ui->useLegacyDataCheckBox->setCheckState(Qt::Unchecked);
 
     configFilePath = "";
     burnFilesDirectoryPath = "";
@@ -91,12 +92,15 @@ MainWindow::MainWindow(QWidget *parent) :
     loggerDataWorker = nullptr;
 
     sharedData = new SharedData();
+    legacySharedData = new LegacySharedData();
 }
 
 MainWindow::~MainWindow()
 {
     sharedData->reset();
     delete sharedData;
+    legacySharedData->reset();
+    delete legacySharedData;
     delete ui;
 }
 
@@ -165,6 +169,12 @@ void MainWindow::convertPressed()
 
     bool configFileExists = false;
     bool burnDataDirectoryExists = false;
+
+    useLegacyData = false;
+    if(ui->useLegacyDataCheckBox->checkState() == Qt::Checked)
+    {
+        useLegacyData = true;
+    }
 
     configFilePath = ui->configFileLineEdit->text();
     if(QFileInfo::exists(configFilePath))
@@ -256,14 +266,28 @@ void MainWindow::convertPressed()
             burnName.end(),
             [](const QChar& c) { return !c.isLetterOrNumber(); }),
             burnName.end());
-        sharedData->burnName = burnName;
+       
     }
 
-    sharedData->windTunnelDataTablePath = windTunnelDataTablePath.toStdString();
-    sharedData->configFilePath = configFilePath.toStdString();
-    sharedData->burnName = "";
-    sharedData->dataPath = burnFilesDirectoryPath.toStdString();
-    sharedData->inputFilePathList = new vector<string>();
+    if(useLegacyData)
+    {
+        legacySharedData->burnName = burnName;
+        legacySharedData->windTunnelDataTablePath = windTunnelDataTablePath.toStdString();
+        legacySharedData->configFilePath = configFilePath.toStdString();
+        legacySharedData->burnName = "";
+        legacySharedData->dataPath = burnFilesDirectoryPath.toStdString();
+        legacySharedData->inputFilePathList = new vector<string>();
+    }
+    else
+    {
+        sharedData->burnName = burnName;
+        sharedData->windTunnelDataTablePath = windTunnelDataTablePath.toStdString();
+        sharedData->configFilePath = configFilePath.toStdString();
+        sharedData->burnName = "";
+        sharedData->dataPath = burnFilesDirectoryPath.toStdString();
+        sharedData->inputFilePathList = new vector<string>();
+    }
+
     //vector<string> datFileNameList;
     DIR* dir;
     struct dirent* ent;
@@ -288,7 +312,15 @@ void MainWindow::convertPressed()
                     if(extension == ".dat")
                     {
                         //datFileNameList.push_back(directoryName);
-                        sharedData->inputFilePathList->push_back(burnFilesDirectoryPath.toStdString() + "/" + fileName);
+
+                        if(useLegacyData)
+                        {
+                            legacySharedData->inputFilePathList->push_back(burnFilesDirectoryPath.toStdString() + "/" + fileName);
+                        }
+                        else
+                        {
+                            sharedData->inputFilePathList->push_back(burnFilesDirectoryPath.toStdString() + "/" + fileName);
+                        }
                     }
                 }
             }
@@ -306,17 +338,35 @@ void MainWindow::convertPressed()
 
         if(ui->createRawDataCheckBox->checkState() == Qt::Checked)
         {
-            sharedData->printRaw = true;
+            if(useLegacyData)
+            {
+                legacySharedData->printRaw = true;
+            }
+            else
+            {
+                sharedData->printRaw = true;
+            }
+          
         }
 
-        if(sharedData->inputFilePathList->size() > 0)
+        int inputFileListSize = 0;
+        if(useLegacyData)
+        {
+            inputFileListSize = legacySharedData->inputFilePathList->size();
+        }
+        else
+        {
+            inputFileListSize = sharedData->inputFilePathList->size();
+        }
+
+        if(inputFileListSize > 0)
         {
             ui->convertButton->setEnabled(false);
             progressDialog->setLabelText("File conversion in progress...");
             progressDialog->show();
 
             setUpLoggerDataWorker();
-            operate(sharedData);
+            operate(useLegacyData, legacySharedData, sharedData);
         }
         else
         {
@@ -404,9 +454,33 @@ void MainWindow::handleResults()
     // Display Messages Here
     QMessageBox msgBox;
     QString msgText = "";
-    if(!sharedData->aborted)
+
+    bool aborted = false;
+    bool gpsFileGood = false;
+    int totalFilesProcessed = 0;
+    string logFilePath = "";
+    string gpsFilePath = "";
+
+    if(useLegacyData)
     {
-        msgText += "Converted a total of " + QString::number(sharedData->totalFilesProcessed) + " DAT files to csv files to\n";
+        aborted = legacySharedData->aborted;
+        totalFilesProcessed = legacySharedData->totalFilesProcessed;
+        gpsFileGood = legacySharedData->gpsFileGood;
+        logFilePath = legacySharedData->logFilePath;
+        gpsFilePath = legacySharedData->gpsFilePath;
+    }
+    else
+    {
+        aborted = sharedData->aborted;
+        totalFilesProcessed = sharedData->totalFilesProcessed;
+        gpsFileGood = sharedData->gpsFileGood;
+        logFilePath = sharedData->logFilePath;
+        gpsFilePath = sharedData->gpsFilePath;
+    }
+
+    if(!aborted)
+    {
+        msgText += "Converted a total of " + QString::number(totalFilesProcessed) + " DAT files to csv files to\n";
         msgText += burnFilesDirectoryPath + "\n";
         msgText += "in " + QString::number(elapsedSeconds) + " seconds\n\n";
     }
@@ -415,20 +489,21 @@ void MainWindow::handleResults()
         msgText += "Conversion aborted by user\n\n";
     }
 
-    if(sharedData->gpsFileGood)
+    if(gpsFileGood)
     {
-        msgText += "A gps file was generated at\n" + QString::fromStdString(sharedData->gpsFilePath) + "\n\n";
+        msgText += "A gps file was generated at\n" + QString::fromStdString(gpsFilePath) + "\n\n";
     }
 
-    if(sharedData->logFilePath != "")
+    if(logFilePath != "")
     {
-        msgText += "A log file was generated at\n" + QString::fromStdString(sharedData->logFilePath);
+        msgText += "A log file was generated at\n" + QString::fromStdString(logFilePath);
     }
 
     msgBox.setText(msgText);
     msgBox.exec();
 
     sharedData->reset();
+    legacySharedData->reset();
     ui->convertButton->setEnabled(true);
 }
 
@@ -447,10 +522,18 @@ void MainWindow::updateIniFile()
         {
             createRawStateText = "true";
         }
+
+        QString useLegacyRawStateText = "false";
+        if(ui->useLegacyDataCheckBox->checkState() == Qt::Checked)
+        {
+            useLegacyRawStateText = "true";
+        }
+
         QString iniFileContents = "";
         iniFileContents += "fb_data_path=" + burnFilesDirectoryPath + "\n";
         iniFileContents += "fb_config_file=" + configFilePath + "\n";
         iniFileContents += "create_raw=" + createRawStateText + "\n";
+        iniFileContents += "use_legacy=" + useLegacyRawStateText + "\n";
         file.write(iniFileContents.toUtf8());
         file.close();
     }
@@ -497,6 +580,13 @@ void MainWindow::readIniFile()
                 if(fieldData == "true")
                 {
                     ui->createRawDataCheckBox->setCheckState(Qt::Checked);
+                }
+            }
+            else if(fieldName == "use_legacy")
+            {
+                if(fieldData == "true")
+                {
+                    ui->useLegacyDataCheckBox->setCheckState(Qt::Checked);
                 }
             }
         }

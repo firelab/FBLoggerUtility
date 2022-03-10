@@ -1,5 +1,7 @@
 #pragma once
 
+// Allows backward compatabilty for logger data from before 2022
+
 #include <string>
 #include <vector>
 #include <map>
@@ -8,6 +10,7 @@
 #include <sstream>
 #include <time.h>
 
+#include "common_constants.h"
 #include "convert_velocity.h"
 
 using std::string;
@@ -17,18 +20,20 @@ using std::stringstream;
 using std::pair;
 using std::map;
 
-struct StatsFileData
+static const unsigned int NUM_LEGACY_SENSOR_READINGS = 9;
+
+struct LegacyStatsFileData
 {
-    double columnMin[9] = { 0,0,0,0,0,0,0,0,0 };
-    double columnMax[9] = { 0,0,0,0,0,0,0,0,0 };
-    bool columnFailedSanityCheckRaw[9] = { false,false,false,false,false,false,false,false,false };
-    bool columnFailedSanityCheckFinal[9] = { false,false,false,false,false,false,false,false,false };
+    double columnMin[NUM_LEGACY_SENSOR_READINGS] = { 0,0,0,0,0,0,0,0,0 };
+    double columnMax[NUM_LEGACY_SENSOR_READINGS] = { 0,0,0,0,0,0,0,0,0 };
+    bool columnFailedSanityCheckRaw[NUM_LEGACY_SENSOR_READINGS] = { false,false,false,false,false,false,false,false,false };
+    bool columnFailedSanityCheckFinal[NUM_LEGACY_SENSOR_READINGS] = { false,false,false,false,false,false,false,false,false };
     bool isFailedSanityCheckRaw = false;
     bool isFailedSanityCheckFinal = false;
     string fileName = "";
 };
 
-struct SharedData
+struct LegacySharedData
 {
     int totalFilesProcessed = 0;
     int totalInvalidInputFiles = 0;
@@ -48,7 +53,7 @@ struct SharedData
     map<int, double>* heatFlux_X_VoltageOffsetMap = nullptr;
     map<int, double>* heatFlux_Y_VoltageOffsetMap = nullptr;
     map<int, double>* heatFlux_Z_VoltageOffsetMap = nullptr;
-    map<int, StatsFileData>* statsFileMap = nullptr;
+    map<int, LegacyStatsFileData>* statsFileMap = nullptr;
     vector<double>* angles = nullptr;
     vector<double>* ReynloldsNumbers = nullptr;
     vector<vector<double>>* pressureCoefficients = nullptr;
@@ -135,7 +140,7 @@ struct SharedData
     }
 };
 
-class LoggerDataReader
+class LegacyLoggerDataReader
 {
     // Internal data structures
     struct HeaderData
@@ -177,7 +182,7 @@ class LoggerDataReader
 
     struct ParsedNumericData
     {
-        uint8_t rawHexNumber[4];
+        uint8_t rawHexNumber[NUM_DATA_BYTES];
         uint8_t channelNumber = 0;
         float parsedIEEENumber = 0;
         unsigned int intFromBytes = 0;
@@ -185,9 +190,8 @@ class LoggerDataReader
 
     struct InFileReadingStatus
     {
-        bool isChannelPresent[9] = { false, false, false,
-                                     false, false, false,
-                                     false, false, false };
+        bool isChannelPresent[NUM_LEGACY_SENSOR_READINGS] = { false, false, false, false, false,
+                                     false, false, false, false };
         int8_t previousChannelNumber = 0;
         uint8_t sensorReadingCounter = 0;
         uint8_t loggingSession = 0;
@@ -196,8 +200,8 @@ class LoggerDataReader
         size_t filePositionLimit;
         string configColumnTextLine;
         string rawConfigColumnTextLine;
-        string columnRawType[9];
-        double sensorReadingValue[9];
+        string columnRawType[NUM_LEGACY_SENSOR_READINGS];
+        double sensorReadingValue[NUM_LEGACY_SENSOR_READINGS];
         bool headerFound = false;
         bool firstHeaderFound = false;
         bool isSerialNumberValid = false;
@@ -311,16 +315,16 @@ class LoggerDataReader
         const double velocityMin = -36.0;
         const double velocityMax = 36.0;
 
-        double FRawMin[9];
-        double FRawMax[9];
-        double FFinalMin[9];
-        double FFinalMax[9];
-        double HRawMin[9];
-        double HRawMax[9];
-        double HFinalMin[9];
-        double HFinalMax[9];
-        double TMin[9];
-        double TMax[9];
+        double FRawMin[NUM_LEGACY_SENSOR_READINGS];
+        double FRawMax[NUM_LEGACY_SENSOR_READINGS];
+        double FFinalMin[NUM_LEGACY_SENSOR_READINGS];
+        double FFinalMax[NUM_LEGACY_SENSOR_READINGS];
+        double HRawMin[NUM_LEGACY_SENSOR_READINGS];
+        double HRawMax[NUM_LEGACY_SENSOR_READINGS];
+        double HFinalMin[NUM_LEGACY_SENSOR_READINGS];
+        double HFinalMax[NUM_LEGACY_SENSOR_READINGS];
+        double TMin[NUM_LEGACY_SENSOR_READINGS];
+        double TMax[NUM_LEGACY_SENSOR_READINGS];
     };
 
     struct ConfigFileLine
@@ -341,12 +345,12 @@ class LoggerDataReader
 
 public:
     // Public interface
-    LoggerDataReader(string dataPath, string burnName);
-    LoggerDataReader(const SharedData& sharedData);
-    ~LoggerDataReader();
+    LegacyLoggerDataReader(string dataPath, string burnName);
+    LegacyLoggerDataReader(const LegacySharedData& sharedData);
+    ~LegacyLoggerDataReader();
 
-    void SetSharedData(const SharedData& sharedData);
-    void GetSharedData(SharedData& sharedData);
+    void SetSharedData(const LegacySharedData& sharedData);
+    void GetSharedData(LegacySharedData& sharedData);
 
     void ProcessSingleDataFile(int fileIndex);
     //void PrintStatsFile();
@@ -396,7 +400,7 @@ private:
     void CheckConfigForAllFiles();
     bool GetFirstHeader();
     void ReadNextHeaderOrNumber();
-    uint32_t GetIntFromByteArray(uint8_t arr[4]);
+    uint32_t GetIntFromByteArray(uint8_t arr[NUM_DATA_BYTES]);
     void GetRawNumber();
 	void CheckForHeader();
     void UpdateTime();
@@ -430,9 +434,6 @@ private:
     //void EndKMLFile();
 
     // Private data members
-    static const unsigned int NUM_SENSOR_READINGS = 9;
-    static const uint8_t BYTES_READ_PER_ITERATION = 5; // 5 total: 4 byte sensor reading, 1 byte channel number
-
     vector<string> inputFilePathList_;
     vector<string> invalidInputFileList_;
     vector<int> invalidInputFileErrorType_;
@@ -442,7 +443,7 @@ private:
     map<int, double> heatFlux_X_VoltageOffsetMap_;
     map<int, double> heatFlux_Y_VoltageOffsetMap_;
     map<int, double> heatFlux_Z_VoltageOffsetMap_;
-    map<int, StatsFileData> statsFileMap_;
+    map<int, LegacyStatsFileData> statsFileMap_;
 
     bool isConfigFileValid_;
     bool outputsAreGood_;
@@ -484,7 +485,7 @@ private:
     ConfigFileLine configFileLine_;
     SanityChecks sanityChecks_;
     convertVelocity convertVelocity_;
-    StatsFileData currentFileStats_;
+    LegacyStatsFileData currentFileStats_;
     IconUrls iconsUrls_;
 
     vector<char> inputFileContents_;

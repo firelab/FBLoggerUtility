@@ -10,6 +10,8 @@
 
 #include "ui_mainwindow.h"
 #include "my_custom_events.h"
+
+#include "legacy_logger_data_reader.h"
 #include "logger_data_reader.h"
 #include "logger_data_worker.h"
 
@@ -40,7 +42,7 @@ private slots:
 
 signals:
     void setProgressValue(int currentProgress);
-    void operate(SharedData* sharedData);
+    void operate(bool useLegacy, LegacySharedData* legacySharedData, SharedData* sharedData);
     void cancelWork();
 
 private:
@@ -51,6 +53,7 @@ private:
     void destroyLoggerDataWorker();
     
     bool windTunnelDataExists;
+    bool useLegacyData;
 
     Ui::MainWindow *ui;
     QString applicationPath;
@@ -60,6 +63,7 @@ private:
     QString windTunnelDataTablePath;
 
     SharedData* sharedData;
+    LegacySharedData* legacySharedData;
     LoggerDataWorker* loggerDataWorker;
     QThread* workerThread;
 

@@ -1,4 +1,4 @@
-#include "logger_data_reader.h"
+#include "legacy_logger_data_reader.h"
 #include "string_utility.h"
 #include "directory_reader_utility.h"
 
@@ -18,7 +18,7 @@ std::vector<std::vector<T>> make_2d_vector(std::size_t rows, std::size_t cols)
     return std::vector<std::vector<T>>(rows, std::vector<T>(cols));
 }
 
-LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
+LegacyLoggerDataReader::LegacyLoggerDataReader(string dataPath, string burnName)
 
 //kmlFilePath_(dataPath + "\\" + burnName + ".kml"),
 //kmlFile_(kmlFilePath_, std::ios::out)
@@ -53,7 +53,7 @@ LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
     printRaw_ = false;
 
     // Initialize F Config Sanity Checks
-    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+    for (int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
     {
         sanityChecks_.FRawMin[i] = sanityChecks_.NAMin;
         sanityChecks_.FRawMax[i] = sanityChecks_.NAMax;
@@ -131,7 +131,7 @@ LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
     sanityChecks_.HFinalMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
 
     // T Config Sanity Checks
-    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+    for (int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
     {
         sanityChecks_.TMin[i] = sanityChecks_.temperatureMin;
         sanityChecks_.TMax[i] = sanityChecks_.temperatureMax;
@@ -142,7 +142,7 @@ LoggerDataReader::LoggerDataReader(string dataPath, string burnName)
     ResetCurrentFileStats();
 }
 
-LoggerDataReader::LoggerDataReader(const SharedData& sharedData)
+LegacyLoggerDataReader::LegacyLoggerDataReader(const LegacySharedData& sharedData)
 {
     //gpsFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     //kmlFile_.exceptions(std::ofstream::failbit | std::ofstream::badbit);
@@ -175,7 +175,7 @@ LoggerDataReader::LoggerDataReader(const SharedData& sharedData)
     printRaw_ = false;
 
     // Initialize F Config Sanity Checks
-    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+    for (int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
     {
         sanityChecks_.FRawMin[i] = sanityChecks_.NAMin;
         sanityChecks_.FRawMax[i] = sanityChecks_.NAMax;
@@ -253,7 +253,7 @@ LoggerDataReader::LoggerDataReader(const SharedData& sharedData)
     sanityChecks_.HFinalMax[HeatFluxIndex::PANEL_TEMP] = sanityChecks_.temperatureMax;
 
     // T Config Sanity Checks
-    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+    for (int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
     {
         sanityChecks_.TMin[i] = sanityChecks_.temperatureMin;
         sanityChecks_.TMax[i] = sanityChecks_.temperatureMax;
@@ -263,12 +263,12 @@ LoggerDataReader::LoggerDataReader(const SharedData& sharedData)
     SetSharedData(sharedData);
 }
 
-LoggerDataReader::~LoggerDataReader()
+LegacyLoggerDataReader::~LegacyLoggerDataReader()
 {
 
 }
 
-void LoggerDataReader::GetSharedData(SharedData& sharedData)
+void LegacyLoggerDataReader::GetSharedData(LegacySharedData& sharedData)
 {
     sharedData.burnName = burnName_;
     sharedData.configFilePath = configFilePath_;
@@ -287,7 +287,7 @@ void LoggerDataReader::GetSharedData(SharedData& sharedData)
     sharedData.inputFilePathList = &inputFilePathList_;
 }
 
-void LoggerDataReader::SetSharedData(const SharedData& sharedData)
+void LegacyLoggerDataReader::SetSharedData(const LegacySharedData& sharedData)
 {
     burnName_ = sharedData.burnName;
     configFilePath_ = sharedData.configFilePath;
@@ -333,7 +333,7 @@ void LoggerDataReader::SetSharedData(const SharedData& sharedData)
     }
 }
 
-void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
+void LegacyLoggerDataReader::ProcessSingleDataFile(int fileIndex)
 {
     string infileName = inputFilePathList_[fileIndex];
     string extension = "";
@@ -446,7 +446,7 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
 
                             if (status_.headerFound)
                             {
-                                for(int i = 0; i < NUM_SENSOR_READINGS; i++)
+                                for(int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
                                 {
                                     status_.isChannelPresent[i] = false;
                                 }
@@ -455,7 +455,7 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                                 status_.sensorReadingCounter = 0;
 
                                 // Clear sensor readings
-                                for(int i = 0; i < NUM_SENSOR_READINGS; i++)
+                                for(int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
                                 {
                                     status_.sensorReadingValue[i] = 0.0;
                                 }
@@ -478,41 +478,31 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
                             }
 
                             UpdateSensorMaxAndMin();
-                            if (status_.sensorReadingCounter == NUM_SENSOR_READINGS)
+                            if (status_.sensorReadingCounter == 9)
                             {
-                                for(int i = 0; i < NUM_SENSOR_READINGS; i++)
+                                for(int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
                                 {
                                     status_.isChannelPresent[i] = false;
                                 }
 
                                 // An entire row of sensor data has been read in
                                 status_.recordNumber++;
-
-                                if(status_.recordNumber == 846)
-                                {
-                                    int test = 0;
-                                }
-
                                 PerformSanityChecksOnValues(SanityChecks::RAW);
-                               
-                                PerformNeededDataConversions();
-                                PerformSanityChecksOnValues(SanityChecks::FINAL);
-                                UpdateStatsFileMap();
-
-                                // Update time for next set of sensor readings        
-                                UpdateTime();
-                                // Get (possible) session end time
-                                StoreSessionEndTime();
-
-                                PrintSensorDataOutput(OutFileType::PROCESSED);
-
                                 if(printRaw_)
                                 {
                                     PrintSensorDataOutput(OutFileType::RAW);
                                 }
-
+                                PerformNeededDataConversions();
+                                PerformSanityChecksOnValues(SanityChecks::FINAL);
+                                UpdateStatsFileMap();
+                                PrintSensorDataOutput(OutFileType::PROCESSED);
                                 // Reset sensor reading counter 
                                 status_.sensorReadingCounter = 0;
+                                // Get (possible) session end time
+                                StoreSessionEndTime();
+                                // Update time for next set of sensor readings
+                                headerData_.milliseconds += headerData_.sampleInterval;
+                                UpdateTime();
                             }
                         }
                     }
@@ -583,7 +573,7 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
     //}
 }
 
-void LoggerDataReader::CheckConfig()
+void LegacyLoggerDataReader::CheckConfig()
 {
     ReadConfig();
 
@@ -594,13 +584,13 @@ void LoggerDataReader::CheckConfig()
     }
 }
 
-void LoggerDataReader::ReportAbort()
+void LegacyLoggerDataReader::ReportAbort()
 {
     numErrors_++;
     logFileLines_ += "Conversion aborted by user before completion at " + GetMyLocalDateTimeString() + "\n";
 }
 
-double LoggerDataReader::CalculateHeatFlux(double rawVoltage)
+double LegacyLoggerDataReader::CalculateHeatFlux(double rawVoltage)
 {
     if (true)	//if this is after the test gorse burn in 2018, we need to add 1.25 volts
     {
@@ -609,14 +599,14 @@ double LoggerDataReader::CalculateHeatFlux(double rawVoltage)
     return 56.60 * pow(rawVoltage, 1.129);
 }
 
-double LoggerDataReader::CalculateHeatFluxTemperature(double rawVoltage)
+double LegacyLoggerDataReader::CalculateHeatFluxTemperature(double rawVoltage)
 {
     double thermistorResistance = 10000.0 / ((-1.25 / rawVoltage) - 1.0);
     double heatFluxTemperature = (1.0 / (0.003356 - (log(30000.0 / thermistorResistance) / 3962.0))) - 273.15;
     return heatFluxTemperature;
 }
 
-int LoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureOne, double temperatureTwo,
+int LegacyLoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureOne, double temperatureTwo,
     double pressureVoltageU, double pressureVoltageV, double pressureVoltageW, double sensorBearing)
 {
     bool tempOneGood = (temperatureOne <= sanityChecks_.temperatureMax) && (temperatureOne >= sanityChecks_.temperatureMin);
@@ -662,12 +652,12 @@ int LoggerDataReader::CalculateHeatFluxComponentVelocities(double temperatureOne
     return 0; // success
 }
 
-double LoggerDataReader::CalculateFIDPackagePressure(double rawVoltage)
+double LegacyLoggerDataReader::CalculateFIDPackagePressure(double rawVoltage)
 {
     return 249.09 * (rawVoltage - 1.550) * 0.8065;
 }
 
-double LoggerDataReader::CalculateTCTemperature(double rawVoltage)
+double LegacyLoggerDataReader::CalculateTCTemperature(double rawVoltage)
 {
     double temperatureMillivolt;
     //--------------------------------------------------------------------------------------
@@ -693,11 +683,11 @@ double LoggerDataReader::CalculateTCTemperature(double rawVoltage)
     return rawVoltage;
 }
 
-void LoggerDataReader::PerformNeededDataConversions()
+void LegacyLoggerDataReader::PerformNeededDataConversions()
 {
     if (configurationType_ == "F")
     {
-        // Convert temperature from volts to 캜
+        // Convert temperature from volts to 째C
         double temperatureVoltage = status_.sensorReadingValue[FIDPackageIndex::TEMPERATURE];
         status_.sensorReadingValue[FIDPackageIndex::TEMPERATURE] = CalculateTCTemperature(temperatureVoltage);
 
@@ -718,7 +708,7 @@ void LoggerDataReader::PerformNeededDataConversions()
         double yVoltageOffset = heatFlux_Y_VoltageOffsetMap_.find(serialNumber_)->second;
         double zVoltageOffset = heatFlux_Z_VoltageOffsetMap_.find(serialNumber_)->second;
 
-        // Convert temperature from volts to 캜
+        // Convert temperature from volts to 째C
         double temperatureVoltageOne = status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_ONE];
         status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = CalculateTCTemperature(temperatureVoltageOne);
         double temperatureVoltageTwo = status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_TWO];
@@ -745,7 +735,7 @@ void LoggerDataReader::PerformNeededDataConversions()
     }
     else if (configurationType_ == "T")
     {
-        // Convert temperature from volts to 캜
+        // Convert temperature from volts to 째C
         double temperatureVoltage;
         for (int i = 0; i < 8; i++)
         {
@@ -755,12 +745,12 @@ void LoggerDataReader::PerformNeededDataConversions()
     }
 }
 
-void LoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTypeEnum sanityCheckType)
+void LegacyLoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckTypeEnum sanityCheckType)
 {
     double minForSanityCheck = 0.0;
     double maxForSanityCheck = 0.0;
 
-    for (unsigned int currentIndex = 0; currentIndex < NUM_SENSOR_READINGS; currentIndex++)
+    for (unsigned int currentIndex = 0; currentIndex < NUM_LEGACY_SENSOR_READINGS; currentIndex++)
     {
         double currentValue = status_.sensorReadingValue[currentIndex];
         if (configurationType_ == "F")
@@ -842,7 +832,7 @@ void LoggerDataReader::PerformSanityChecksOnValues(SanityChecks::SanityCheckType
     }
 }
 
-void LoggerDataReader::StoreInputFileContentsToRAM(ifstream& inFile)
+void LegacyLoggerDataReader::StoreInputFileContentsToRAM(ifstream& inFile)
 {
     // Get size of file in bytes
     inFile.seekg(0, ios::end);
@@ -859,7 +849,7 @@ void LoggerDataReader::StoreInputFileContentsToRAM(ifstream& inFile)
     inputFileContents_.assign(std::istreambuf_iterator<char>(inFile), std::istreambuf_iterator<char>());
 }
 
-void LoggerDataReader::ReadConfig()
+void LegacyLoggerDataReader::ReadConfig()
 {
     // Check for config file's existence
     std::ifstream configFile(configFilePath_, std::ios::in | std::ios::binary);
@@ -892,7 +882,7 @@ void LoggerDataReader::ReadConfig()
     }
 }
 
-void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
+void LegacyLoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
 {
     enum
     {
@@ -1173,7 +1163,7 @@ void LoggerDataReader::ParseTokensFromLineOfConfigFile(string& line)
     }
 }
 
-bool LoggerDataReader::CheckConfigFileFormatIsValid(ifstream& configFile)
+bool LegacyLoggerDataReader::CheckConfigFileFormatIsValid(ifstream& configFile)
 {
     // Check if file is valid
     string token = "";
@@ -1198,7 +1188,7 @@ bool LoggerDataReader::CheckConfigFileFormatIsValid(ifstream& configFile)
     return isConfigFileValid_;
 }
 
-void LoggerDataReader::ProcessLineOfConfigFile()
+void LegacyLoggerDataReader::ProcessLineOfConfigFile()
 {
     if (status_.isSerialNumberValid && status_.isConfigurationTypeValid)
     {
@@ -1335,7 +1325,7 @@ void LoggerDataReader::ProcessLineOfConfigFile()
     }
 }
 
-void LoggerDataReader::CheckConfigForAllFiles()
+void LegacyLoggerDataReader::CheckConfigForAllFiles()
 {
     int codepage = 0;
     numInvalidInputFiles_ = 0;
@@ -1394,7 +1384,7 @@ void LoggerDataReader::CheckConfigForAllFiles()
     }
 }
 
-void LoggerDataReader::ResetHeaderData()
+void LegacyLoggerDataReader::ResetHeaderData()
 {
     headerData_.rawHeader = "0000";
     headerData_.serialNumberString = "00000";
@@ -1420,7 +1410,7 @@ void LoggerDataReader::ResetHeaderData()
     headerData_.sampleInterval = 0;
 }
 
-void LoggerDataReader::ResetInFileReadingStatus()
+void LegacyLoggerDataReader::ResetInFileReadingStatus()
 {
     status_.sensorReadingCounter = 0;
     status_.position = 0;
@@ -1428,7 +1418,7 @@ void LoggerDataReader::ResetInFileReadingStatus()
     status_.configColumnTextLine = "";
     status_.loggingSession = 0;
 
-    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+    for (int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
     {
         status_.columnRawType[i] = "";
         status_.sensorReadingValue[i] = 0.0;
@@ -1439,9 +1429,9 @@ void LoggerDataReader::ResetInFileReadingStatus()
     status_.isRecoveredAfterDataCorruption_ = true;
 }
 
-void LoggerDataReader::ResetCurrentFileStats()
+void LegacyLoggerDataReader::ResetCurrentFileStats()
 {
-    for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+    for (int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
     {
         currentFileStats_.columnFailedSanityCheckRaw[i] = false;
         currentFileStats_.columnFailedSanityCheckFinal[i] = false;
@@ -1452,11 +1442,11 @@ void LoggerDataReader::ResetCurrentFileStats()
     currentFileStats_.isFailedSanityCheckRaw = false;
 }
 
-void LoggerDataReader::SetConfigDependentValues()
+void LegacyLoggerDataReader::SetConfigDependentValues()
 {
     if (configurationType_ == "F")
     {
-        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"캜\",\"FID(V)\",\"P(Pa)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (캜)\"\n";
+        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"째C\",\"FID(V)\",\"P(Pa)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (째C)\"\n";
         status_.rawConfigColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"Temp(V)\",\"FID(V)\",\"P(V)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (V)\"\n";
         status_.columnRawType[0] = "V";
         status_.columnRawType[1] = "FID(V)";
@@ -1468,11 +1458,11 @@ void LoggerDataReader::SetConfigDependentValues()
     }
     else if (configurationType_ == "H")
     {
-        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"캜\",\"캜\",\"u(m/s)\",\"v(m/s)\",\"w(m/s)\",\"HF(kW/m^2)\",\"HFT(C)\",\"NA\",\"Panel Temp (캜)\"\n";
+        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"째C\",\"째C\",\"u(m/s)\",\"v(m/s)\",\"w(m/s)\",\"HF(kW/m^2)\",\"HFT(C)\",\"NA\",\"Panel Temp (째C)\"\n";
         status_.rawConfigColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"Temp(V)\",\"Temp(V)\",\"u(V)\",\"v(V)\",\"w(V)\",\"HF(V)\",\"HFT(V)\",\"NA\",\"Panel Temp (V)\"\n";
         for (int i = 0; i < 2; i++)
         {
-            status_.columnRawType[i] = "캜";
+            status_.columnRawType[i] = "째C";
         }
         for (int i = 2; i < 5; i++)
         {
@@ -1484,7 +1474,7 @@ void LoggerDataReader::SetConfigDependentValues()
     }
     else if (configurationType_ == "T")
     {
-        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"캜\",\"캜\",\"캜\",\"캜\",\"캜\",\"캜\",\"캜\",\"캜\",\"Panel Temp (캜)\"\n";
+        status_.configColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"째C\",\"째C\",\"째C\",\"째C\",\"째C\",\"째C\",\"째C\",\"째C\",\"Panel Temp (째C)\"\n";
         status_.rawConfigColumnTextLine = "\"TIMESTAMP\",\"RECORD\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Panel Temp (Temp(V))\"\n";
         for (int i = 0; i < 8; i++)
         {
@@ -1495,7 +1485,7 @@ void LoggerDataReader::SetConfigDependentValues()
     status_.columnRawType[8] = "Panel Temp (V)";
 }
 
-//void LoggerDataReader::PrintStatsFile()
+//void LegacyLoggerDataReader::PrintStatsFile()
 //{
 //    statsFilePath_ = dataPath_ + "sensor_stats.csv";
 //    ofstream outStatsFile(statsFilePath_, std::ios::out);
@@ -1635,12 +1625,12 @@ void LoggerDataReader::SetConfigDependentValues()
 //    outStatsFile.close();
 //}
 
-void LoggerDataReader::UpdateStatsFileMap()
+void LegacyLoggerDataReader::UpdateStatsFileMap()
 {
-    statsFileMap_.insert(pair<int, StatsFileData>(serialNumber_, currentFileStats_));
+    statsFileMap_.insert(pair<int, LegacyStatsFileData>(serialNumber_, currentFileStats_));
 }
 
-void LoggerDataReader::StoreSessionStartTime()
+void LegacyLoggerDataReader::StoreSessionStartTime()
 {
     startTimeForSession_.year = headerData_.year;
     startTimeForSession_.yearString = headerData_.yearString;
@@ -1667,7 +1657,7 @@ void LoggerDataReader::StoreSessionStartTime()
 
 }
 
-void LoggerDataReader::StoreSessionEndTime()
+void LegacyLoggerDataReader::StoreSessionEndTime()
 {
     endTimeForSession_.year = headerData_.year;
     endTimeForSession_.yearString = headerData_.yearString;
@@ -1693,7 +1683,7 @@ void LoggerDataReader::StoreSessionEndTime()
     endTimeForSession_.millisecondString = MakeStringWidthThreeFromInt(endTimeForSession_.milliseconds);
 }
 
-bool LoggerDataReader::CreateWindTunnelDataVectors()
+bool LegacyLoggerDataReader::CreateWindTunnelDataVectors()
 {
     std::ifstream windTunnelDataFile(windTunnelDataPath_, std::ios::in);
     string line;
@@ -1743,7 +1733,7 @@ bool LoggerDataReader::CreateWindTunnelDataVectors()
     return isSuccessful;
 }
 
-void LoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData)
+void LegacyLoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerData)
 {
     // latitude
     double inputLatitudeDegrees = atof(headerData.latitudeDegreesString.c_str());
@@ -1764,7 +1754,7 @@ void LoggerDataReader::DegreesDecimalMinutesToDecimalDegrees(HeaderData& headerD
     }
 }
 
-void LoggerDataReader::HandleCorruptData()
+void LegacyLoggerDataReader::HandleCorruptData()
 {
     int numCorruptReadings = 0;
     int numCorruptRecords = 0;
@@ -1789,7 +1779,7 @@ void LoggerDataReader::HandleCorruptData()
 
         CheckForHeader();
 
-        for (uint8_t i = 0; i < NUM_SENSOR_READINGS; i++)
+        for (uint8_t i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
         {
             status_.isChannelPresent[i] = false;
         }
@@ -1806,7 +1796,7 @@ void LoggerDataReader::HandleCorruptData()
 
                 status_.isChannelPresent[parsedNumericData_.channelNumber] = true;
 
-                for (int i = 0; i < 9; i++)
+                for (int i = 0; i < 8; i++)
                 {
                     if (status_.position < (status_.filePositionLimit - BYTES_READ_PER_ITERATION))
                     {
@@ -1821,10 +1811,10 @@ void LoggerDataReader::HandleCorruptData()
 
                     // Check that channel numbers appear exactly once and in the correct order
                     if ((parsedNumericData_.channelNumber >= 0) &&
-                        (parsedNumericData_.channelNumber <= 9) &&
+                        (parsedNumericData_.channelNumber <= 8) &&
                         (status_.isChannelPresent[parsedNumericData_.channelNumber] == false))
                     {
-                        if ((parsedNumericData_.channelNumber == 0) && (status_.isChannelPresent[9] == true))
+                        if ((parsedNumericData_.channelNumber == 0) && (status_.isChannelPresent[8] == true))
                         {
                             status_.isChannelPresent[parsedNumericData_.channelNumber] = true;
                         }
@@ -1834,7 +1824,7 @@ void LoggerDataReader::HandleCorruptData()
                         }
                         else
                         {
-                            for (uint8_t i = 0; i < NUM_SENSOR_READINGS; i++)
+                            for (uint8_t i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
                             {
                                 status_.isChannelPresent[i] = false;
                             }
@@ -1843,7 +1833,7 @@ void LoggerDataReader::HandleCorruptData()
                     }
                     else
                     {
-                        for (uint8_t i = 0; i < NUM_SENSOR_READINGS; i++)
+                        for (uint8_t i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
                         {
                             status_.isChannelPresent[i] = false;
                         }
@@ -1860,22 +1850,21 @@ void LoggerDataReader::HandleCorruptData()
                 status_.isChannelPresent[5] &&
                 status_.isChannelPresent[6] &&
                 status_.isChannelPresent[7] &&
-                status_.isChannelPresent[8] &&
-                status_.isChannelPresent[9])
+                status_.isChannelPresent[8])
             {
                 isGoodChannelRead = true;
                 status_.position = posRecoveredReading;
                 parsedNumericData_.channelNumber = (uint8_t)inputFileContents_[status_.position];
 
-                status_.position -= NUM_DATA_BYTES;
+                status_.position -= 4;
 
-                for (int i = 0; i < NUM_DATA_BYTES; i++)
+                for (int i = 0; i < 4; i++)
                 {
                     parsedNumericData_.rawHexNumber[i] = (uint8_t)inputFileContents_[status_.position];
                     status_.position++;
                 }
 
-                for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+                for (int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
                 {
                     status_.isChannelPresent[i] = false;
                 }
@@ -1887,7 +1876,7 @@ void LoggerDataReader::HandleCorruptData()
             }
             else
             {
-                for (uint8_t i = 0; i < NUM_SENSOR_READINGS; i++)
+                for (uint8_t i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
                 {
                     status_.isChannelPresent[i] = false;
                 }
@@ -1912,7 +1901,7 @@ void LoggerDataReader::HandleCorruptData()
         numCorruptReadings++;
     }
 
-    numCorruptRecords = ceil(numCorruptReadings / (NUM_SENSOR_READINGS * 1.0));
+    numCorruptRecords = ceil(numCorruptReadings / (NUM_LEGACY_SENSOR_READINGS * 1.0));
 
     // Ensure at least one corrupt record if this method is called
     if (numCorruptRecords < 1)
@@ -1922,7 +1911,7 @@ void LoggerDataReader::HandleCorruptData()
 
     for (int i = 0; i < numCorruptRecords; i++)
     {
-        status_.corruptedRecordNumbers.push_back(status_.recordNumber + 1); // record number is zero indexed in program
+        status_.corruptedRecordNumbers.push_back(status_.recordNumber + 1); // record number is zero indexed in progra
         status_.corruptedSessionNumbers.push_back(status_.loggingSession);
 
         // An entire row of sensor data has been read in
@@ -1934,7 +1923,7 @@ void LoggerDataReader::HandleCorruptData()
             PrintSensorDataOutput(OutFileType::RAW);
         }
 
-        for (int i = 0; i < NUM_SENSOR_READINGS; i++)
+        for (int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
         {
             status_.sensorReadingValue[i] = -8888.888888; // indicates corrupted row data
         }
@@ -1963,14 +1952,14 @@ void LoggerDataReader::HandleCorruptData()
     }
 }
 
-//void LoggerDataReader::BeginKMLFile()
+//void LegacyLoggerDataReader::BeginKMLFile()
 //{
 //    kmlFile_ << "<?xml version='1.0' encoding='utf-8'?>\n";
 //    kmlFile_ << "<kml xmlns='http://www.opengis.net/kml/2.2'>\n";
 //    kmlFile_ << "<Document>\n";
 //}
 
-//string LoggerDataReader::FormatPlacemark()
+//string LegacyLoggerDataReader::FormatPlacemark()
 //{
 //    std::ostringstream ss;
 //
@@ -2032,18 +2021,18 @@ void LoggerDataReader::HandleCorruptData()
 //    return ss.str();
 //}
 
-//void LoggerDataReader::EndKMLFile()
+//void LegacyLoggerDataReader::EndKMLFile()
 //{
 //    kmlFile_ << "</Document>\n";
 //    kmlFile_ << "</kml>\n";
 //}
 
-void LoggerDataReader::SetPrintRaw(bool option)
+void LegacyLoggerDataReader::SetPrintRaw(bool option)
 {
     printRaw_ = option;
 }
 
-void LoggerDataReader::SetDataPath(string dataPath)
+void LegacyLoggerDataReader::SetDataPath(string dataPath)
 {
     if (dataPath.length() > 0)
     {
@@ -2063,62 +2052,62 @@ void LoggerDataReader::SetDataPath(string dataPath)
     }
 }
 
-void LoggerDataReader::SetWindTunnelDataTablePath(string windTunnelDataTablePath)
+void LegacyLoggerDataReader::SetWindTunnelDataTablePath(string windTunnelDataTablePath)
 {
     windTunnelDataPath_ = windTunnelDataTablePath;
 }
 
-void LoggerDataReader::SetAppPath(string appPath)
+void LegacyLoggerDataReader::SetAppPath(string appPath)
 {
     appPath_ = appPath;
 }
 
-void LoggerDataReader::SetConfigFile(string configFileFullPath)
+void LegacyLoggerDataReader::SetConfigFile(string configFileFullPath)
 {
     configFilePath_ = configFileFullPath;
 }
 
-string LoggerDataReader::GetDataPath()
+string LegacyLoggerDataReader::GetDataPath()
 {
     return dataPath_;
 }
 
-string LoggerDataReader::GetStatsFilePath()
+string LegacyLoggerDataReader::GetStatsFilePath()
 {
     return statsFilePath_;
 }
 
-unsigned int LoggerDataReader::GetNumberOfInputFiles()
+unsigned int LegacyLoggerDataReader::GetNumberOfInputFiles()
 {
     return (unsigned int)inputFilePathList_.size();
 }
 
-unsigned int LoggerDataReader::GetNumFilesProcessed()
+unsigned int LegacyLoggerDataReader::GetNumFilesProcessed()
 {
     return numFilesProcessed_;
 }
 
-unsigned int LoggerDataReader::GetNumInvalidFiles()
+unsigned int LegacyLoggerDataReader::GetNumInvalidFiles()
 {
     return numInvalidInputFiles_ + numInvalidOutputFiles_;
 }
 
-unsigned int LoggerDataReader::GetNumErrors()
+unsigned int LegacyLoggerDataReader::GetNumErrors()
 {
     return numErrors_;
 }
 
-bool LoggerDataReader::IsConfigFileValid()
+bool LegacyLoggerDataReader::IsConfigFileValid()
 {
     return isConfigFileValid_;
 }
 
-bool LoggerDataReader::IsDoneReadingDataFiles()
+bool LegacyLoggerDataReader::IsDoneReadingDataFiles()
 {
     return(currentFileIndex_ >= inputFilePathList_.size());
 }
 
-bool LoggerDataReader::GetFirstHeader()
+bool LegacyLoggerDataReader::GetFirstHeader()
 {
     ResetHeaderData();
 
@@ -2148,7 +2137,7 @@ bool LoggerDataReader::GetFirstHeader()
     return status_.headerFound;
 }
 
-void LoggerDataReader::ReadNextHeaderOrNumber()
+void LegacyLoggerDataReader::ReadNextHeaderOrNumber()
 {
     status_.headerFound = false;
 
@@ -2156,31 +2145,24 @@ void LoggerDataReader::ReadNextHeaderOrNumber()
     CheckForHeader();
     if (!status_.headerFound)
     {
-        //if (parsedNumericData_.channelNumber == 0)
-        //{
-        //    // Make panel temp's channel number 9, as it is printed last
-        //    parsedNumericData_.channelNumber = 10;
-        //}
+        if (parsedNumericData_.channelNumber == 0)
+        {
+            // Make panel temp's channel number 9, as it is printed last
+            parsedNumericData_.channelNumber = 9;
+        }
 
         if ((parsedNumericData_.channelNumber >= 0) && (parsedNumericData_.channelNumber <= 9)) // Prevents array out of bounds while reading a header 
         {
             parsedNumericData_.intFromBytes = GetIntFromByteArray(parsedNumericData_.rawHexNumber);
             parsedNumericData_.parsedIEEENumber = UnsignedIntToIEEEFloat(parsedNumericData_.intFromBytes);
-            if(parsedNumericData_.channelNumber == 0)
-            {
-                status_.sensorReadingValue[0] = parsedNumericData_.intFromBytes;
-            }
-            else
-            {
-                status_.sensorReadingValue[parsedNumericData_.channelNumber] = parsedNumericData_.parsedIEEENumber;
-            }
+            status_.sensorReadingValue[parsedNumericData_.channelNumber - 1] = parsedNumericData_.parsedIEEENumber;
             // increment sensor reading for next iteration
             status_.sensorReadingCounter++;
         }
     }
 }
 
-uint32_t LoggerDataReader::GetIntFromByteArray(uint8_t byteArray[NUM_DATA_BYTES])
+uint32_t LegacyLoggerDataReader::GetIntFromByteArray(uint8_t byteArray[4])
 {
     uint32_t integerValue = int(
         byteArray[3] << 24 | // Set high byte (bits 24 to 31)
@@ -2191,7 +2173,7 @@ uint32_t LoggerDataReader::GetIntFromByteArray(uint8_t byteArray[NUM_DATA_BYTES]
     return integerValue;
 }
 
-void LoggerDataReader::GetRawNumber()
+void LegacyLoggerDataReader::GetRawNumber()
 {
     int index = 0;
     int numCorruptReadings = 0;
@@ -2238,7 +2220,7 @@ void LoggerDataReader::GetRawNumber()
     }
 }
 
-void LoggerDataReader::CheckForHeader()
+void LegacyLoggerDataReader::CheckForHeader()
 {
     // Check for header signature "SNXX" where X is 0-9
     if ((parsedNumericData_.rawHexNumber[0] == 'S') && (parsedNumericData_.rawHexNumber[1] == 'N') && (parsedNumericData_.rawHexNumber[2] == '0')
@@ -2251,63 +2233,58 @@ void LoggerDataReader::CheckForHeader()
     }
 }
 
-void LoggerDataReader::UpdateTime()
+void LegacyLoggerDataReader::UpdateTime()
 {
     // Zero is in first entry so index is calendar year month
     static const unsigned int monthLength[] = { 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
-    int currentMillisecondsSinceSessionStart = status_.sensorReadingValue[0];
-    headerData_.milliseconds = currentMillisecondsSinceSessionStart;
-
-    while(currentMillisecondsSinceSessionStart >= 1000)
+    if (headerData_.milliseconds >= 1000)
     {
-        currentMillisecondsSinceSessionStart -= 1000;
-        headerData_.milliseconds = currentMillisecondsSinceSessionStart;
+        headerData_.milliseconds -= 1000;
         headerData_.seconds++;
-
-        if(headerData_.seconds >= 60)
+    }
+    if (headerData_.seconds >= 60)
+    {
+        headerData_.seconds -= 60;
+        headerData_.minutes++;
+    }
+    if (headerData_.minutes >= 60)
+    {
+        headerData_.minutes -= 60;
+        headerData_.hours++;
+    }
+    if (headerData_.hours >= 24)
+    {
+        headerData_.hours -= 24;
+        headerData_.day++;
+    }
+    // Handling leap years
+    bool leap = (headerData_.year % 4 == 0) && (headerData_.year % 100 != 0 || headerData_.year % 400 == 0);
+    if (headerData_.day > monthLength[headerData_.month])
+    {
+        if (!(leap && (headerData_.month == 2)))
         {
-            headerData_.seconds -= 60;
-            headerData_.minutes++;
+            // If it's not both february and a leap year
+            // Then move on to the next month
+            headerData_.day = 1;
+            headerData_.month++;
         }
-        if(headerData_.minutes >= 60)
+        else if (leap && (headerData_.month == 2) && (headerData_.day > 29))
         {
-            headerData_.minutes -= 60;
-            headerData_.hours++;
+            // Else if it's a leap year and yesterday was February 29
+            // Then move on to the next month
+            headerData_.day = 1;
+            headerData_.month++;
         }
-        if(headerData_.hours >= 24)
-        {
-            headerData_.hours -= 24;
-            headerData_.day++;
-        }
-        // Handling leap years
-        bool leap = (headerData_.year % 4 == 0) && (headerData_.year % 100 != 0 || headerData_.year % 400 == 0);
-        if(headerData_.day > monthLength[headerData_.month])
-        {
-            if(!(leap && (headerData_.month == 2)))
-            {
-                // If it's not both february and a leap year
-                // Then move on to the next month
-                headerData_.day = 1;
-                headerData_.month++;
-            }
-            else if(leap && (headerData_.month == 2) && (headerData_.day > 29))
-            {
-                // Else if it's a leap year and yesterday was February 29
-                // Then move on to the next month
-                headerData_.day = 1;
-                headerData_.month++;
-            }
-        }
-        if(headerData_.month > 12)
-        {
-            headerData_.year++;
-            headerData_.month = 1;
-        }
+    }
+    if (headerData_.month > 12)
+    {
+        headerData_.year++;
+        headerData_.month = 1;
     }
 }
 
-void LoggerDataReader::GetHeader()
+void LegacyLoggerDataReader::GetHeader()
 {
     uint8_t byte = 0;
     ResetHeaderData();
@@ -2331,7 +2308,7 @@ void LoggerDataReader::GetHeader()
     }
 }
 
-void LoggerDataReader::ParseHeader()
+void LegacyLoggerDataReader::ParseHeader()
 {
     string temp;
     // Get the serial number
@@ -2346,7 +2323,7 @@ void LoggerDataReader::ParseHeader()
     {
         headerData_.latitudeDegreesString[i - 7] = headerData_.rawHeader[i];
     }
-    headerData_.latitudeDegreesString += "�";
+    headerData_.latitudeDegreesString += "째";
     for (int i = 9; i < 17; i++)
     {
         headerData_.latitudeDecimalMinutesString[i - 9] = headerData_.rawHeader[i];
@@ -2361,7 +2338,7 @@ void LoggerDataReader::ParseHeader()
     {
         headerData_.longitudeDegreesString[i - 17] = headerData_.rawHeader[i];
     }
-    headerData_.longitudeDegreesString += "�";
+    headerData_.longitudeDegreesString += "째";
     for (int i = 20; i < 28; i++)
     {
         headerData_.longitudeDecimalMinutesString[i - 20] = headerData_.rawHeader[i];
@@ -2444,7 +2421,7 @@ void LoggerDataReader::ParseHeader()
     }
 }
 
-void LoggerDataReader::SetOutFilePaths(string inputfileName)
+void LegacyLoggerDataReader::SetOutFilePaths(string inputfileName)
 {
     string firstDateString = "";
     string firstTimeString = "";
@@ -2495,7 +2472,7 @@ void LoggerDataReader::SetOutFilePaths(string inputfileName)
     outDataFilePath_ += ".csv";
 }
 
-void LoggerDataReader::PrintOutDataLinesToFile(ofstream& outFile, const string& outFileDataLines)
+void LegacyLoggerDataReader::PrintOutDataLinesToFile(ofstream& outFile, const string& outFileDataLines)
 {
     // Print to file
     if (outFile.good())
@@ -2504,13 +2481,13 @@ void LoggerDataReader::PrintOutDataLinesToFile(ofstream& outFile, const string& 
     }
 }
 
-void LoggerDataReader::PrintCarryBugToLog()
+void LegacyLoggerDataReader::PrintCarryBugToLog()
 {
     numErrors_++;
     logFileLines_ += "Error: File " + currentFileStats_.fileName + " has failure to carry the one in header\n";
 }
 
-void LoggerDataReader::PrintCorruptionDetectionsToLog()
+void LegacyLoggerDataReader::PrintCorruptionDetectionsToLog()
 {
     int currentRecord = -1;
     int previousRecord = -1;
@@ -2583,7 +2560,7 @@ void LoggerDataReader::PrintCorruptionDetectionsToLog()
     }
 }
 
-void LoggerDataReader::PrintConfigErrorsToLog()
+void LegacyLoggerDataReader::PrintConfigErrorsToLog()
 {
     for (unsigned int i = 0; i < invalidInputFileList_.size(); i++)
     {
@@ -2607,17 +2584,17 @@ void LoggerDataReader::PrintConfigErrorsToLog()
     }
 }
 
-string LoggerDataReader::GetLogFileLines()
+string LegacyLoggerDataReader::GetLogFileLines()
 {
     return logFileLines_;
 }
 
-string LoggerDataReader::GetGPSFileLines()
+string LegacyLoggerDataReader::GetGPSFileLines()
 {
     return gpsFileLines_;
 }
 
-void LoggerDataReader::PrintHeader(OutFileType::OutFileTypeEnum outFileType)
+void LegacyLoggerDataReader::PrintHeader(OutFileType::OutFileTypeEnum outFileType)
 {
     const string columnHeader = "\"SN" + headerData_.serialNumberString + "\"," + "\"" + headerData_.latitudeDegreesString + " " +
         headerData_.latitudeDecimalMinutesString + "\",\"" + headerData_.longitudeDegreesString + " " +
@@ -2638,7 +2615,7 @@ void LoggerDataReader::PrintHeader(OutFileType::OutFileTypeEnum outFileType)
     }
 }
 
-void LoggerDataReader::UpdateSensorMaxAndMin()
+void LegacyLoggerDataReader::UpdateSensorMaxAndMin()
 {
     // Update max and min
     int currentReadingIndex = parsedNumericData_.channelNumber - 1;
@@ -2655,8 +2632,10 @@ void LoggerDataReader::UpdateSensorMaxAndMin()
     }
 }
 
-void LoggerDataReader::PrintSensorDataOutput(OutFileType::OutFileTypeEnum outFileType)
+void LegacyLoggerDataReader::PrintSensorDataOutput(OutFileType::OutFileTypeEnum outFileType)
 {
+    const unsigned int miliSecondWidth = 3;
+
     string dayString;
     string monthString;
     string yearString;
@@ -2666,9 +2645,9 @@ void LoggerDataReader::PrintSensorDataOutput(OutFileType::OutFileTypeEnum outFil
     string millisecondsString;
     string recordString;
 
-    for(int i = 0; i < NUM_SENSOR_READINGS; i++)
+    for (int i = 0; i < NUM_LEGACY_SENSOR_READINGS; i++)
     {
-        if(i == 0)
+        if (i == 0)
         {
             yearString = MakeStringWidthTwoFromInt(headerData_.year);
             monthString = MakeStringWidthTwoFromInt(headerData_.month);
@@ -2681,95 +2660,90 @@ void LoggerDataReader::PrintSensorDataOutput(OutFileType::OutFileTypeEnum outFil
             // Print out time information parsed from the header
             const string timeStamp = "\"" + yearString + "-" + monthString + "-" + dayString + " " +
                 hourString + ":" + minuteString + ":" + secondString + "." + millisecondsString +
-                "\"";
-            if(outFileType == OutFileType::PROCESSED)
+                "\"," + recordString + ",";
+            if (outFileType == OutFileType::PROCESSED)
             {
-                //outDataLines_ += timeStamp + "," + recordString + ",";
-                outDataLines_ += timeStamp + "," + std::to_string((int)status_.sensorReadingValue[i]) + "," + recordString + ","; // for debugging
+                outDataLines_ += timeStamp;
             }
-            if(outFileType == OutFileType::RAW)
+            if (outFileType == OutFileType::RAW)
             {
-                //rawOutDataLines_ += timeStamp + "," + recordString + ",";
-                rawOutDataLines_ += timeStamp + "," + std::to_string((int)status_.sensorReadingValue[i]) + "," + recordString + ","; // for debugging
-            } 
+                rawOutDataLines_ += timeStamp;
+            }
         }
-        else
+        if (configurationType_ == "F")
         {
-            if(configurationType_ == "F")
+            if (outFileType == OutFileType::RAW)
             {
-                if(outFileType == OutFileType::RAW)
-                {
-                    rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
-                }
-                else if(outFileType == OutFileType::PROCESSED)
-                {
-                    if((sanityChecks_.FFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.FFinalMax[i] != sanityChecks_.NAMax))
-                    {
-                        outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
-                    }
-                    else
-                    {
-                        outDataLines_ += std::to_string(0.0);
-                    }
-                }
+                rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
             }
-            else if(configurationType_ == "H")
+            else if (outFileType == OutFileType::PROCESSED)
             {
-                if(outFileType == OutFileType::RAW)
-                {
-                    rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
-                }
-                else if(outFileType == OutFileType::PROCESSED)
-                {
-                    if((sanityChecks_.HFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.HFinalMax[i] != sanityChecks_.NAMax))
-                    {
-                        outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
-                    }
-                    else
-                    {
-                        outDataLines_ += std::to_string(0.0);
-                    }
-                }
-            }
-            else if(configurationType_ == "T")
-            {
-                if(outFileType == OutFileType::RAW)
-                {
-                    rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
-                }
-                else if(outFileType == OutFileType::PROCESSED)
+                if ((sanityChecks_.FFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.FFinalMax[i] != sanityChecks_.NAMax))
                 {
                     outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
                 }
+                else
+                {
+                    outDataLines_ += std::to_string(0.0);
+                }
             }
+        }
+        else if (configurationType_ == "H")
+        {
+            if (outFileType == OutFileType::RAW)
+            {
+                rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
+            }
+            else if (outFileType == OutFileType::PROCESSED)
+            {
+                if ((sanityChecks_.HFinalMin[i] != sanityChecks_.NAMin) && (sanityChecks_.HFinalMax[i] != sanityChecks_.NAMax))
+                {
+                    outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
+                }
+                else
+                {
+                    outDataLines_ += std::to_string(0.0);
+                }
+            }
+        }
+        else if (configurationType_ == "T")
+        {
+            if (outFileType == OutFileType::RAW)
+            {
+                rawOutDataLines_ += std::to_string(status_.sensorReadingValue[i]);
+            }
+            else if (outFileType == OutFileType::PROCESSED)
+            {
+                outDataLines_ += std::to_string(status_.sensorReadingValue[i]);
+            }
+        }
 
-            if(i < (NUM_SENSOR_READINGS - 1))
+        if (i < 8)
+        {
+            if (outFileType == OutFileType::PROCESSED)
             {
-                if(outFileType == OutFileType::PROCESSED)
-                {
-                    outDataLines_ += ",";
-                }
-                else if(outFileType == OutFileType::RAW)
-                {
-                    rawOutDataLines_ += ",";
-                }
+                outDataLines_ += ",";
             }
-            else
+            else if (outFileType == OutFileType::RAW)
             {
-                if(outFileType == OutFileType::PROCESSED)
-                {
-                    outDataLines_ += "\n";
-                }
-                if(outFileType == OutFileType::RAW)
-                {
-                    rawOutDataLines_ += "\n";
-                }
+                rawOutDataLines_ += ",";
+            }
+        }
+        else
+        {
+            if (outFileType == OutFileType::PROCESSED)
+            {
+                outDataLines_ += "\n";
+            }
+            if (outFileType == OutFileType::RAW)
+            {
+                rawOutDataLines_ += "\n";
             }
         }
     }
 }
 
-void LoggerDataReader::PrintGPSFileLine()
+void LegacyLoggerDataReader::PrintGPSFileLine()
 {
     // file, logger unit, and gps data
     gpsFileLines_ = currentFileStats_.fileName + ",SN" + headerData_.serialNumberString + "," + std::to_string(status_.loggingSession) +
@@ -2786,7 +2760,7 @@ void LoggerDataReader::PrintGPSFileLine()
         endTimeForSession_.hourString + ":" + endTimeForSession_.minuteString + ":" + endTimeForSession_.secondString + "." + endTimeForSession_.millisecondString + "\n";
 }
 
-float LoggerDataReader::UnsignedIntToIEEEFloat(uint32_t binaryNumber)
+float LegacyLoggerDataReader::UnsignedIntToIEEEFloat(uint32_t binaryNumber)
 {
     // Cast the unsigned 32 bit int as a float
     float* pFloat;

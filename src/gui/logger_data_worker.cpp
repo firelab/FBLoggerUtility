@@ -40,12 +40,196 @@ void LoggerDataWorker::handleCancelWorkEvent(const CancelWorkEvent *event)
     isWorkCancelled = true;
 }
 
-void LoggerDataWorker::doWork(SharedData* sharedData)
+void LoggerDataWorker::legacyWorkBody(LegacySharedData* legacySharedData)
 {
-    /* ... here is the expensive or blocking operation ... */
-
     bool isGoodWindTunnelTable = false;
-    
+
+    string configFilePath = legacySharedData->configFilePath;
+    clock_t startClock = clock();
+
+    LegacyLoggerDataReader globalLoggerDataReader(*legacySharedData);
+    FBLoggerLogFile logFile(legacySharedData->dataPath);
+    GPSFile gpsFile(legacySharedData->dataPath);
+    globalLoggerDataReader.SetConfigFile(legacySharedData->configFilePath);
+
+    int totalNumberOfFiles = 0;
+
+    vector<string> logFileLinesPerFile;
+    vector<string> gpsFileLinesPerFile;
+
+    // Shared accumulated data
+    int totalInvalidInputFiles = 0;
+    int totalFilesProcessed = 0;
+    int totalNumErrors = 0;
+    float flProgress = 0;
+
+    int num_threads = 1;
+
+    // Check log file, check config file, process input files, create output files 
+    if(logFile.IsLogFileGood())
+    {
+        globalLoggerDataReader.CheckConfig();
+        // Load data in from wind tunnel data table
+        globalLoggerDataReader.SetWindTunnelDataTablePath(legacySharedData->windTunnelDataTablePath);
+        isGoodWindTunnelTable = globalLoggerDataReader.CreateWindTunnelDataVectors();
+
+        logFile.logFileLines_ = globalLoggerDataReader.GetLogFileLines();
+
+        if(globalLoggerDataReader.IsConfigFileValid() && isGoodWindTunnelTable)
+        {
+            totalNumberOfFiles = globalLoggerDataReader.GetNumberOfInputFiles();
+            LegacySharedData shareDataLocal = *legacySharedData;
+            globalLoggerDataReader.GetSharedData(shareDataLocal);
+
+            if(totalNumberOfFiles > 0)
+            {
+                for(int i = 0; i < totalNumberOfFiles; i++)
+                {
+                    logFileLinesPerFile.push_back("");
+                }
+
+                for(int i = 0; i < totalNumberOfFiles; i++)
+                {
+                    gpsFileLinesPerFile.push_back("");
+                }
+
+#ifdef _OPENMP
+                num_threads = omp_get_num_procs() - 1;
+                if(num_threads < 1)
+                {
+                    num_threads = 1;
+                }
+                omp_set_num_threads(num_threads);
+
+#pragma omp parallel for schedule(dynamic, 1) shared(totalFilesProcessed, totalInvalidInputFiles, totalNumErrors, flProgress, logFileLinesPerFile, gpsFileLinesPerFile)  
+#endif
+                for(int i = 0; i < totalNumberOfFiles; i++)
+                {
+                    // Check for kill
+                    QCoreApplication::processEvents();
+
+                    if(!isWorkCancelled)
+                    {
+                        // Need to pass needed maps and vectors to a FBLoggerDataReader
+                        LegacyLoggerDataReader localLoggerDataReader(shareDataLocal);
+                        if(shareDataLocal.printRaw == true)
+                        {
+                            localLoggerDataReader.SetPrintRaw(true);
+                        }
+                        localLoggerDataReader.ProcessSingleDataFile(i);
+
+                        // Check for kill
+                        QCoreApplication::processEvents();
+
+#ifdef _OPENMP
+#pragma omp critical(updateLogAndProgress)
+#endif
+                        // critical section 
+                        {
+                            totalFilesProcessed += localLoggerDataReader.GetNumFilesProcessed();
+                            totalInvalidInputFiles += localLoggerDataReader.GetNumInvalidFiles();
+                            totalNumErrors += localLoggerDataReader.GetNumErrors();
+                            logFileLinesPerFile[i] = localLoggerDataReader.GetLogFileLines();
+                            gpsFileLinesPerFile[i] = localLoggerDataReader.GetGPSFileLines();
+
+                            if(!isWorkCancelled)
+                            {
+                                flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
+                                QApplication::postEvent(parent, new ProgressUpdateEvent((int)flProgress));
+                            }
+                            else
+                            {
+                                QApplication::postEvent(parent, new ProgressUpdateEvent((int)0));
+                            }
+                        }
+
+                        // end critical section
+                    }
+                }
+            }
+        }
+    }
+
+    QApplication::postEvent(parent, new ProgressUpdateEvent(100));
+
+    if(isWorkCancelled)
+    {
+        legacySharedData->aborted = true;
+        double totalTimeInSeconds = ((double)clock() - (double)startClock) / (double)CLOCKS_PER_SEC;
+
+        if(logFile.IsLogFileGood())
+        {
+            legacySharedData->logFilePath = legacySharedData->dataPath + "/" + "log_file.txt";
+            globalLoggerDataReader.ReportAbort();
+            logFile.AddToLogFile(globalLoggerDataReader.GetLogFileLines());
+            logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
+        }
+        else
+        {
+            legacySharedData->logFilePath = "";
+        }
+    }
+    else
+    {
+        double totalTimeInSeconds = ((double)clock() - (double)startClock) / (double)CLOCKS_PER_SEC;
+        int numFilesConverted = totalFilesProcessed - totalInvalidInputFiles;
+
+        if(logFile.IsLogFileGood())
+        {
+            legacySharedData->logFilePath = legacySharedData->dataPath + "/" + "log_file.txt";
+            for(int i = 0; i < logFileLinesPerFile.size(); i++)
+            {
+                logFile.AddToLogFile(logFileLinesPerFile[i]);
+            }
+            logFile.PrintFinalReportToLogFile(totalTimeInSeconds, totalInvalidInputFiles, totalFilesProcessed, totalNumErrors);
+        }
+        else
+        {
+            legacySharedData->logFilePath = "";
+        }
+
+        if(gpsFile.IsGPSFileGood())
+        {
+            legacySharedData->gpsFilePath = legacySharedData->dataPath + "/" + legacySharedData->burnName + "gps_file.txt";
+            for(int i = 0; i < gpsFileLinesPerFile.size(); i++)
+            {
+                gpsFile.AddToGPSFile(gpsFileLinesPerFile[i]);
+            }
+            gpsFile.PrintGPSFileLinesToFile();
+        }
+
+        if(!isGoodWindTunnelTable)
+        {
+            //text = _T("There are errors in the wind tunnel data table file");
+            //caption = ("Error: Invalid wind tunnel data table file");
+        }
+
+        if(globalLoggerDataReader.IsConfigFileValid())
+        {
+            legacySharedData->configFileGood = true;
+        }
+
+        if(totalFilesProcessed > 0)
+        {
+            legacySharedData->totalFilesProcessed = totalFilesProcessed;
+        }
+
+        if(totalInvalidInputFiles > 0)
+        {
+            legacySharedData->totalInvalidInputFiles = totalInvalidInputFiles;
+        }
+
+        if(gpsFile.IsGPSFileGood())
+        {
+            legacySharedData->gpsFileGood = true;
+        }
+    }
+}
+
+void LoggerDataWorker::workBody(SharedData* sharedData)
+{
+    bool isGoodWindTunnelTable = false;
+
     string configFilePath = sharedData->configFilePath;
     clock_t startClock = clock();
 
@@ -53,7 +237,7 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
     FBLoggerLogFile logFile(sharedData->dataPath);
     GPSFile gpsFile(sharedData->dataPath);
     globalLoggerDataReader.SetConfigFile(sharedData->configFilePath);
-   
+
     int totalNumberOfFiles = 0;
 
     vector<string> logFileLinesPerFile;
@@ -74,7 +258,7 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
         // Load data in from wind tunnel data table
         globalLoggerDataReader.SetWindTunnelDataTablePath(sharedData->windTunnelDataTablePath);
         isGoodWindTunnelTable = globalLoggerDataReader.CreateWindTunnelDataVectors();
-        
+
         logFile.logFileLines_ = globalLoggerDataReader.GetLogFileLines();
 
         if(globalLoggerDataReader.IsConfigFileValid() && isGoodWindTunnelTable)
@@ -128,23 +312,23 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
 #endif
                         // critical section 
                         {
-                                totalFilesProcessed += localLoggerDataReader.GetNumFilesProcessed();
-                                totalInvalidInputFiles += localLoggerDataReader.GetNumInvalidFiles();
-                                totalNumErrors += localLoggerDataReader.GetNumErrors();
-                                logFileLinesPerFile[i] = localLoggerDataReader.GetLogFileLines();
-                                gpsFileLinesPerFile[i] = localLoggerDataReader.GetGPSFileLines();
+                            totalFilesProcessed += localLoggerDataReader.GetNumFilesProcessed();
+                            totalInvalidInputFiles += localLoggerDataReader.GetNumInvalidFiles();
+                            totalNumErrors += localLoggerDataReader.GetNumErrors();
+                            logFileLinesPerFile[i] = localLoggerDataReader.GetLogFileLines();
+                            gpsFileLinesPerFile[i] = localLoggerDataReader.GetGPSFileLines();
 
-                                if(!isWorkCancelled)
-                                {
-                                    flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
-                                    QApplication::postEvent(parent, new ProgressUpdateEvent((int)flProgress));
-                                }
-                                else
-                                {
-                                    QApplication::postEvent(parent, new ProgressUpdateEvent((int)0));
-                                }
+                            if(!isWorkCancelled)
+                            {
+                                flProgress = (static_cast<float>(totalFilesProcessed) / totalNumberOfFiles) * (static_cast<float>(100.0));
+                                QApplication::postEvent(parent, new ProgressUpdateEvent((int)flProgress));
+                            }
+                            else
+                            {
+                                QApplication::postEvent(parent, new ProgressUpdateEvent((int)0));
+                            }
                         }
-                       
+
                         // end critical section
                     }
                 }
@@ -226,7 +410,19 @@ void LoggerDataWorker::doWork(SharedData* sharedData)
             sharedData->gpsFileGood = true;
         }
     }
+}
 
+void LoggerDataWorker::doWork(bool useLegacy, LegacySharedData* legacySharedData, SharedData* sharedData)
+{
+    /* ... here is the expensive or blocking operation ... */
+    if(useLegacy)
+    {
+        legacyWorkBody(legacySharedData);
+    }
+    else // useLegacy == false
+    {
+        workBody(sharedData);
+    }
     emit resultReady();
 }
 

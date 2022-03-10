@@ -20,8 +20,132 @@
    <layout class="QVBoxLayout" name="verticalLayout_2">
     <item>
      <layout class="QGridLayout" name="gridLayout">
+      <item row="4" column="2">
+       <widget class="QPushButton" name="burnDataDirectoryPushButton">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>20</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>120</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true"/>
+        </property>
+        <property name="text">
+         <string>Browse</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="configFileLabel">
+        <property name="minimumSize">
+         <size>
+          <width>150</width>
+          <height>20</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Config File</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QLineEdit" name="burnNameLineEdit">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>23</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>40</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="createRawDataLabel">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>23</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Create Raw Data Files</string>
+        </property>
+       </widget>
+      </item>
       <item row="4" column="1">
        <widget class="QLineEdit" name="burnDataDirectoryLineEdit">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>23</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>40</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="burnNameLabel">
+        <property name="minimumSize">
+         <size>
+          <width>150</width>
+          <height>20</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Burn Name (Optional)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QCheckBox" name="createRawDataCheckBox">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="configFileLineEdit">
         <property name="minimumSize">
          <size>
           <width>0</width>
@@ -64,76 +188,6 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
-       <widget class="QLineEdit" name="burnNameLineEdit">
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>23</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>40</height>
-         </size>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="0">
-       <widget class="QLabel" name="label">
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>23</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>40</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>Create Raw Data Files</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="configFileLabel">
-        <property name="minimumSize">
-         <size>
-          <width>150</width>
-          <height>20</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>40</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>Config File</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLineEdit" name="configFileLineEdit">
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>23</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>40</height>
-         </size>
-        </property>
-       </widget>
-      </item>
       <item row="4" column="0">
        <widget class="QLabel" name="burnDataDirectoryLabel">
         <property name="minimumSize">
@@ -153,57 +207,29 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="2">
-       <widget class="QPushButton" name="burnDataDirectoryPushButton">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
+      <item row="7" column="1">
+       <widget class="QCheckBox" name="useLegacyDataCheckBox">
         <property name="minimumSize">
          <size>
           <width>0</width>
-          <height>20</height>
+          <height>23</height>
          </size>
         </property>
-        <property name="maximumSize">
-         <size>
-          <width>120</width>
-          <height>40</height>
-         </size>
-        </property>
-        <property name="styleSheet">
-         <string notr="true"/>
-        </property>
-        <property name="text">
-         <string>Browse</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="burnNameLabel">
-        <property name="minimumSize">
-         <size>
-          <width>150</width>
-          <height>20</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>40</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>Burn Name (Optional)</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="1">
-       <widget class="QCheckBox" name="createRawDataCheckBox">
         <property name="text">
          <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="useLegacyDataLabel">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>23</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Use Legacy (pre-2022) Data</string>
         </property>
        </widget>
       </item>

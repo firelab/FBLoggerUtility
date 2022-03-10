@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QVector>
 
+#include "legacy_logger_data_reader.h"
 #include "logger_data_reader.h"
 #include "my_custom_events.h"
 
@@ -24,9 +25,11 @@ protected:
 
 private:
     void handleCancelWorkEvent(const CancelWorkEvent* event);
-   
+    void legacyWorkBody(LegacySharedData* legacySharedData);
+    void workBody(SharedData* sharedData);
+
 public slots:
-    void doWork(SharedData* sharedData);
+    void doWork(bool useLegacy, LegacySharedData* legacySharedData, SharedData* sharedData);
     void cancelWork();
 
 signals:
