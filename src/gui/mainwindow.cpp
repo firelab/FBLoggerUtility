@@ -37,7 +37,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     if(QFileInfo::exists(windTunnelDataTablePath))
     {
-        qDebug() << "wind tunnel data exists" << endl;
+        qDebug() << "wind tunnel data exists\n";;
         windTunnelDataExists = true;
     }
     else
@@ -48,7 +48,7 @@ MainWindow::MainWindow(QWidget *parent) :
         msgText += "This is unrecoverable error, application will now close\n";
         msgBox.setText(msgText);
         msgBox.exec();
-        qDebug() << msgText << endl;
+        qDebug() << msgText;
     }
 
     if(!windTunnelDataExists)
@@ -65,21 +65,20 @@ MainWindow::MainWindow(QWidget *parent) :
 
     if(QFileInfo::exists(iniFilePath))
     {
-        qDebug() << "ini file exists" << endl;
+        qDebug() << "ini file exists\n";
         readIniFile();
-        qDebug() << "ini file read" << endl;
+        qDebug() << "ini file read\n";
     }
     else
     {
-        qDebug() << "ini file does not exist" << endl;
+        qDebug() << "ini file does not exist\n";
         QFile file(iniFilePath);
         file.open(QIODevice::ReadWrite | QIODevice::Text);
-        qDebug() << "ini file created" << endl;
+        qDebug() << "ini file created\n";
         file.close();
         updateIniFile();
-        qDebug() << "ini file updated" << endl;
+        qDebug() << "ini file updated\n";
     }
-
 
     ui->configFileLineEdit->setText(configFilePath);
     ui->burnDataDirectoryLineEdit->setText(burnFilesDirectoryPath);
@@ -186,15 +185,15 @@ void MainWindow::convertPressed()
             {
                 //it's a directory
                 QMessageBox msgBox;
-                QString msgText = "Config file does not exist";
+                QString msgText = "Config file does not exist\n";
                 msgBox.setText(msgText);
                 msgBox.exec();
-                qDebug() << msgText << endl;
+                qDebug() << msgText;
             }
             else if(s.st_mode & S_IFREG)
             {
                 //it's a file
-                qDebug() << "Config file exists" << endl;
+                qDebug() << "Config file exists\n";
                 configFileExists = true;
                 updateIniFile();
             }
@@ -203,19 +202,19 @@ void MainWindow::convertPressed()
         {
             //error
             QMessageBox msgBox;
-            QString msgText = "An unkown error occured reading config file";
+            QString msgText = "An unkown error occured reading config file\n";
             msgBox.setText(msgText);
             msgBox.exec();
-            qDebug() << msgText << endl;
+            qDebug() << msgText;
         }
     }
     else
     {
         QMessageBox msgBox;
-        QString msgText = "Config file does not exist";
+        QString msgText = "Config file does not exist\n";
         msgBox.setText(msgText);
         msgBox.exec();
-        qDebug() << msgText << endl;
+        qDebug() << msgText;
     }
 
     if(QFileInfo::exists(burnFilesDirectoryPath))
@@ -226,7 +225,7 @@ void MainWindow::convertPressed()
             if(s.st_mode & S_IFDIR)
             {
                 //it's a directory
-                qDebug() << "Burn data directory exists" << endl;
+                qDebug() << "Burn data directory exists\n";
                 burnDataDirectoryExists = true;
                 updateIniFile();
             }
@@ -234,29 +233,29 @@ void MainWindow::convertPressed()
             {
                 //it's a file
                 QMessageBox msgBox;
-                QString msgText = "Burn data directory cannot be a file";
+                QString msgText = "Burn data directory cannot be a file\n";
                 msgBox.setText(msgText);
                 msgBox.exec();
-                qDebug() << msgText << endl;
+                qDebug() << msgText;
             }
         }
         else
         {
             //error
             QMessageBox msgBox;
-            QString msgText = "An unkown error occured reading burn data directory";
+            QString msgText = "An unkown error occured reading burn data directory\n";
             msgBox.setText(msgText);
             msgBox.exec();
-            qDebug() << msgText << endl;
+            qDebug() << msgText;
         }
     }
     else
     {
         QMessageBox msgBox;
-        QString msgText = "Burn data directory does not exist";
+        QString msgText = "Burn data directory does not exist\n";
         msgBox.setText(msgText);
         msgBox.exec();
-        qDebug() << msgText << endl;
+        qDebug() << msgText;
     }
 
     string burnName = ui->burnNameLineEdit->text().toStdString();
@@ -288,7 +287,6 @@ void MainWindow::convertPressed()
         sharedData->inputFilePathList = new vector<string>();
     }
 
-    //vector<string> datFileNameList;
     DIR* dir;
     struct dirent* ent;
     string fileName = "";
@@ -330,10 +328,10 @@ void MainWindow::convertPressed()
         {
             /* could not open directory */
             QMessageBox msgBox;
-            QString msgText = "Error, could not open burn data directory";
+            QString msgText = "Error, could not open burn data directory\n";
             msgBox.setText(msgText);
             msgBox.exec();
-            qDebug() << msgText << endl;
+            qDebug() << msgText;
         }
 
         if(ui->createRawDataCheckBox->checkState() == Qt::Checked)
@@ -372,10 +370,10 @@ void MainWindow::convertPressed()
         {
             /* No DAT files found */
             QMessageBox msgBox;
-            QString msgText = "Error, no DAT files found in burn data directory";
+            QString msgText = "Error, no DAT files found in burn data directory\n";
             msgBox.setText(msgText);
             msgBox.exec();
-            qDebug() << msgText << endl;
+            qDebug() << msgText;
         }
     }
 }

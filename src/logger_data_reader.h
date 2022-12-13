@@ -8,7 +8,7 @@
 #include <sstream>
 #include <time.h>
 
-#include "common_constants.h"
+#include "common_logger_constants.h"
 #include "convert_velocity.h"
 
 using std::string;
@@ -233,11 +233,12 @@ class LoggerDataReader
     {
         enum FIDPackageIndexEnum
         {
-            TEMPERATURE = 0,
-            FID_VOLTAGE = 1,
-            PRESSURE_VOLTAGE = 2,
-            PRESSURE = 2,
-            PANEL_TEMP = 8
+            TIMESTAMP = 0,
+            TEMPERATURE = 1,
+            FID_VOLTAGE = 2,
+            PRESSURE_VOLTAGE = 3,
+            PRESSURE = 3,
+            PANEL_TEMP = 9
         };
     };
 
@@ -245,19 +246,21 @@ class LoggerDataReader
     {
         enum HeatFluxIndexEnum
         {
-            TEMPERATURE_SENSOR_ONE = 0,
-            TEMPERATURE_SENSOR_TWO = 1,
-            PRESSURE_SENSOR_U = 2,
-            VELOCITY_U = 2,
-            PRESSURE_SENSOR_V = 3,
-            VELOCITY_V = 3,
-            PRESSURE_SENSOR_W = 4,
-            VELOCITY_W = 4,
-            HEAT_FLUX_VOLTAGE = 5,
-            HEAT_FLUX = 5,
-            HEAT_FLUX_TEMPERATURE_VOLTAGE = 6,
-            HEAT_FLUX_TEMPERATURE = 6,
-            PANEL_TEMP = 8
+            TIMESTAMP = 0,
+            TEMPERATURE_SENSOR_ONE = 1,
+            TEMPERATURE_SENSOR_TWO = 2,
+            PRESSURE_SENSOR_U = 3,
+            VELOCITY_U = 3,
+            PRESSURE_SENSOR_V = 4,
+            VELOCITY_V = 4,
+            PRESSURE_SENSOR_W = 5,
+            VELOCITY_W = 5,
+            HEAT_FLUX_VOLTAGE = 6,
+            HEAT_FLUX = 6,
+            HEAT_FLUX_TEMPERATURE_VOLTAGE = 7,
+            HEAT_FLUX_TEMPERATURE = 7,
+            UNUSED = 8,
+            PANEL_TEMP = 9
         };
     };
 
@@ -265,7 +268,7 @@ class LoggerDataReader
     {
         enum TCIndexEnum
         {
-            PANEL_TEMP = 8
+            PANEL_TEMP = 9
         };
     };
 
@@ -298,9 +301,9 @@ class LoggerDataReader
         const double heatFluxMax = 150.0;
         const double heatFluxTemperatureMin = -40.0;
         const double heatFluxTemperatureMax = 1400.0;
-        const double heatFluxTemperatureVoltageMin = -1.2499999999;
+        const double heatFluxTemperatureVoltageMin = -1.3;
         const double heatFluxTemperatureVoltageMax = -0.0000000001;
-        const double heatFluxVoltageMin = 0.0;
+        const double heatFluxVoltageMin = -1.3;
         const double heatFluxVoltageMax = 2.5;
         const double NAMin = IGNORE_MIN;
         const double NAMax = IGNORE_MAX;

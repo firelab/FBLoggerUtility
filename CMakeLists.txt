@@ -2,6 +2,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.1)
 
 PROJECT(fb_logger_utility)
 
+ADD_DEFINITIONS(-DUNICODE -D_UNICODE)
+
 SET(CMAKE_CXX_STANDARD 11)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 
@@ -40,8 +42,8 @@ ELSE(OPENMP_FOUND)
 ENDIF(OPENMP_FOUND)
 
 # Find the Qt library
-FIND_PACKAGE(Qt5 REQUIRED COMPONENTS Core  Widgets Widgets)
-GET_TARGET_PROPERTY(QtCore_location Qt5::Core LOCATION)
+FIND_PACKAGE(Qt6 REQUIRED COMPONENTS Core  Widgets Widgets)
+GET_TARGET_PROPERTY(QtCore_location Qt6::Core LOCATION)
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src
                     ${CMAKE_SOURCE_DIR}/include)
@@ -60,5 +62,5 @@ ADD_EXECUTABLE(${PROJECT_NAME}
                 src/gui/mainwindow.cpp
                 src/gui/mainwindow.ui)
 
-# Add the Qt5 Widgets for linking
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} Qt5::Widgets)
+# Add the Qt Widgets for linking
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} Qt6::Widgets)

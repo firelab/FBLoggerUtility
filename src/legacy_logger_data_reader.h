@@ -10,7 +10,7 @@
 #include <sstream>
 #include <time.h>
 
-#include "common_constants.h"
+#include "common_logger_constants.h"
 #include "convert_velocity.h"
 
 using std::string;
