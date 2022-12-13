@@ -2255,7 +2255,7 @@ void LoggerDataReader::UpdateTime()
     int currentMillisecondsSinceSessionStart = status_.sensorReadingValue[0];
     headerData_.milliseconds = currentMillisecondsSinceSessionStart % 1000;
 
-    if((headerData_.milliseconds % 1000) == 0)
+    if(headerData_.milliseconds == 0)
     {
         headerData_.seconds++;
 
