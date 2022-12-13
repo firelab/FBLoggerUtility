@@ -2253,12 +2253,10 @@ void LoggerDataReader::UpdateTime()
     static const unsigned int monthLength[] = { 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
     int currentMillisecondsSinceSessionStart = status_.sensorReadingValue[0];
-    headerData_.milliseconds = currentMillisecondsSinceSessionStart;
+    headerData_.milliseconds = currentMillisecondsSinceSessionStart % 1000;
 
-    while(currentMillisecondsSinceSessionStart >= 1000)
+    if((headerData_.milliseconds % 1000) == 0)
     {
-        currentMillisecondsSinceSessionStart -= 1000;
-        headerData_.milliseconds = currentMillisecondsSinceSessionStart;
         headerData_.seconds++;
 
         if(headerData_.seconds >= 60)
