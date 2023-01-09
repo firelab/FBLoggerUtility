@@ -195,6 +195,8 @@ class LoggerDataReader
         uint8_t loggingSession = 0;
         uint32_t position = 0;
         uint32_t recordNumber = 0;
+        uint32_t previousMillisecondsSinceSessionStart = 0;
+        uint32_t previousMillisecondsValue = 0;
         size_t filePositionLimit;
         string configColumnTextLine;
         string rawConfigColumnTextLine;
@@ -405,6 +407,7 @@ private:
     void GetRawNumber();
 	void CheckForHeader();
     void UpdateTime();
+    void AdvanceTimeByOneSecond();
     void GetHeader();
     void ParseHeader();
     void SetOutFilePaths(string inFilePaths);

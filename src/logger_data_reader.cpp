@@ -2249,55 +2249,80 @@ void LoggerDataReader::CheckForHeader()
 
 void LoggerDataReader::UpdateTime()
 {
-    // Zero is in first entry so index is calendar year month
-    static const unsigned int monthLength[] = { 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-
-    int currentMillisecondsSinceSessionStart = status_.sensorReadingValue[0];
+    uint32_t currentMillisecondsSinceSessionStart = status_.sensorReadingValue[0];
     headerData_.milliseconds = currentMillisecondsSinceSessionStart % 1000;
 
-    if(headerData_.milliseconds == 0)
-    {
-        headerData_.seconds++;
+    uint32_t millisecondsSinceSessionStartDifference = status_.sensorReadingValue[0] - status_.previousMillisecondsSinceSessionStart;
+    status_.previousMillisecondsSinceSessionStart = status_.sensorReadingValue[0];
 
-        if(headerData_.seconds >= 60)
+    if(millisecondsSinceSessionStartDifference > 20)
+    {
+        headerData_.milliseconds = status_.previousMillisecondsValue;
+        while(millisecondsSinceSessionStartDifference > 0)
         {
-            headerData_.seconds -= 60;
-            headerData_.minutes++;
-        }
-        if(headerData_.minutes >= 60)
-        {
-            headerData_.minutes -= 60;
-            headerData_.hours++;
-        }
-        if(headerData_.hours >= 24)
-        {
-            headerData_.hours -= 24;
-            headerData_.day++;
-        }
-        // Handling leap years
-        bool leap = (headerData_.year % 4 == 0) && (headerData_.year % 100 != 0 || headerData_.year % 400 == 0);
-        if(headerData_.day > monthLength[headerData_.month])
-        {
-            if(!(leap && (headerData_.month == 2)))
+            headerData_.milliseconds++;
+            if(headerData_.milliseconds >= 1000)
             {
-                // If it's not both february and a leap year
-                // Then move on to the next month
-                headerData_.day = 1;
-                headerData_.month++;
+                headerData_.milliseconds -= 1000;
+                AdvanceTimeByOneSecond();
             }
-            else if(leap && (headerData_.month == 2) && (headerData_.day > 29))
-            {
-                // Else if it's a leap year and yesterday was February 29
-                // Then move on to the next month
-                headerData_.day = 1;
-                headerData_.month++;
-            }
+
+            millisecondsSinceSessionStartDifference--;
         }
-        if(headerData_.month > 12)
+    }
+    else if(headerData_.milliseconds == 0)
+    {
+        AdvanceTimeByOneSecond();
+    }
+
+    status_.previousMillisecondsValue = headerData_.milliseconds;
+}
+
+void LoggerDataReader::AdvanceTimeByOneSecond()
+{
+    // Zero is in first entry so index is calendar year month
+    static const unsigned int monthLength[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+    headerData_.seconds++;
+
+    if(headerData_.seconds >= 60)
+    {
+        headerData_.seconds -= 60;
+        headerData_.minutes++;
+    }
+    if(headerData_.minutes >= 60)
+    {
+        headerData_.minutes -= 60;
+        headerData_.hours++;
+    }
+    if(headerData_.hours >= 24)
+    {
+        headerData_.hours -= 24;
+        headerData_.day++;
+    }
+    // Handling leap years
+    bool leap = (headerData_.year % 4 == 0) && (headerData_.year % 100 != 0 || headerData_.year % 400 == 0);
+    if(headerData_.day > monthLength[headerData_.month])
+    {
+        if(!(leap && (headerData_.month == 2)))
         {
-            headerData_.year++;
-            headerData_.month = 1;
+            // If it's not both february and a leap year
+            // Then move on to the next month
+            headerData_.day = 1;
+            headerData_.month++;
         }
+        else if(leap && (headerData_.month == 2) && (headerData_.day > 29))
+        {
+            // Else if it's a leap year and yesterday was February 29
+            // Then move on to the next month
+            headerData_.day = 1;
+            headerData_.month++;
+        }
+    }
+    if(headerData_.month > 12)
+    {
+        headerData_.year++;
+        headerData_.month = 1;
     }
 }
 
