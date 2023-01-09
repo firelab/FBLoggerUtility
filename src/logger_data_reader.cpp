@@ -2255,7 +2255,9 @@ void LoggerDataReader::UpdateTime()
     uint32_t millisecondsSinceSessionStartDifference = status_.sensorReadingValue[0] - status_.previousMillisecondsSinceSessionStart;
     status_.previousMillisecondsSinceSessionStart = status_.sensorReadingValue[0];
 
-    if(millisecondsSinceSessionStartDifference > 20)
+    const int recordWriteDuration = 20; // time it takes to write a single complete recond in ms
+
+    if(millisecondsSinceSessionStartDifference > recordWriteDuration)
     {
         headerData_.milliseconds = status_.previousMillisecondsValue;
         while(millisecondsSinceSessionStartDifference > 0)
