@@ -3,6 +3,7 @@
 #include "directory_reader_utility.h"
 
 #include <algorithm>
+#include <ctype.h>
 #include <limits.h>
 #include <string>
 #include <math.h>
@@ -2237,14 +2238,8 @@ void LoggerDataReader::CheckForHeader()
 {
     // Check for header signature "SNXX" where X is 0-9
     if((parsedNumericData_.rawHexNumber[0] == 'S') && (parsedNumericData_.rawHexNumber[1] == 'N') &&
-        (parsedNumericData_.rawHexNumber[2] == '0'|| parsedNumericData_.rawHexNumber[2] == '1' || parsedNumericData_.rawHexNumber[2] == '2' ||
-        parsedNumericData_.rawHexNumber[2] == '3' || parsedNumericData_.rawHexNumber[2] == '4' || parsedNumericData_.rawHexNumber[2] == '5' ||
-        parsedNumericData_.rawHexNumber[2] == '6' || parsedNumericData_.rawHexNumber[2] == '7' || parsedNumericData_.rawHexNumber[2] == '8' ||
-        parsedNumericData_.rawHexNumber[2] == '9') &&
-        (parsedNumericData_.rawHexNumber[3] == '0' || parsedNumericData_.rawHexNumber[3] == '1' || parsedNumericData_.rawHexNumber[3] == '2' ||
-            parsedNumericData_.rawHexNumber[3] == '3' || parsedNumericData_.rawHexNumber[3] == '4' || parsedNumericData_.rawHexNumber[3] == '5' ||
-            parsedNumericData_.rawHexNumber[3] == '6' || parsedNumericData_.rawHexNumber[3] == '7' || parsedNumericData_.rawHexNumber[3] == '8' ||
-            parsedNumericData_.rawHexNumber[3] == '9'))
+        isdigit(parsedNumericData_.rawHexNumber[2]) &&
+        isdigit(parsedNumericData_.rawHexNumber[3]))
     {
         status_.headerFound = true;
         // Clear previous session's millisecond  data 
