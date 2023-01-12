@@ -1660,7 +1660,6 @@ void LoggerDataReader::StoreSessionStartTime()
     startTimeForSession_.minuteString = MakeStringWidthTwoFromInt(startTimeForSession_.minutes);
     startTimeForSession_.secondString = MakeStringWidthTwoFromInt(startTimeForSession_.seconds);
     startTimeForSession_.millisecondString = MakeStringWidthThreeFromInt(startTimeForSession_.milliseconds);
-
 }
 
 void LoggerDataReader::StoreSessionEndTime()
@@ -2237,13 +2236,20 @@ void LoggerDataReader::GetRawNumber()
 void LoggerDataReader::CheckForHeader()
 {
     // Check for header signature "SNXX" where X is 0-9
-    if((parsedNumericData_.rawHexNumber[0] == 'S') && (parsedNumericData_.rawHexNumber[1] == 'N') && (parsedNumericData_.rawHexNumber[2] == '0')
-        && (parsedNumericData_.rawHexNumber[3] == '0' || parsedNumericData_.rawHexNumber[3] == '1' || parsedNumericData_.rawHexNumber[3] == '2' ||
+    if((parsedNumericData_.rawHexNumber[0] == 'S') && (parsedNumericData_.rawHexNumber[1] == 'N') &&
+        (parsedNumericData_.rawHexNumber[2] == '0'|| parsedNumericData_.rawHexNumber[2] == '1' || parsedNumericData_.rawHexNumber[2] == '2' ||
+        parsedNumericData_.rawHexNumber[2] == '3' || parsedNumericData_.rawHexNumber[2] == '4' || parsedNumericData_.rawHexNumber[2] == '5' ||
+        parsedNumericData_.rawHexNumber[2] == '6' || parsedNumericData_.rawHexNumber[2] == '7' || parsedNumericData_.rawHexNumber[2] == '8' ||
+        parsedNumericData_.rawHexNumber[2] == '9') &&
+        (parsedNumericData_.rawHexNumber[3] == '0' || parsedNumericData_.rawHexNumber[3] == '1' || parsedNumericData_.rawHexNumber[3] == '2' ||
             parsedNumericData_.rawHexNumber[3] == '3' || parsedNumericData_.rawHexNumber[3] == '4' || parsedNumericData_.rawHexNumber[3] == '5' ||
             parsedNumericData_.rawHexNumber[3] == '6' || parsedNumericData_.rawHexNumber[3] == '7' || parsedNumericData_.rawHexNumber[3] == '8' ||
             parsedNumericData_.rawHexNumber[3] == '9'))
     {
         status_.headerFound = true;
+        // Clear previous session's millisecond  data 
+        status_.previousMillisecondsValue = 0;
+        status_.previousMillisecondsSinceSessionStart = 0;
     }
 }
 
