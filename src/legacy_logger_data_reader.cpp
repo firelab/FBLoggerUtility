@@ -1174,7 +1174,7 @@ bool LegacyLoggerDataReader::CheckConfigFileFormatIsValid(ifstream& configFile)
     lineStream_ << line;
     getline(lineStream_, token, ' ');
     status_.configFileLineNumber++;
-    if (token != "First")
+    if ((token != "First") && (token != "1st"))
     {
         logFileLines_ += "Error: Config file at " + configFilePath_ + " is improperly formatted " + GetMyLocalDateTimeString() + "\n";
         isConfigFileValid_ = false;
