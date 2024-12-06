@@ -60,6 +60,16 @@ ADD_EXECUTABLE(${PROJECT_NAME}
                 src/gui/logger_data_worker.ui # empty ui file, harmless yet irritating hack to force Visual Studio to automoc class
                 src/gui/main.cpp
                 src/gui/mainwindow.cpp
+                src/air.h
+                src/convert_velocity.h
+                src/fb_logger_log_file.h
+                src/fluid.h
+                src/legacy_logger_data_reader.h
+                src/logger_data_reader.h
+                src/gps_file.h
+                src/gui/logger_data_worker.h
+                src/gui/logger_data_worker.ui # empty ui file, harmless yet irritating hack to force Visual Studio to automoc class
+                src/gui/mainwindow.h
                 src/gui/mainwindow.ui)
 
 # Add the Qt Widgets for linking

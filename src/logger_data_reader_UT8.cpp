@@ -350,7 +350,7 @@ void LoggerDataReader::ProcessSingleDataFile(int fileIndex)
         extension = infileName.substr(pos, infileName.size());
     }
 
-    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+    std::transform(extension.begin(), extension.end(), extension.begin(), tolower);
     if(extension == ".dat")
     {
         inDataFilePath_ = inputFilePathList_[fileIndex];
@@ -694,7 +694,7 @@ void LoggerDataReader::PerformNeededDataConversions()
 {
     if(configurationType_ == "F")
     {
-        // Convert temperature from volts to C
+        // Convert temperature from volts to °C
         double temperatureVoltage = status_.sensorReadingValue[FIDPackageIndex::TEMPERATURE];
         status_.sensorReadingValue[FIDPackageIndex::TEMPERATURE] = CalculateTCTemperature(temperatureVoltage);
 
@@ -715,7 +715,7 @@ void LoggerDataReader::PerformNeededDataConversions()
         double yVoltageOffset = heatFlux_Y_VoltageOffsetMap_.find(serialNumber_)->second;
         double zVoltageOffset = heatFlux_Z_VoltageOffsetMap_.find(serialNumber_)->second;
 
-        // Convert temperature from volts to C
+        // Convert temperature from volts to °C
         double temperatureVoltageOne = status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_ONE];
         status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_ONE] = CalculateTCTemperature(temperatureVoltageOne);
         double temperatureVoltageTwo = status_.sensorReadingValue[HeatFluxIndex::TEMPERATURE_SENSOR_TWO];
@@ -742,7 +742,7 @@ void LoggerDataReader::PerformNeededDataConversions()
     }
     else if(configurationType_ == "T")
     {
-        // Convert temperature from volts to C
+        // Convert temperature from volts to °C
         double temperatureVoltage;
         for(int i = 0; i < 8; i++)
         {
@@ -1453,7 +1453,7 @@ void LoggerDataReader::SetConfigDependentValues()
 {
     if(configurationType_ == "F")
     {
-        status_.configColumnTextLine = "\"DATETIME\",\"TIMESTAMP\",\"RECORD\",\"C\",\"FID(V)\",\"P(Pa)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (C)\"\n";
+        status_.configColumnTextLine = "\"DATETIME\",\"TIMESTAMP\",\"RECORD\",\"°C\",\"FID(V)\",\"P(Pa)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (°C)\"\n";
         status_.rawConfigColumnTextLine = "\"DATETIME\",\"TIMESTAMP\",\"RECORD\",\"Temp(V)\",\"FID(V)\",\"P(V)\",\"NA\",\"NA\",\"NA\",\"NA\",\"NA\",\"Panel Temp (V)\"\n";
         status_.columnRawType[0] = "V";
         status_.columnRawType[1] = "FID(V)";
@@ -1465,11 +1465,11 @@ void LoggerDataReader::SetConfigDependentValues()
     }
     else if(configurationType_ == "H")
     {
-        status_.configColumnTextLine = "\"DATETIME\",\"TIMESTAMP\",\"RECORD\",\"C\",\"C\",\"u(m/s)\",\"v(m/s)\",\"w(m/s)\",\"HF(kW/m^2)\",\"HFT(C)\",\"NA\",\"Panel Temp (C)\"\n";
+        status_.configColumnTextLine = "\"DATETIME\",\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"u(m/s)\",\"v(m/s)\",\"w(m/s)\",\"HF(kW/m^2)\",\"HFT(C)\",\"NA\",\"Panel Temp (°C)\"\n";
         status_.rawConfigColumnTextLine = "\"DATETIME\",\"TIMESTAMP\",\"RECORD\",\"Temp(V)\",\"Temp(V)\",\"u(V)\",\"v(V)\",\"w(V)\",\"HF(V)\",\"HFT(V)\",\"NA\",\"Panel Temp (V)\"\n";
         for(int i = 0; i < 2; i++)
         {
-            status_.columnRawType[i] = "C";
+            status_.columnRawType[i] = "°C";
         }
         for(int i = 2; i < 5; i++)
         {
@@ -1481,7 +1481,7 @@ void LoggerDataReader::SetConfigDependentValues()
     }
     else if(configurationType_ == "T")
     {
-        status_.configColumnTextLine = "\"DATETIME\",\"TIMESTAMP\",\"RECORD\",\"C\",\"C\",\"C\",\"C\",\"C\",\"C\",\"C\",\"C\",\"Panel Temp (C)\"\n";
+        status_.configColumnTextLine = "\"DATETIME\",\"TIMESTAMP\",\"RECORD\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"°C\",\"Panel Temp (°C)\"\n";
         status_.rawConfigColumnTextLine = "\"DATETIME\",\"TIMESTAMP\",\"RECORD\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Temp(V)\",\"Panel Temp (Temp(V))\"\n";
         for(int i = 0; i < 8; i++)
         {
@@ -2368,7 +2368,7 @@ void LoggerDataReader::ParseHeader()
     {
         headerData_.latitudeDegreesString[i - 7] = headerData_.rawHeader[i];
     }
-    headerData_.latitudeDegreesString += "";
+    headerData_.latitudeDegreesString += "°";
     for(int i = 9; i < 17; i++)
     {
         headerData_.latitudeDecimalMinutesString[i - 9] = headerData_.rawHeader[i];
@@ -2383,7 +2383,7 @@ void LoggerDataReader::ParseHeader()
     {
         headerData_.longitudeDegreesString[i - 17] = headerData_.rawHeader[i];
     }
-    headerData_.longitudeDegreesString += "";
+    headerData_.longitudeDegreesString += "°";
     for(int i = 20; i < 28; i++)
     {
         headerData_.longitudeDecimalMinutesString[i - 20] = headerData_.rawHeader[i];

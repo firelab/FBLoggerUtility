@@ -7,6 +7,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <sys/stat.h>
 
 #ifdef OMP_SUPPORT
 #include <omp.h>

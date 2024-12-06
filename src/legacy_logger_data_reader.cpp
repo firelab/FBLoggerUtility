@@ -349,7 +349,8 @@ void LegacyLoggerDataReader::ProcessSingleDataFile(int fileIndex)
         extension = infileName.substr(pos, infileName.size());
     }
 
-    std::transform(extension.begin(), extension.end(), extension.begin(), tolower);
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+
     if (extension == ".dat")
     {
         inDataFilePath_ = inputFilePathList_[fileIndex];
