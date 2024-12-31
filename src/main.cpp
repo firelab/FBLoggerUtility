@@ -23,7 +23,6 @@ int main() {
     std::cout << "Beginning conversion..." << std::endl;
 
 
-
     std::vector<double> angles_, ReynoldsNumbers_;
     std::vector<std::vector<double>> pressureCoefficients_;
 
