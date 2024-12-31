@@ -2,11 +2,12 @@
 
 convertVelocity::convertVelocity()
 {
-	maxIters = 100;
-	velocityTolerance = 0.1;
+    maxIters = 1000;
+    velocityTolerance = 0.1;
 	ReLarge = 20000;
-	relaxCp = 0.8;
+    relaxCp = 0.05;
 	diskDiameter = 0.04445;
+    pi = atan(1)*4;
 }
 
 convertVelocity::~convertVelocity()
@@ -60,9 +61,16 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 
 		//compute angles relative to each probe's normal (zero degrees is the direction normal to the probe,
 		//    90 degrees is flow parallel to the probe face)
-		xAngle = acos(u / velocityMagnitude) * 180.0 / PI;
-		yAngle = acos(v / velocityMagnitude) * 180.0 / PI;
-		zAngle = acos(w / velocityMagnitude) * 180.0 / PI;
+        if(velocityMagnitude > 1E-10)   // Don't divide by zero!
+        {
+            xAngle = acos(u / velocityMagnitude) * 180.0 / pi;
+            yAngle = acos(v / velocityMagnitude) * 180.0 / pi;
+            zAngle = acos(w / velocityMagnitude) * 180.0 / pi;
+        }else{
+            xAngle = 0.0;
+            yAngle = 0.0;
+            zAngle = 0.0;
+        }
 
 		//get new cp from calibration curve using latest Reynold's numbers
 		//    use a relaxation method to update value to ensure smooth convergence
@@ -72,11 +80,14 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 
 		//compute Reynold's number and new cp from calibration curve for each disk
 		ReX = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureX, cpx) * diskDiameter / air.get_mu(temperatureK);
-		cpx = getCp(xAngle, ReX, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
+        cpx = relaxCp * getCp(xAngle, ReX, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpx;
+        //cpx = getCp(xAngle, ReX, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
 		ReY = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureY, cpy) * diskDiameter / air.get_mu(temperatureK);
-		cpy = getCp(yAngle, ReY, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
+        cpy = relaxCp * getCp(yAngle, ReY, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpy;
+        //cpy = getCp(yAngle, ReY, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
 		ReZ = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureZ, cpz) * diskDiameter / air.get_mu(temperatureK);
-		cpz = getCp(zAngle, ReZ, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
+        cpz = relaxCp * getCp(zAngle, ReZ, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpz;
+        //cpz = getCp(zAngle, ReZ, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
 
 		//compute revised velocity estimates based on the revised pressure coefficients
 		u = getVelocity(temperatureK, pressureX, cpx);
@@ -100,7 +111,7 @@ double convertVelocity::getVelocity(double &temperature, double &pressure, doubl
 {
 	if (cp <= 0.1)	//cp of zero means velocity must be zero.  Negative cp may be possible, if the cp(angle,Re) gives that for high angles and low Re.
 		return 0.0;
-	if(pressure > 0)	//make sure pressure is positive for square root
+    if(pressure > 0.0)	//make sure pressure is positive for square root
 		return sqrt(pressure / (0.5*air.get_rho(temperature)*cp));
 //		return sqrt(pressure / (0.5*1.2*cp));
 	else

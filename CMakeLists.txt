@@ -10,15 +10,22 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 # Find includes in the build directories
 SET(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+# User Options
+OPTION(GUI "Enable Qt Gui" OFF)
+OPTION(MAIN_TEST_WIND "Enable exe run from main file for development" ON)
+
 # Turn on automatic invocation of the MOC, UIC & RCC
 SET(CMAKE_AUTOMOC ON)
 SET(CMAKE_AUTOUIC ON)
 SET(CMAKE_AUTORCC ON)
 
-# Make this a GUI application on Windows
-IF(WIN32)
-  SET(CMAKE_WIN32_EXECUTABLE ON)
-ENDIF()
+IF(GUI)
+
+    # Make this a GUI application on Windows
+    IF(WIN32)
+      SET(CMAKE_WIN32_EXECUTABLE ON)
+    ENDIF()
+ENDIF(GUI)
 
 IF(MSVC)
       ADD_DEFINITIONS(-D_CRT_SECURE_NO_WARNINGS)
@@ -41,26 +48,40 @@ ELSE(OPENMP_FOUND)
     MESSAGE("OpenMP could not be found on your system, disabling support")
 ENDIF(OPENMP_FOUND)
 
-# Find the Qt library
-FIND_PACKAGE(Qt6 REQUIRED COMPONENTS Core  Widgets Widgets)
-GET_TARGET_PROPERTY(QtCore_location Qt6::Core LOCATION)
+IF(GUI)
+    # Find the Qt library
+    FIND_PACKAGE(Qt6 REQUIRED COMPONENTS Core  Widgets Widgets)
+    GET_TARGET_PROPERTY(QtCore_location Qt6::Core LOCATION)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src
-                    ${CMAKE_SOURCE_DIR}/include)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src
+                        ${CMAKE_SOURCE_DIR}/include)
 
-ADD_EXECUTABLE(${PROJECT_NAME}
-                src/air.cpp
-                src/convert_velocity.cpp
-                src/fb_logger_log_file.cpp
-                src/fluid.cpp
-                src/legacy_logger_data_reader.cpp
-                src/logger_data_reader.cpp
-                src/gps_file.cpp
-                src/gui/logger_data_worker.cpp
-                src/gui/logger_data_worker.ui # empty ui file, harmless yet irritating hack to force Visual Studio to automoc class
-                src/gui/main.cpp
-                src/gui/mainwindow.cpp
-                src/gui/mainwindow.ui)
+    ADD_EXECUTABLE(${PROJECT_NAME}
+                    src/air.cpp
+                    src/convert_velocity.cpp
+                    src/fb_logger_log_file.cpp
+                    src/fluid.cpp
+                    src/legacy_logger_data_reader.cpp
+                    src/logger_data_reader.cpp
+                    src/gps_file.cpp
+                    src/gui/logger_data_worker.cpp
+                    src/gui/logger_data_worker.ui # empty ui file, harmless yet irritating hack to force Visual Studio to automoc class
+                    src/gui/main.cpp
+                    src/gui/mainwindow.cpp
+                    src/gui/mainwindow.ui)
 
-# Add the Qt Widgets for linking
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} Qt6::Widgets)
+    # Add the Qt Widgets for linking
+    TARGET_LINK_LIBRARIES(${PROJECT_NAME} Qt6::Widgets)
+ENDIF(GUI)
+
+IF(MAIN_TEST_WIND)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src
+                        ${CMAKE_SOURCE_DIR}/include)
+
+    ADD_EXECUTABLE( main_test_wind
+                    src/air.cpp
+                    src/convert_velocity.cpp
+                    src/fluid.cpp
+                    src/main.cpp)
+ENDIF(MAIN_TEST_WIND)
+

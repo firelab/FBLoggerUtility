@@ -1,6 +1,6 @@
 #include "fb_logger_log_file.h"
 
-#include <QDateTime>
+//   #include <QDateTime>   //  ---->>>>  Commented out by Forthofer, doesn't appear to do anything at this point
 
 #include "string_utility.h"
 
@@ -18,7 +18,10 @@ FBLoggerLogFile::FBLoggerLogFile(string dataPath)
         logFile_.close();
         logFile_.clear();
 
-        QTime systemTime = QTime::currentTime();
+    //    QTime systemTime = QTime::currentTime();  //  ---->>>>  Commented out by Forthofer, doesn't appear to do anything at this point
+
+
+
     //    GetLocalTime(&systemTime);
 
     //    string dateTimeString = MakeStringWidthTwoFromInt(systemTime.wDay) + "-" + MakeStringWidthTwoFromInt(systemTime.wMonth) + "-" + std::to_string(systemTime.wYear) +

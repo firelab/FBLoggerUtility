@@ -4,8 +4,6 @@
 #include <math.h>
 #include <vector>
 
-#define PI 3.14159265
-
 class convertVelocity
 {
 public:
@@ -47,4 +45,5 @@ private:
 	double diskDiameter;	//diameter of probe disk, used in Reynold's number calculation (m)
 	double temperatureK;	//air temperature (K)
 	double velocityResidual;	//change in velocity from last iteration
+    double pi;
 };
