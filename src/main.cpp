@@ -33,14 +33,14 @@ int main() {
     double angle, ReynoldsNumber, pressureCoefficient;
     string line;
 
-    //            std::ifstream windTunnelDataFile("/home/jforthofer/src/FBLoggerUtility/wind_tunnel_data/TG201811071345.txt", std::ios::in);
-    //            const int NUM_ANGLES = 100;
-    //            const int NUM_REYNOLDS_NUMBERS = 11;
-    //            const int NUM_DATA_LINES = NUM_ANGLES * NUM_REYNOLDS_NUMBERS;
-    std::ifstream windTunnelDataFile("/home/jforthofer/src/FBLoggerUtility/wind_tunnel_data/TG202411061143.txt", std::ios::in);
-    const int NUM_ANGLES = 10;
-    const int NUM_REYNOLDS_NUMBERS = 5;
-    const int NUM_DATA_LINES = NUM_ANGLES * NUM_REYNOLDS_NUMBERS;
+                std::ifstream windTunnelDataFile("/home/jforthofer/src/FBLoggerUtility/wind_tunnel_data/TG201811071345.txt", std::ios::in);
+                const int NUM_ANGLES = 100;
+                const int NUM_REYNOLDS_NUMBERS = 11;
+                const int NUM_DATA_LINES = NUM_ANGLES * NUM_REYNOLDS_NUMBERS;
+//    std::ifstream windTunnelDataFile("/home/jforthofer/src/FBLoggerUtility/wind_tunnel_data/TG202411061143.txt", std::ios::in);
+//    const int NUM_ANGLES = 10;
+//    const int NUM_REYNOLDS_NUMBERS = 5;
+//    const int NUM_DATA_LINES = NUM_ANGLES * NUM_REYNOLDS_NUMBERS;
 
     bool isSuccessful = false;
     angles_.clear();
