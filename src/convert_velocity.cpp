@@ -3,9 +3,9 @@
 convertVelocity::convertVelocity()
 {
     maxIters = 1000;
-    velocityTolerance = 0.1;
+    velocityTolerance = 0.01;
 	ReLarge = 20000;
-    relaxCp = 0.05;
+    relaxCp = 0.8;
 	diskDiameter = 0.04445;
     pi = atan(1)*4;
 }
@@ -20,9 +20,12 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 {
 	temperatureK = temperature + 273.15;	//convert to Kelvin
 
-	pressureX = (pressureXvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
-	pressureY = (pressureYvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
-	pressureZ = (pressureZvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
+//    pressureX = (pressureXvoltage - 1.2685) * 0.9517 * 249.09;	//convert from voltage to pascals
+//    pressureY = (pressureYvoltage - 1.2738) * 0.9517 * 249.09;	//convert from voltage to pascals
+//    pressureZ = (pressureZvoltage - 1.267) * 0.9517 * 249.09;	//convert from voltage to pascals
+    pressureX = (pressureXvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
+    pressureY = (pressureYvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
+    pressureZ = (pressureZvoltage - 1.265) * 0.9517 * 249.09;	//convert from voltage to pascals
 
 /////////////TEST VALUES///////////////////////////
 
@@ -45,9 +48,26 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 	v = getVelocity(temperatureK, pressureY, cpy);
 	w = getVelocity(temperatureK, pressureZ, cpz);
 
+    if(pressureX > 0.0)
+        u = getVelocity(temperatureK, pressureX, cpx);
+    else
+        u = -getVelocity(temperatureK, pressureX, cpx);
+
+    if(pressureY > 0.0)
+        v = getVelocity(temperatureK, pressureY, cpy);
+    else
+        v = -getVelocity(temperatureK, pressureY, cpy);
+
+    if(pressureZ > 0.0)
+        w = getVelocity(temperatureK, pressureZ, cpz);
+    else
+        w = -getVelocity(temperatureK, pressureZ, cpz);
+
+
 	ReX = ReLarge;
 	ReY = ReLarge;
 	ReZ = ReLarge;
+    Re = ReLarge;
 
 	iters = 0;
 	do {
@@ -58,27 +78,33 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 		wOld = w;
 
 		velocityMagnitude = sqrt(u*u + v*v + w*w);
+        Re = air.get_rho(temperatureK) * velocityMagnitude * diskDiameter / air.get_mu(temperatureK);
 
 		//compute angles relative to each probe's normal (zero degrees is the direction normal to the probe,
 		//    90 degrees is flow parallel to the probe face)
         if(velocityMagnitude > 1E-10)   // Don't divide by zero!
         {
-            xAngle = acos(u / velocityMagnitude) * 180.0 / pi;
-            yAngle = acos(v / velocityMagnitude) * 180.0 / pi;
-            zAngle = acos(w / velocityMagnitude) * 180.0 / pi;
+//            xAngle = acos(u / velocityMagnitude) * 180.0 / pi;
+//            yAngle = acos(v / velocityMagnitude) * 180.0 / pi;
+//            zAngle = acos(w / velocityMagnitude) * 180.0 / pi;
+            xAngle = relaxCp * acos(u / velocityMagnitude) * 180.0 / pi + (1.0 - relaxCp) * xAngle;
+            yAngle = relaxCp * acos(v / velocityMagnitude) * 180.0 / pi + (1.0 - relaxCp) * yAngle;
+            zAngle = relaxCp * acos(w / velocityMagnitude) * 180.0 / pi + (1.0 - relaxCp) * zAngle;
         }else{
             xAngle = 0.0;
             yAngle = 0.0;
             zAngle = 0.0;
         }
 
+
+/*--------------ORIGINAL--------------------
 		//get new cp from calibration curve using latest Reynold's numbers
 		//    use a relaxation method to update value to ensure smooth convergence
 		cpx = relaxCp * getCp(xAngle, ReX, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpx;
 		cpy = relaxCp * getCp(yAngle, ReY, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpy;
 		cpz = relaxCp * getCp(zAngle, ReZ, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpz;
 
-		//compute Reynold's number and new cp from calibration curve for each disk
+        //compute Reynold's number and new cp from calibration curve for each disk
 		ReX = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureX, cpx) * diskDiameter / air.get_mu(temperatureK);
         cpx = relaxCp * getCp(xAngle, ReX, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpx;
         //cpx = getCp(xAngle, ReX, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
@@ -88,11 +114,24 @@ bool convertVelocity::convert(double &temperature, double &pressureXvoltage, dou
 		ReZ = air.get_rho(temperatureK) * getVelocity(temperatureK, pressureZ, cpz) * diskDiameter / air.get_mu(temperatureK);
         cpz = relaxCp * getCp(zAngle, ReZ, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpz;
         //cpz = getCp(zAngle, ReZ, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber);
+*/
+
+
+//--------------NEW   --------------------
+
+        //get new cp from calibration curve using latest Reynold's numbers
+        //    use a relaxation method to update value to ensure smooth convergence
+        cpx = relaxCp * getCp(xAngle, Re, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpx;
+        cpy = relaxCp * getCp(yAngle, Re, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpy;
+        cpz = relaxCp * getCp(zAngle, Re, lookupTablePressureCoefficient, lookupTableAngle, lookupTableReynoldsNumber) + (1.0 - relaxCp) * cpz;
+///////////////////////////////////////////
+
+
 
 		//compute revised velocity estimates based on the revised pressure coefficients
-		u = getVelocity(temperatureK, pressureX, cpx);
-		v = getVelocity(temperatureK, pressureY, cpy);
-		w = getVelocity(temperatureK, pressureZ, cpz);
+        u = getVelocity(temperatureK, pressureX, cpx) * cos(xAngle * pi / 180.0);
+        v = getVelocity(temperatureK, pressureY, cpy) * cos(yAngle * pi / 180.0);
+        w = getVelocity(temperatureK, pressureZ, cpz) * cos(zAngle * pi / 180.0);
 
 		velocityResidual = getVelocityResidual();
 
@@ -115,7 +154,7 @@ double convertVelocity::getVelocity(double &temperature, double &pressure, doubl
 		return sqrt(pressure / (0.5*air.get_rho(temperature)*cp));
 //		return sqrt(pressure / (0.5*1.2*cp));
 	else
-		return -sqrt(-pressure / (0.5*air.get_rho(temperature)*cp));
+        return sqrt(-pressure / (0.5*air.get_rho(temperature)*cp));
 //		return -sqrt(-pressure / (0.5*1.2*cp));
 }
 
@@ -167,12 +206,16 @@ double convertVelocity::getCp(double angle, double ReynoldsNumber, const std::ve
 	if (col < 0)	//if wasn't set above
 		col = (int)lookupTableReynoldsNumber.size() - 2;
 
-	double t, u;
+    double v, u;
 
-	t = (angle - lookupTableAngle[row]) / (lookupTableAngle[row+1] - lookupTableAngle[row]);
-	u = (ReynoldsNumber - lookupTableReynoldsNumber[col]) / (lookupTableReynoldsNumber[col + 1] - lookupTableReynoldsNumber[col]);
+    // row => angles => v , y-direction
+    // col => ReynoldsNumber => u , x-direction
 
-	CpValue = (1.0 - t) * (1.0 - u) * lookupTablePressureCoefficient[row][col] + t * (1.0 - u)*lookupTablePressureCoefficient[row][col + 1] + t * u*lookupTablePressureCoefficient[row + 1][col + 1] + (1.0 - t)*u*lookupTablePressureCoefficient[row + 1][col];
+    v = (angle - lookupTableAngle[row]) / (lookupTableAngle[row+1] - lookupTableAngle[row]);
+    u = (ReynoldsNumber - lookupTableReynoldsNumber[col]) / (lookupTableReynoldsNumber[col + 1] - lookupTableReynoldsNumber[col]);
+
+    CpValue = (1.0 - u) * ((1.0 - v) * lookupTablePressureCoefficient[row][col] + v * lookupTablePressureCoefficient[row+1][col]) + u * ((1.0 - v) * lookupTablePressureCoefficient[row][col+1] + v * lookupTablePressureCoefficient[row+1][col+1]);
+    //CpValue = (1.0 - v) * (1.0 - u) * lookupTablePressureCoefficient[row][col] + v * (1.0 - u)*lookupTablePressureCoefficient[row][col + 1] + v * u*lookupTablePressureCoefficient[row + 1][col + 1] + (1.0 - v)*u*lookupTablePressureCoefficient[row + 1][col];
 
 	if (CpValue < 0.0)	//Don't let Cp go less than zero, which can happen with the current curve fit near angles of 90.
 		CpValue = 0.0;

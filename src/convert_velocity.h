@@ -40,6 +40,7 @@ private:
 	double ReX;			//Reynold's number for x-direction
 	double ReY;			//Reynold's number for y-direction
 	double ReZ;			//Reynold's number for z-direction
+    double Re;          //Reynold's number for velocity magnitude
 	double ReLarge;		//Large Reynold's number, sufficiently on flat part of cp(angle,Re) curve
 	double relaxCp;		//cp relaxation value to ensure smooth convergence [0 - 1]
 	double diskDiameter;	//diameter of probe disk, used in Reynold's number calculation (m)

@@ -13,6 +13,7 @@ SET(CMAKE_INCLUDE_CURRENT_DIR ON)
 # User Options
 OPTION(GUI "Enable Qt Gui" OFF)
 OPTION(MAIN_TEST_WIND "Enable exe run from main file for development" ON)
+OPTION(MAIN_COMPARE "Enable exe run from main file for development" OFF)
 
 # Turn on automatic invocation of the MOC, UIC & RCC
 SET(CMAKE_AUTOMOC ON)
@@ -84,4 +85,15 @@ IF(MAIN_TEST_WIND)
                     src/fluid.cpp
                     src/main.cpp)
 ENDIF(MAIN_TEST_WIND)
+
+IF(MAIN_COMPARE)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src
+                        ${CMAKE_SOURCE_DIR}/include)
+
+    ADD_EXECUTABLE( main_compare
+                    src/air.cpp
+                    src/convert_velocity.cpp
+                    src/fluid.cpp
+                    src/main_compare.cpp)
+ENDIF(MAIN_COMPARE)
 
